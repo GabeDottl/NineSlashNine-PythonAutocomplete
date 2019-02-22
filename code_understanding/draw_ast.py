@@ -52,6 +52,8 @@ class AstDrawer(ast.NodeVisitor):
             c.node(str(child), label=f'({type_name_})')
           c.edge(str(parent), str(child))
     if include_source:
+      # We use '\l' instead of \n for left-justified lines:
+      # http://www.graphviz.org/doc/info/attrs.html#k:escString
       self.graph.node(name=''.join(f'{i}: {line}\l' for i,line in enumerate(lines)), shape='box')
 
 if __name__ == '__main__':
