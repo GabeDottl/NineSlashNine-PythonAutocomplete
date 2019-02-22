@@ -5,13 +5,12 @@ from jedi import debug
 def handle_echo(reader, writer):
     data = yield from reader.read(100)
     color_message = data.decode()
-    # addr = writer.get_extra_info('peername')
-    # haha. This is color_message a textbook security nono...
+    # haha. This method of message-handling is a textbook security nono...
     # "(color, message)"
     color, msg = eval(color_message)
     debug.print_to_stdout(color, msg)
-    # print("Received %r from %r" % (message, addr))
 
+    # addr = writer.get_extra_info('peername')
     # print("Send: %r" % message)
     # writer.write(data)
     # yield from writer.drain()
@@ -20,11 +19,11 @@ def handle_echo(reader, writer):
     # writer.close()
 
 loop = asyncio.get_event_loop()
-coro = asyncio.start_server(handle_echo, '127.0.0.1', 16261, loop=loop)
+coro = asyncio.start_server(handle_echo, 'localhost', 16261, loop=loop)
 server = loop.run_until_complete(coro)
 
 # Serve requests until Ctrl+C is pressed
-print('Serving on {}'.format(server.sockets[0].getsockname()))
+print('Listening for  on {}'.format(server.sockets[0].getsockname()))
 try:
     loop.run_forever()
 except KeyboardInterrupt:
