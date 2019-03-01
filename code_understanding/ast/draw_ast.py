@@ -1,7 +1,11 @@
-'''A simple module for drawing a line-annotated AST drawing.'''
+'''A simple module for drawing a line-annotated AST drawing.
+
+Basic reference:
+https://graphviz.readthedocs.io/en/stable/examples.html
+'''
 import ast
 import graphviz
-from autocomplete.code_understanding.ast_utils import _name_or_id
+from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
 from autocomplete.code_understanding.utils import type_name
 import argparse
 import webbrowser
@@ -44,7 +48,7 @@ class AstDrawer(ast.NodeVisitor):
         c.attr(color='blue')
         print(f'subgraph_name: {subgraph_name}')
         for parent, child in parent_child_pairs:
-          name = _name_or_id(child)
+          name = _name_id_or_arg(child)
           type_name_ = type_name(child)
           if name is not None:
             c.node(str(child), label=f'{name}: ({type_name_})')

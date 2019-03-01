@@ -26,3 +26,5 @@ def get_bucketized_members(obj, out=None):
     elif inspect.ismodule(member):
       out['module'].append(member)
   return out
+
+  
