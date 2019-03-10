@@ -6,12 +6,15 @@ df = module_info.create_dataframe_summary_of_modules(modules)
 utils.display_df_in_browser(df)
 '''
 
-import os
 import importlib
-import sys
-import pandas as pd
 import inspect
+import os
+import pkgutil
+import sys
 from collections import namedtuple
+
+import pandas as pd
+
 
 def get_module_infos_for_path(path, filter_list=None):
   out = []
