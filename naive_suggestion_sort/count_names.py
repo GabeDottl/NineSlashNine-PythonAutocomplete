@@ -8,9 +8,9 @@ import argparse
 import pickle
 from nsn_logging import *
 
-def count_tokens(path, verbose=True):
+def count_names(path, verbose=True):
   filenames = glob(os.path.join(path, '**', '*.py'), recursive=True)
-  word_counts = defaultdict(int)
+  name_counts = defaultdict(int)
   num_filenames = len(filenames)
   info(f'Number of files: {num_filenames}', log=verbose)
   assert num_filenames, f'{num_filenames}'
@@ -25,20 +25,26 @@ def count_tokens(path, verbose=True):
         tokens = tokenize(f.readline)
         for type_, string, start, end, line in tokens:
           if type_ == NAME:
-            word_counts[string] += 1
+            name_counts[string] += 1
     except Exception as e:
       print(e)
       print(f'Failed to process filename: {filename}')
 
   info(f'Prcocessed 100% of files.')
-  return word_counts
+  return name_counts
+
+def read_saved_name_counts(path):
+  with open(path, 'rb') as f:
+    return pickle.load(f)
+
+def save_name_counts(name_counts, path):
+  with open(path, 'wb+') as f:
+    pickle.dump(name_counts, f)
 
 def main(path, output_filename, **kwargs):
-  word_counts = count_tokens(path)
-  word_counts = OrderedDict(sorted(word_counts.items(), key=lambda kv: -kv[1]))
-
-  with open(output_filename, 'wb') as f:
-    pickle.dump(word_counts, f)
+  name_counts = count_names(path)
+  name_counts = OrderedDict(sorted(name_counts.items(), key=lambda kv: -kv[1]))
+  save_name_counts(name_counts, output_filename)
 
 
 
