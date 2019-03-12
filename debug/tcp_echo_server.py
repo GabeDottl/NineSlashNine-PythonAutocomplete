@@ -1,5 +1,6 @@
 import asyncio
 from jedi import debug
+import argparse
 
 @asyncio.coroutine
 def handle_echo(reader, writer):
@@ -18,18 +19,23 @@ def handle_echo(reader, writer):
     # print("Close the client socket")
     # writer.close()
 
-loop = asyncio.get_event_loop()
-coro = asyncio.start_server(handle_echo, 'localhost', 16261, loop=loop)
-server = loop.run_until_complete(coro)
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser()
+  parser.add_argument('address')
+  args = parser.parse_args()
 
-# Serve requests until Ctrl+C is pressed
-print('Listening for  on {}'.format(server.sockets[0].getsockname()))
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    pass
+  loop = asyncio.get_event_loop()
+  coro = asyncio.start_server(handle_echo, args.address, 16261, loop=loop)
+  server = loop.run_until_complete(coro)
 
-# Close the server
-server.close()
-loop.run_until_complete(server.wait_closed())
-loop.close()
+  # Serve requests until Ctrl+C is pressed
+  print('Listening for  on {}'.format(server.sockets[0].getsockname()))
+  try:
+      loop.run_forever()
+  except KeyboardInterrupt:
+      pass
+
+  # Close the server
+  server.close()
+  loop.run_until_complete(server.wait_closed())
+  loop.close()

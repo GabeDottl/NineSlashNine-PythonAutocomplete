@@ -20,6 +20,8 @@ class Foo:
 
   def bar(self):
     zoo = 'function'
+    for _ in range(10):
+      pass
     print(zoo)
     print(zoo)
     print(cookoo)
