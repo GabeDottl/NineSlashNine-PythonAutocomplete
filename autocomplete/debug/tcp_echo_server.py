@@ -5,9 +5,9 @@ import argparse
 @asyncio.coroutine
 def handle_echo(reader, writer):
     data = yield from reader.readline()
-    color = data.decode()
+    color = data.decode()[:-1]
     data = yield from reader.readline()
-    msg = data.decode()
+    msg = data.decode()[:-1]
     # haha. This method of message-handling is a textbook security nono...
     # "(color, message)"
     # color, msg = eval(color_message)
