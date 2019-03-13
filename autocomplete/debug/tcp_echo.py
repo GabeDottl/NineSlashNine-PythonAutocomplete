@@ -30,5 +30,9 @@ def echo(color, msg, address='localhost', *args):
   # color = color.replace('"', "'")
   # msg = str(msg)
   # msg = msg.replace('"', "'")
+  color.replace('\n', '\t')
+  color = color + '\n'
+  msg.replace('\n', '\t')
+  msg = msg +'\n'
 
   loop.run_until_complete(tcp_echo_client(color, msg, loop, address=address))
