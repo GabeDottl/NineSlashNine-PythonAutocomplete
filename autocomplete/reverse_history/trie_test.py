@@ -20,7 +20,7 @@ def test_trie():
   assert value == 'qres'
   assert t.get_frequency(value) == counts[value]
 
-  t.prune_infrequent(2)
+  t.prune_infrequent_copy(2)
 
 if __name__ == '__main__':
   test_trie()

@@ -9,23 +9,35 @@ class Visitor(ast.NodeVisitor):
     self.trie = trie
 
   def visit_Assign(self, node):
-    self.trie.add(astor.to_source(node))
+    code = astor.to_source(node)
+    # print(f'code: {code}')
+    self.trie.add(code)
 
   def visit_Expr(self, node):
-    self.trie.add(astor.to_source(node))
+    code = astor.to_source(node)
+    # print(f'code: {code}')
+    self.trie.add(code)
 
   def visit_Import(self, node):
-    self.trie.add(astor.to_source(node))
+    code = astor.to_source(node)
+    # print(f'code: {code}')
+    self.trie.add(code)
 
   def visit_ImportFrom(self, node):
-    self.trie.add(astor.to_source(node))
+    code = astor.to_source(node)
+    # print(f'code: {code}')
+    self.trie.add(code)
 
   def visit_For(self, node):
-    self.trie.add(astor.to_source(node))
+    code = astor.to_source(node)
+    # print(f'code: {code}')
+    self.trie.add(code)
     self.generic_visit(node)
 
   def visit_FunctionDef(self, node):
-    self.trie.add(astor.to_source(node))
+    code = astor.to_source(node)
+    # print(f'code: {code}')
+    self.trie.add(code)
     self.generic_visit(node)
 
 
@@ -47,8 +59,10 @@ def add_source_to_trie_with_ast(filepath, trie):
 def add_source_tree_to_trie(path, trie):
   filepaths = glob(os.path.join(path, '**', '*py'), recursive=True)
   for filepath in filter(lambda x: not os.path.isdir(x), filepaths):
+    print(filepath)
     try:
       add_source_to_trie_with_ast(filepath, trie)
+      assert trie.root.assert_valid(), filepath
     except SyntaxError:
       pass
     except UnicodeDecodeError:
