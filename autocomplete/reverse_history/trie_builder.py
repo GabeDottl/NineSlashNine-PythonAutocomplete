@@ -46,5 +46,10 @@ def add_source_to_trie_with_ast(filepath, trie):
 
 def add_source_tree_to_trie(path, trie):
   filepaths = glob(os.path.join(path, '**', '*py'), recursive=True)
-  for filepath in filepaths:
-    add_source_to_trie_with_ast(filepath, trie)
+  for filepath in filter(lambda x: not os.path.isdir(x), filepaths):
+    try:
+      add_source_to_trie_with_ast(filepath, trie)
+    except SyntaxError:
+      pass
+    except UnicodeDecodeError:
+      pass

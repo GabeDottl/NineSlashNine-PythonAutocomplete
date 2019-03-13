@@ -6,7 +6,7 @@ import os
 from collections import defaultdict, OrderedDict
 import argparse
 import pickle
-from nsn_logging import *
+from autocomplete.nsn_logging import *
 
 def count_names(path, verbose=True):
   filenames = glob(os.path.join(path, '**', '*.py'), recursive=True)

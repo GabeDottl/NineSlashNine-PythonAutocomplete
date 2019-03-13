@@ -1,1 +1,2 @@
 def suggest(str):
+  pass

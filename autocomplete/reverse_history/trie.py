@@ -69,6 +69,11 @@ class Node:
       chars.append(curr_node.highest_child_char)
     return ''.join(chars)
 
+  def assert_valid(self):
+    assert self not in self.children
+    for child in self.children:
+      child.assert_valid()
+
 class AutocompleteTrie:
 
   def __init__(self):
