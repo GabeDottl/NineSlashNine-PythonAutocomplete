@@ -58,9 +58,10 @@ class ParsoDrawer:
           except AttributeError:
             name = str(child)
           type_name_ = child.type
-          name = name.replace('<', '').replace('>', '')
+          for bad in ['<', '>','[', ']', '(', ')', "'", '\\']:
+            name = name.replace(bad, '')
+            type_name_ = type_name_.replace(bad, '')
           print(name)
-          type_name_ = type_name_.replace('<', '').replace('>', '')
           if name is not None:
             c.node(str(child), label=f'{name}: ({type_name_})')
           else:
