@@ -63,7 +63,7 @@ class ParsoDrawer:
 
 
           type_name_ = child.type
-          for bad in ['@', '<', '>','[', ']', '(', ')', "'", '\\']:
+          for bad in ['@', '<', '>','[', ']', '(', ')', "'",'"', '\\']:
             child_name = child_name.replace(bad, '')
             parent_name = parent_name.replace(bad,'')
             type_name_ = type_name_.replace(bad, '')
