@@ -56,11 +56,13 @@ class ParsoDrawer:
 
           try:
             child_name = child.name.value
-            parent_name = parent.name.value
           except AttributeError:
             child_name = str(type(child))
-            parent_name = str(type(parent))
 
+          try:
+            parent_name = parent.name.value
+          except AttributeError:
+            parent_name = str(type(parent))
 
           type_name_ = child.type
           for bad in ['@', '<', '>','[', ']', '(', ')', "'",'"', '\\']:
