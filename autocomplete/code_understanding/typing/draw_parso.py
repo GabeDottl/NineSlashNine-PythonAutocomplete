@@ -59,6 +59,7 @@ class ParsoDrawer:
             name = str(child)
           type_name_ = child.type
           name = name.replace('<', '').replace('>', '')
+          print(name)
           type_name_ = type_name_.replace('<', '').replace('>', '')
           if name is not None:
             c.node(str(child), label=f'{name}: ({type_name_})')
