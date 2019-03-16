@@ -53,20 +53,25 @@ class ParsoDrawer:
         c.attr(color='blue')
         # print(f'subgraph_name: {subgraph_name}')
         for parent, child in parent_child_pairs:
+
           try:
-            name = child.name.value
+            child_name = child.name.value
+            parent_name = parent.name.value
           except AttributeError:
-            name = str(child)
+            child_name = str(child)
+            parent_name = str(parent)
+
+
           type_name_ = child.type
           for bad in ['<', '>','[', ']', '(', ')', "'", '\\']:
-            name = name.replace(bad, '')
+            child_name = child_name.replace(bad, '')
+            parent_name = parent_name.replace(bad,'')
             type_name_ = type_name_.replace(bad, '')
-          print(name)
-          if name is not None:
-            c.node(str(child), label=f'{name}: ({type_name_})')
+          if child_name is not None:
+            c.node(child_name, label=f'{child_name}: ({type_name_})')
           else:
-            c.node(str(child), label=f'({type_name_})')
-          c.edge(str(parent), str(child))
+            c.node(child_name, label=f'({type_name_})')
+          c.edge(parent_name, child_name)
     if include_source:
       # We use '\l' instead of \n for left-justified lines:
       # http://www.graphviz.org/doc/info/attrs.html#k:escString
