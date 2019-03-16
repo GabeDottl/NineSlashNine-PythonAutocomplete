@@ -3,6 +3,7 @@
 Basic reference:
 https://graphviz.readthedocs.io/en/stable/examples.html
 '''
+import re
 import parso
 import graphviz
 from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
@@ -52,8 +53,11 @@ class ParsoDrawer:
         c.attr(color='blue')
         # print(f'subgraph_name: {subgraph_name}')
         for parent, child in parent_child_pairs:
-          name = _name_id_or_arg(child)
-          type_name_ = type_name(child)
+          try:
+            name = child.name.value
+          except AttributeError:
+            name = str(child)
+          type_name_ = child.type
           if name is not None:
             c.node(str(child), label=f'{name}: ({type_name_})')
           else:
@@ -74,5 +78,5 @@ if __name__ == '__main__':
   drawer = ParsoDrawer()
   drawer.traverse(tree)
   drawer.create_graph(source)
-drawer.graph.render(drawer.graph.filename)
-webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename + '.pdf')
+  drawer.graph.render(drawer.graph.filename)
+  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename + '.pdf')
