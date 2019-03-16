@@ -58,8 +58,8 @@ class ParsoDrawer:
             child_name = child.name.value
             parent_name = parent.name.value
           except AttributeError:
-            child_name = str(child)
-            parent_name = str(parent)
+            child_name = str(type(child))
+            parent_name = str(type(parent))
 
 
           type_name_ = child.type
