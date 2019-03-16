@@ -1,4 +1,4 @@
-import attr
+# import attr
 
 
 class Node:
@@ -38,6 +38,8 @@ class Node:
   def traverse(self, array=False, nodes=None, path=''):
     class LoopException(Exception):
       pass
+
+    char = ''
     try:
       if nodes is None:
         nodes = set()
@@ -51,7 +53,7 @@ class Node:
         for count, arr in child.traverse(array=True, nodes=nodes, path=path + char):
           yield count, [char, child.remainder] + arr if array else ''.join([char, child.remainder] + arr)
     except LoopException as e:
-      raise LoopException(''.join(e.args, char))
+      raise LoopException(''.join(e.args + [char]))
     except RecursionError as e:
       print(path)
       raise e
@@ -160,8 +162,11 @@ class AutocompleteTrie:
 
     curr_node = self.root
     path = []
+
+    line_iter = iter(line)
+    b = ''
+    c = ''
     try:
-      line_iter = iter(line)
       for c in line_iter:
         path.append((c, curr_node))
         # Reset split point in case of exception before natural reset.
