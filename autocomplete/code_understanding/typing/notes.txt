@@ -1,0 +1,22 @@
+# https://docs.python.org/3/reference/grammar.html
+for parso_node:
+  handle_type:
+    # ignore any unnessecary children - keywords, operators
+    if: Ignore conditional, process body
+    func: Reference + Assignment, Change scope, process body
+    class: Reference + Assignment, Change scope, process body
+    module: Reference(__file__) + Assignment, Change scope, process body
+    decorator: ignore
+
+scope_path: [(type, reference),...]
+
+TODO: Handle decorators...
+
+Attribute (implicit or explicit) <- Not temp
+Literal <- Temp
+Func result <- Possibly temp (might be a getter)
+
+Want when processing children, essentially want to make sure the right things
+are on the stack.
+
+With functions, they should be implicitly 'hidden' outside the function though.
