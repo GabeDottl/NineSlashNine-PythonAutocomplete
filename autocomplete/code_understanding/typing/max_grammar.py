@@ -69,4 +69,5 @@ a,b = 1,2
 a += 1
 example = Example()
 a,(example.a, c) = 1,(2,3)
+a = 1 | 2 ^ (3 * 2 + 3**3) >> 2 & 1 # 3, apparently.
 # TODO away & from

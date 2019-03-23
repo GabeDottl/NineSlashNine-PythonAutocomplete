@@ -1,6 +1,25 @@
-import parso
-import attr
+'''The purpose of this module is to infer values and/or types of identifiers.
 
+This is done through some static analysis, performing Good Enough Lazy Typing (TM).
+
+Rather than trying to derive the exact value or type of a variable immediately,
+instead, this creates Expressions which can be lazily evaluated to determine
+the value of a reference - or more generally, what types it might be in the
+current context.
+
+In some cases, such as with parameters, we can't infer types directly. In these
+cases, we may try to infer probable types based on the name of the variable
+and the context.
+
+For example, 'node' is used often in this file. This module knows nothing of
+parso, so its not going to be able to infer that its type is always a parso
+tree Node, but looking at the context in which node parameters are used
+across this file, one can extrapolate that it will likely have members including
+'children', 'type' and sometimes 'name' and 'value' - therefore, we can say
+it's a DuckType with these possible members.
+'''
+import attr
+from autocomplete.code_understanding.typing.utils import *
 
 @attr.s
 class Type:
@@ -8,11 +27,13 @@ class Type:
   is_ambiguous = attr.ib(default=False)
   value = attr.ib(default=None)
 
+@attr.s
+class DuckType:
+  members = attr.ib()
 
 @attr.s
 class TypeOf:
   expr = attr.ib()
-
 
 @attr.s
 class ComplexType:
@@ -22,7 +43,6 @@ class ComplexType:
 
 class UnknownType:
   '''Types that are unknown.'''
-
 
 @attr.s
 class IndexOf:
@@ -37,6 +57,96 @@ class ResultOf:
     self.args = args
     self.kwargs = kwargs
 
+class Expression:
+  def evaluate(self): # abstract
+    raise NotImplementedError()
+
+
+@attr.s
+class LiteralExpression(Expression):
+  literal = attr.ib()
+
+  def evaluate(self):
+    return self.literal
+
+@attr.s
+class CallExpression(Expression):
+  function_reference = attr.ib()
+
+  def evaluate(self):
+    assert len(self.function_reference)
+    function_assignment = self.function_reference.assignments[-1]
+    assert isinstance(function_assignment.value, Function), function_assignment
+    return function_assignment.value.returns
+
+@attr.s
+class ReferenceExpression(Expression):
+  reference = attr.ib()
+  def evaluate(self):
+    if len(self.reference.assignments) == 0:
+      raise ValueError()
+    elif len(self.reference.assignments) == 1:
+      return self.reference.assignments[0].value.evaluate()
+    else:
+      # TODO: Need to do more thorough evaluation of which assignment to use.
+      raise NotImplementedError()
+
+@attr.s
+class IfExpression(Expression):
+  positive_expression = attr.ib()
+  conditional_expression = attr.ib()
+  negative_expression = attr.ib()
+
+  def evaluate(self):
+    conditional = self.conditional_expression.evaluate()
+    if not conditional:
+      return self.negative_expression.evaluate()
+    else:
+      if conditional.is_ambiguous():
+        return OneOf([self.positive_expression.evaluate(), self.negative_expression.evaluate()])
+      else:
+        return self.positive_expression.evaluate()
+
+@attr.s
+class ForExpression(Expression):
+  generator_expression = attr.ib()
+  conditional_expression = attr.ib()
+  iterable_expression = attr.ib()
+
+  def evaluate(self):
+    return generator_expression.evaluate()
+
+@attr.s
+class OperatorExpression(Expression):
+  left = attr.ib()
+  operator = attr.ib()
+  right = attr.ib()
+
+  def evaluate(self):
+    # expr: xor_expr ('|' xor_expr)*
+    # xor_expr: and_expr ('^' and_expr)*
+    # and_expr: shift_expr ('&' shift_expr)*
+    # shift_expr: arith_expr (('<<'|'>>') arith_expr)*
+    # arith_expr: term (('+'|'-') term)*
+    # term: factor (('*'|'@'|'/'|'%'|'//') factor)*
+    # factor: ('+'|'-'|'~') factor | power
+    # power: atom_expr ['**' factor]
+    # TODO: handle options...
+    if self.operator == '+':
+      return self.left.evaluate() + self.right.evaluate()
+    return
+
+@attr.s
+class Function:
+  returns = attr.ib()
+
+class Klass:
+  name = attr.ib()
+  members = attr.ib()
+
+class Instance:
+  klass = attr.ib()
+
 @attr.s
 class ImportOf:
   path= attr.ib()
@@ -46,19 +156,6 @@ class ImportFrom:
   path= attr.ib(kw_only=True)
   name = attr.ib(kw_only=True)
   as_name = attr.ib(kw_only=True)
-# @attr.s
-# class TypeOf:
-#   name = attr.ib()
-
-# @attr.s
-# class InstanceOf:
-#   type = attr.ib()
-#
-# class :
-#   '''An  is either a reference referring to value or a value itself.
-#   This is the base-class of Reference and TempValue.
-#   '''
-
 
 @attr.s
 class Reference:
@@ -66,8 +163,10 @@ class Reference:
   scope = attr.ib(kw_only=True)
   # unknown = attr.ib(False)
   temp = attr.ib(False, kw_only=True)
-  assignments = []
 
+  def __attrs_post_init__(self):
+    # Need this here lest all references share a single list
+    self.assignments = []
 
   def get_complete_name(self):
     out = []
@@ -84,7 +183,6 @@ class IndexReference:
   index = attr.ib(kw_only=True)
   assignments = []
 
-
 @attr.s
 class ReferenceAssignment:
   reference = attr.ib(kw_only=True)
@@ -92,27 +190,9 @@ class ReferenceAssignment:
   value = attr.ib(kw_only=True)
 
 
-# class TempReference:
-# name = attr.ib()
-# value =
-
-# @attr.s
-# class TempValue():
-#   pos = attr.ib()
-#   type = attr.ib()
-
-# class NotReferenceDefinitionException(Exception):
-#   '''Exception raised when a node is not defining an reference.'''
-
-# def eval_order(node):
-#   if node.type == 'simple_stmt':
-#     return 0
-#   return 1
-
-
 class TypeInferencer:
   references_dict = {}
-  current_scope_path = []
+  current_scope_path = [None]
 
   def reference_exists(self, name):
     return name in self.references_dict
@@ -130,7 +210,9 @@ class TypeInferencer:
     # which are very generic.
     if node.type == 'newline' or node.type == 'endmarker' or node.type == 'keyword':
       return
-    if node.type == 'import_name':
+    elif node.type == 'file_input' or node.type == 'suite':
+      for child in node.children: self.typify_tree(child)
+    elif node.type == 'import_name':
       self.handle_import_name(node)
     elif node.type == 'import_from':
       self.handle_import_from(node)
@@ -280,8 +362,8 @@ class TypeInferencer:
     # Don't really need to worry about things like *args, **kwargs, etc. here.
     for param_node in node.children[1:-1]: # skip operators on either end.
       assert param_node.type == 'param', (param_node.type, param_node.get_code())
-      reference = Reference(param.name.value, scope=self.current_scope_path[-1])
-      self.add_reference(param.name.value, reference)
+      reference = Reference(name=param_node.name.value, scope=self.current_scope_path[-1])
+      self.add_reference(param_node.name.value, reference)
 
   def handle_suite(self, node):
     assert node.type == 'suite', node_info(node)
@@ -299,22 +381,32 @@ class TypeInferencer:
     # So, we need to handle essentially 1 or more things on the left and right
     # and possibly ignore a type hint in the assignment.
     testlist_star_expr = node.children[0]
-    # if testlist_star_expr.type == 'name':
-    #   names = (testlist_star_expr.value,)
-    # else:
-    names = self.extract_references_from_testlist_star_expr(testlist_star_expr)
-    if len(node.children) == 2:
+    references = self.references_from_node(testlist_star_expr)
+    if len(node.children) == 2: # a += b - augmented assignment.
       annasign = node.children[1]
       assert annasign.type == 'annassign', node_info(node)
       results = annasign.children[-1]
     else:
       assert len(node.children) == 3, node_info(node)
       results = node.children[-1]
-    results = self.extract_values(results)
-    # 1 or more things that we
+    results = self.expression_from_node(results)
+    self.create_assignments(references, results, node.start_pos)
 
+  def create_assignments(self, references, results, pos):
+    # TODO: ReferenceTuple?
+    if not isinstance(references, (tuple, list)):
+      assignment = ReferenceAssignment(reference=references, value=results, pos=pos)
+      references.assignments.append(assignment)
+    else:
+      if isinstance(results, (tuple, list)) and len(references) == len(results):
+        for reference, result in zip(references, results):
+          self.create_assignments(reference, result)
+      else:
+        assert not isinstance(results, (tuple, list)), f'Incompatible shapes: {references}, {results}'
+        for i, reference in enumerate(references):
+          self.create_assignments(reference, IndexOf(results, i))
 
-  def extract_references_from_testlist_star_expr(self, node):
+  def references_from_node(self, node):
     if node.type == 'name': # Simplest case - a=1
       if self.reference_exists(node.value):
         return self.find_reference(node.value)
@@ -325,26 +417,39 @@ class TypeInferencer:
     elif node.type == 'testlist_star_expr':
       out = []
       for child in node.children:
-        out.append(self.extract_references_from_testlist_star_expr(child))
+        out.append(self.references_from_node(child))
       return out
     elif node.type == 'atom':
       child = node.children[0]
       if child.type == 'operator':
         assert len(node.children) == 3, node_info(node)
         if child.value == '(' or child.value == '[':
-          return self.extract_references_from_testlist_star_expr(child.children[1])
+          return self.references_from_node(node.children[1])
         else:
           assert False, node_info(child)
       else:
-        assert child.type == 'name', node_info(child)
-        return self.extract_references_from_testlist_star_expr(child)
-    elif child.type == 'atom_expr':
+        assert len(atom.children) == 1 and child.type == 'name', node_info(child)
+        return self.references_from_node(child)
+    elif node.type == 'atom_expr':
+      return self.extract_reference_from_atom_expr(node)
+    elif node.type == 'testlist_comp':
+      return self.extract_references_from_testlist_comp(node)
+    else:
+      assert False, node_info(node)
 
-
-
-
-    # atom, testlist_comp, atom_expr, trailer, name
-    pass
+  def extract_references_from_testlist_comp(self, node):
+    # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
+    if len(node.children) == 2 and node.children[1].type == 'comp_for': # expr(x) for x in b
+      assert False, ('Can\'t have comp_for references - only expressions.', node_info(node))
+      # return self.extract_references_from_comp_for(test, comp_for)
+    else: # expr(x), expr(b), ...,
+      out = []
+      for child in node.children:
+        if child.type == 'operator':
+          assert child.value == ','
+          continue
+        out.append(self.references_from_node(child))
+      return out
 
   def extract_reference_from_atom_expr(self, node):
     # atom_expr: ['await'] atom trailer*
@@ -389,12 +494,53 @@ class TypeInferencer:
       new_reference = Reference(name=previous_name, scope=last_reference)
 
 
-  def extract_values(self, node):
-    pass
+
+
+  def expression_from_node(self, node):
+    if node.type == 'number':
+      return LiteralExpression(num(node.value))
+    elif node.type == 'string':
+      return LiteralExpression(node.value[1:-1]) # Strip surrounding quotes.
+    elif node.type == 'keyword':
+      return LiteralExpression(keyword_eval(node.value))
+    elif node.type == 'name':
+      reference = self.find_reference(node.value)
+      return ReferenceExpression(reference)
+    elif node.type == 'arith_expr':
+      return self.expression_from_arith_expr(node)
+    else:
+      assert False, node_info(node)
+
+  def expression_from_arith_expr(self, node):
+    assert len(node.children) == 3, node_info(node)
+    left = self.expression_from_node(node.children[0])
+    right = self.expression_from_node(node.children[2])
+    return OperatorExpression(left=left, operator=node.children[1].value, right=right)
+
+
 
   def handle_for_stmt(self, node):
     for child in node.children:
       pass
+
+  def handle_if_stmt(self, node):
+    # # first child is 'if' keyword, next is conditional.
+    # conditional = node.children[1]
+    # # Next is ':', followed by some statement.
+    # self.typify_tree(node.children[3])
+    # if len(node.chilren) > 4:
+    #   # elifs, else...
+    iterator = iter(node.children)
+    for child in iterator:
+      try:
+        if child.type == 'keyword':
+          n = next(iterator) # Conditional expression or an operator.
+          if n.type != 'operator': # if some conditional expression
+            next(iterator) # Skip pass the operator
+        else:
+          self.typify_tree(child)
+      except StopIteration:
+        pass
 
   def handle_while_stmt(self, node):
     for child in node.children:
@@ -408,6 +554,14 @@ class TypeInferencer:
     for child in node.children:
       pass
 
+  # def expression_from_node_from_comp_for(self, expr, node):
+  #   # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
+  #   # comp_for: ['async'] sync_comp_for
+  #   # TODO: this.
+  #   reference = Reference(name=expr.to_code(), scope=None)
+  #   reference.assignments.append(ReferenceAssignment(reference=reference, value=node.to_code()))
+  #   self.add_reference(reference)
+  #   return reference
 
   def _create_reference_and_assignment(self, node):
     reference = Reference(name=node.name.value, scope=self.current_scope_path[-1])
@@ -418,11 +572,9 @@ class TypeInferencer:
     return reference
 
   def insert_name_types(self, node):
-    # print(node)
     if node.type == 'classdef' or node.type == 'funcdef':
       pass
     elif node.type == 'expr_stmt' and children_contains_operator(node, '='):
-      # print(node)
       left = node.children[0]
       right = node.children[2]
       results = eval_type(right)
@@ -465,10 +617,6 @@ class TypeInferencer:
       pass
     return out
 
-  # def temp_name(self,node):
-  #   return f'{node.start_pos}: {node.get_code()}'
-
-
 
   def node_to_reference_or_value(self, node):
     if hasattr(node, 'name'):
@@ -489,42 +637,3 @@ class TypeInferencer:
     if node.type == 'number' or node.type == 'str':
       return Type(node.type)
     return ComplexType(node.get_code())
-
-
-def children_contains_operator(node, operator_str):
-  for child in node.children:
-    if child.type == 'operator' and child.value == operator_str:
-      return True
-  return False
-
-
-def path_to_name(node, name):
-  try:
-    if node.value == name:
-      return (node,)
-  except AttributeError:
-    pass
-  try:
-    for child in node.children:
-      x = path_to_name(child, name)
-      if x is not None:
-        return (node, *x)
-  except AttributeError:
-    pass
-  return None
-
-def node_info(node):
-  return (node.type, node.get_code())
-
-
-def extract_nodes_of_type(node, type_, out=None):
-  if out is None:
-    out = []
-  if node.type == type_:
-    out.append(node)
-  try:
-    for child in node.children:
-      extract_nodes_of_type(child, type_, out)
-  except AttributeError:
-    pass
-  return out

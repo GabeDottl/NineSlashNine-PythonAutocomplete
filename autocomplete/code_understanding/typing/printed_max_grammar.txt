@@ -581,4 +581,34 @@ file_input
             number
           operator
     newline
+  simple_stmt
+    expr_stmt
+      name
+      operator
+      expr
+        number
+        operator
+        xor_expr
+          number
+          operator
+          and_expr
+            shift_expr
+              atom
+                operator
+                arith_expr
+                  term
+                    number
+                    operator
+                    number
+                  operator
+                  power
+                    number
+                    operator
+                    number
+                operator
+              operator
+              number
+            operator
+            number
+    newline
   endmarker
