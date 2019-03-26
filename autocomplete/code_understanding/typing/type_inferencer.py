@@ -21,189 +21,9 @@ it's a DuckType with these possible members.
 import attr
 from autocomplete.code_understanding.typing.utils import *
 
-@attr.s
-class Type:
-  type_ = attr.ib()
-  is_ambiguous = attr.ib(default=False)
-  value = attr.ib(default=None)
-
-@attr.s
-class DuckType:
-  members = attr.ib()
-
-@attr.s
-class TypeOf:
-  expr = attr.ib()
-
-@attr.s
-class ComplexType:
-  '''Class for types that are too complex to extrapolate.'''
-  code = attr.ib()
-
-
-class UnknownType:
-  '''Types that are unknown.'''
-
-@attr.s
-class IndexOf:
-  array = attr.ib()
-  index = attr.ib()
-
-
-class ResultOf:
-
-  def __init__(self, call, *args, **kwargs):
-    self.call = call
-    self.args = args
-    self.kwargs = kwargs
-
-class Expression:
-  def evaluate(self): # abstract
-    raise NotImplementedError()
-
-
-@attr.s
-class LiteralExpression(Expression):
-  literal = attr.ib()
-
-  def evaluate(self):
-    return self.literal
-
-@attr.s
-class CallExpression(Expression):
-  function_reference = attr.ib()
-
-  def evaluate(self):
-    assert len(self.function_reference)
-    function_assignment = self.function_reference.assignments[-1]
-    assert isinstance(function_assignment.value, Function), function_assignment
-    return function_assignment.value.returns
-
-@attr.s
-class ReferenceExpression(Expression):
-  reference = attr.ib()
-  def evaluate(self):
-    if len(self.reference.assignments) == 0:
-      raise ValueError()
-    elif len(self.reference.assignments) == 1:
-      return self.reference.assignments[0].value.evaluate()
-    else:
-      # TODO: Need to do more thorough evaluation of which assignment to use.
-      raise NotImplementedError()
-
-@attr.s
-class IfExpression(Expression):
-  positive_expression = attr.ib()
-  conditional_expression = attr.ib()
-  negative_expression = attr.ib()
-
-  def evaluate(self):
-    conditional = self.conditional_expression.evaluate()
-    if not conditional:
-      return self.negative_expression.evaluate()
-    else:
-      if conditional.is_ambiguous():
-        return OneOf([self.positive_expression.evaluate(), self.negative_expression.evaluate()])
-      else:
-        return self.positive_expression.evaluate()
-
-@attr.s
-class ForExpression(Expression):
-  generator_expression = attr.ib()
-  conditional_expression = attr.ib()
-  iterable_expression = attr.ib()
-
-  def evaluate(self):
-    return generator_expression.evaluate()
-
-@attr.s
-class OperatorExpression(Expression):
-  left = attr.ib()
-  operator = attr.ib()
-  right = attr.ib()
-
-  def evaluate(self):
-    # expr: xor_expr ('|' xor_expr)*
-    # xor_expr: and_expr ('^' and_expr)*
-    # and_expr: shift_expr ('&' shift_expr)*
-    # shift_expr: arith_expr (('<<'|'>>') arith_expr)*
-    # arith_expr: term (('+'|'-') term)*
-    # term: factor (('*'|'@'|'/'|'%'|'//') factor)*
-    # factor: ('+'|'-'|'~') factor | power
-    # power: atom_expr ['**' factor]
-    # TODO: handle options...
-    if self.operator == '+':
-      return self.left.evaluate() + self.right.evaluate()
-    return
-
-@attr.s
-class Function:
-  returns = attr.ib()
-
-class Klass:
-  name = attr.ib()
-  members = attr.ib()
-
-class Instance:
-  klass = attr.ib()
-
-@attr.s
-class ImportOf:
-  path= attr.ib()
-
-@attr.s
-class ImportFrom:
-  path= attr.ib(kw_only=True)
-  name = attr.ib(kw_only=True)
-  as_name = attr.ib(kw_only=True)
-
-@attr.s
-class Reference:
-  name = attr.ib(kw_only=True)
-  scope = attr.ib(kw_only=True)
-  # unknown = attr.ib(False)
-  temp = attr.ib(False, kw_only=True)
-
-  def __attrs_post_init__(self):
-    # Need this here lest all references share a single list
-    self.assignments = []
-
-  def get_complete_name(self):
-    out = []
-    scope = self.scope
-    while scope:
-      out.insert(0, scope.name)
-      scope = scope.scope
-    out.append(self.name)
-    return ''.join(out)
-
-@attr.s
-class IndexReference:
-  source_reference = attr.ib(kw_only=True)
-  index = attr.ib(kw_only=True)
-  assignments = []
-
-@attr.s
-class ReferenceAssignment:
-  reference = attr.ib(kw_only=True)
-  pos = attr.ib(kw_only=True)
-  value = attr.ib(kw_only=True)
 
 
 class TypeInferencer:
-  references_dict = {}
-  current_scope_path = [None]
-
-  def reference_exists(self, name):
-    return name in self.references_dict
-
-  def find_reference(self, name):
-    # TODO: Scoping!
-    return self.references_dict[name]
-
-  def add_reference(self, name, reference):
-    # TODO: Scoping!
-    self.references_dict[name] = reference
 
   def typify_tree(self, node):
     # Here, we essentially handle the higher-level nodes we might encounter
@@ -374,7 +194,7 @@ class TypeInferencer:
     for child in node.children:
       self.typify_tree(child)
 
-  def handle_expr_stmt(self, node):
+  def statement_from_expr_stmt(node):
     # Essentially, these are assignment expressions and can take a few forms:
     # a = b, a: List[type] = [...]
     # a,b = 1,2 or a,b = foo()
@@ -385,35 +205,19 @@ class TypeInferencer:
     if len(node.children) == 2: # a += b - augmented assignment.
       annasign = node.children[1]
       assert annasign.type == 'annassign', node_info(node)
-      results = annasign.children[-1]
+      operator =annasign.children[-2]
+      assert operator.type == 'operator', node_info(node)
+      value_node = annasign.children[-1]
     else:
       assert len(node.children) == 3, node_info(node)
-      results = node.children[-1]
-    results = self.expression_from_node(results)
-    self.create_assignments(references, results, node.start_pos)
-
-  def create_assignments(self, references, results, pos):
-    # TODO: ReferenceTuple?
-    if not isinstance(references, (tuple, list)):
-      assignment = ReferenceAssignment(reference=references, value=results, pos=pos)
-      references.assignments.append(assignment)
-    else:
-      if isinstance(results, (tuple, list)) and len(references) == len(results):
-        for reference, result in zip(references, results):
-          self.create_assignments(reference, result)
-      else:
-        assert not isinstance(results, (tuple, list)), f'Incompatible shapes: {references}, {results}'
-        for i, reference in enumerate(references):
-          self.create_assignments(reference, IndexOf(results, i))
+      operator = node.children[1]
+      value_node = node.children[-1]
+    result_expression = self.expression_from_node(value_node)
+    return AssignmentExpressionStatement(references, operator.value, result_expression)
 
   def references_from_node(self, node):
     if node.type == 'name': # Simplest case - a=1
-      if self.reference_exists(node.value):
-        return self.find_reference(node.value)
-      else:
-        reference = Reference(name=node.value, scope=self.current_scope_path[-1])
-        self.add_reference(node.value, reference)
-        return reference
+      return node.value
     elif node.type == 'testlist_star_expr':
       out = []
       for child in node.children:

@@ -129,10 +129,15 @@ file_input
               number
           newline
         decorated
-          decorator
-            operator
-            name
-            newline
+          decorators
+            decorator
+              operator
+              name
+              newline
+            decorator
+              operator
+              name
+              newline
           funcdef
             keyword
             name
@@ -362,11 +367,6 @@ file_input
       name
       operator
       number
-    newline
-  simple_stmt
-    del_stmt
-      keyword
-      name
     newline
   funcdef
     keyword

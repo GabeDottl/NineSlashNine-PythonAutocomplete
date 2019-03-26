@@ -12,6 +12,7 @@ import glob.glob as blob, django as dj, a.b.c, numpy
 class Example(Object):
   a:List[int] = 0
   @wraps
+  @wraps2
   def __init__(self, kw_arg=1, *args, **kwargs):
     b = 1
   async def async_func(self, kw_arg=1, *args, **kwargs):
@@ -43,7 +44,6 @@ for _ in range(10):
 
 d += 1
 a = 0
-del a
 
 def gen():
   while True:
