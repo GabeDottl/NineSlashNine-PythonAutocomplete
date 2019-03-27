@@ -194,27 +194,6 @@ class TypeInferencer:
     for child in node.children:
       self.typify_tree(child)
 
-  def statement_from_expr_stmt(node):
-    # Essentially, these are assignment expressions and can take a few forms:
-    # a = b, a: List[type] = [...]
-    # a,b = 1,2 or a,b = foo()
-    # So, we need to handle essentially 1 or more things on the left and right
-    # and possibly ignore a type hint in the assignment.
-    testlist_star_expr = node.children[0]
-    references = self.references_from_node(testlist_star_expr)
-    if len(node.children) == 2: # a += b - augmented assignment.
-      annasign = node.children[1]
-      assert annasign.type == 'annassign', node_info(node)
-      operator =annasign.children[-2]
-      assert operator.type == 'operator', node_info(node)
-      value_node = annasign.children[-1]
-    else:
-      assert len(node.children) == 3, node_info(node)
-      operator = node.children[1]
-      value_node = node.children[-1]
-    result_expression = self.expression_from_node(value_node)
-    return AssignmentExpressionStatement(references, operator.value, result_expression)
-
   def references_from_node(self, node):
     if node.type == 'name': # Simplest case - a=1
       return node.value
@@ -224,6 +203,10 @@ class TypeInferencer:
         out.append(self.references_from_node(child))
       return out
     elif node.type == 'atom':
+      # atom: ('(' [yield_expr|testlist_comp] ')' |
+      #       '[' [testlist_comp] ']' |
+      #       '{' [dictorsetmaker] '}' |
+      #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
       child = node.children[0]
       if child.type == 'operator':
         assert len(node.children) == 3, node_info(node)

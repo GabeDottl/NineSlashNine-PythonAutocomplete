@@ -1,9 +1,10 @@
 # from __future__ import annotations
 from functools import wraps
+
 import attr
+
 from autocomplete.code_understanding.typing.classes import *
 from autocomplete.code_understanding.typing.utils import *
-
 
 # Each statement is a node, each linear group is a subgraph?
 #
@@ -24,12 +25,32 @@ from autocomplete.code_understanding.typing.utils import *
 # DFS down tree to node to determine values
 # - Memoize where possible + shortcut
 
+def run_graph(graph, frame=None):
+  # TODO: Create proper.
+  if not frame:
+    frame = Frame(globals={}, locals={})
+  graph.process(frame, None)
+  return frame
+
+def condense_graph(graph):
+  if not hasattr(graph, 'children'):
+    return graph
+
+  children = [condense_graph(child) for child in graph.children]
+  children = list(filter(lambda x: not isinstance(x, NoOpCfgNode), children))
+  if len(children) == 0:
+    return NoOpCfgNode()
+  elif len(children) == 1:
+    return children[0]
+  else:
+    return GroupCFGNode(children)
+
 
 class ControlFlowGraph:
   def create_cfg_node(self, node):
     '''Create handles all nodes which should create their own CFGNode - i.e.
     nodes that contain a complete statement/definition or control flow.'''
-    getattr(self, f'create_cfg_node_for__{node.type}')(node)
+    return getattr(self, f'create_cfg_node_for_{node.type}')(node)
 
 
   def create_cfg_node_for_single_input(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
@@ -41,8 +62,10 @@ class ControlFlowGraph:
   def create_cfg_node_for_suite(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
 
   # Noop nodes for our purposes.
-  def create_cfg_node_for_del_stmt(self, node): return StmtCFGNode([])
-  def create_cfg_node_for_pass(self, node): return StmtCFGNode([])
+  def create_cfg_node_for_del_stmt(self, node): return NoOpCfgNode()
+  def create_cfg_node_for_pass(self, node): return NoOpCfgNode()
+  def create_cfg_node_for_newline(self, node): return NoOpCfgNode()
+  def create_cfg_node_for_endmarker(self, node): return NoOpCfgNode()
 
   def create_cfg_node_for_decorated(self, node):
     # TODO: Handle first child decorator or decorators.
@@ -64,8 +87,9 @@ class ControlFlowGraph:
     return FuncCFGNode(children)
 
   def create_cfg_node_for_expr_stmt(self, node):
-    statment = statement_from_expr_stmt(node)
-    return StmtCFGNode(statment)
+    statement = statement_from_expr_stmt(node)
+    print(f'Creating StmtCFGNode for {node.get_code()}')
+    return StmtCFGNode(statement, node.get_code())
 
   def create_cfg_node_for_flow_stmt(self, node): print(f'Skipping {node.type}')
   def create_cfg_node_for_break_stmt(self, node): print(f'Skipping {node.type}')
