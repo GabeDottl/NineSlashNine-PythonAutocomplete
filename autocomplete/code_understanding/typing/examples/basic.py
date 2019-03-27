@@ -1,8 +1,8 @@
 a = 1
 b = a + 2
-# if True:
-#   b = 'asdf'
-# else: b = True
+if True:
+  b = 'asdf'
+else: b = True
 #
 # def foo():
 #   global b

@@ -82,6 +82,9 @@ class ControlFlowGraph:
   # augassign is treated as a regular assignment with a special operator (e.g. +=)
   # def create_cfg_node_for_augassign(self, node): print(f'Skipping {node.type}')
 
+  def create_cfg_node_for_if_stmt(self, node):
+    
+
   def create_cfg_node_for_funcdef(self, node):
     children = [self.create_cfg_node(child) for child in node.children]
     return FuncCFGNode(children)
@@ -105,7 +108,7 @@ class ControlFlowGraph:
   def create_cfg_node_for_assert_stmt(self, node): print(f'Skipping {node.type}')
   def create_cfg_node_for_compound_stmt(self, node): print(f'Skipping {node.type}')
   def create_cfg_node_for_async_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_if_stmt(self, node): print(f'Skipping {node.type}')
+
   def create_cfg_node_for_while_stmt(self, node): print(f'Skipping {node.type}')
   def create_cfg_node_for_for_stmt(self, node): print(f'Skipping {node.type}')
   def create_cfg_node_for_try_stmt(self, node): print(f'Skipping {node.type}')
