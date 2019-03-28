@@ -46,11 +46,15 @@ def condense_graph(graph):
     return GroupCFGNode(children)
 
 
-class ControlFlowGraph:
+class ControlFlowGraphBuilder:
   def create_cfg_node(self, node):
     '''Create handles all nodes which should create their own CFGNode - i.e.
     nodes that contain a complete statement/definition or control flow.'''
-    return getattr(self, f'create_cfg_node_for_{node.type}')(node)
+    try:
+      return getattr(self, f'create_cfg_node_for_{node.type}')(node)
+    except AttributeError as e:
+      print(node_info(node))
+      raise e
 
 
   def create_cfg_node_for_single_input(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
@@ -63,6 +67,11 @@ class ControlFlowGraph:
 
   # Noop nodes for our purposes.
   def create_cfg_node_for_del_stmt(self, node): return NoOpCfgNode()
+  def create_cfg_node_for_keyword(self, node):
+    if node.value == 'pass':
+      return NoOpCfgNode()
+    else:
+      assert False, node_info(node)
   def create_cfg_node_for_pass(self, node): return NoOpCfgNode()
   def create_cfg_node_for_newline(self, node): return NoOpCfgNode()
   def create_cfg_node_for_endmarker(self, node): return NoOpCfgNode()
@@ -83,7 +92,8 @@ class ControlFlowGraph:
   # def create_cfg_node_for_augassign(self, node): print(f'Skipping {node.type}')
 
   def create_cfg_node_for_if_stmt(self, node):
-    
+    return IfCFGNode(create_expression_node_tuples_from_if_stmt(self, node))
+
 
   def create_cfg_node_for_funcdef(self, node):
     children = [self.create_cfg_node(child) for child in node.children]
@@ -118,6 +128,8 @@ class ControlFlowGraph:
 
 
   def create_cfg_node_for_classdef(self, node): print(f'Skipping {node.type}')
+
+
   # def process_parameters(self, node): print(f'Skipping {node.type}')
   # def process_typedargslist(self, node): print(f'Skipping {node.type}')
   # def process_tfpdef(self, node): print(f'Skipping {node.type}')

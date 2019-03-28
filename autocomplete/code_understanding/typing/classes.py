@@ -1,7 +1,9 @@
 from itertools import chain
-from typing import List, Set
+from typing import Dict, List, Set
 
 import attr
+
+from autocomplete.nsn_logging import *
 
 # @attr.s
 # class Type:
@@ -58,6 +60,7 @@ class FuzzyValue:
   _values: List = attr.ib()  # Tuple of possible values
   # is_ambiguous = attr.ib()
   _types: Set = attr.ib(factory=set)  # Tuple of possible types
+  _attributes: Dict = attr.ib(factory=dict)
 
   # TODO: unexecuted_expressions?
 
@@ -86,6 +89,24 @@ class FuzzyValue:
     return (any(self._values) and not all(self._values) and
             len(self._values) > 0)
 
+  # def assign(self, fv: FuzzyValue):
+  #   self._values = fv._values
+  #   self._types = fv._types
+  #   self._attributes = fv._attributes
+
+  def getattribute(self, name):
+    # TODO Check _values
+    if name in self._attributes:
+      return self._attributes[name]
+    for val in self._values:
+      if hasattr(val, name):
+        return val.__getattribute__(name)
+    info(f'Failed to find attribute {name}')
+    return FuzzyValue([])
+
+  def setattribute(self, name, value):
+    self._attributes[name] = value
+
   def __add__(self, other):
     try:
       return FuzzyValue([self.value() + other.value()])
@@ -102,7 +123,6 @@ class FuzzyValue:
         types.append(fuzzy_types(v))
       return FuzzyValue(values, types)
 
-
   def __getitem__(self, index):
     if self.has_single_value():
       if hasattr(self.value(), '__getitem__'):
@@ -114,11 +134,13 @@ class FuzzyValue:
 def literal_to_fuzzy(value):
   return FuzzyValue([value])
 
+
 def fuzzy_types(val):
   if not isinstance(val, FuzzyValue):
     return (type(val),)
   else:
     return val.get_possible_types()
+
 
 none_fuzzy_value = literal_to_fuzzy(None)
 unknown_fuzzy_value = FuzzyValue(tuple())
@@ -147,6 +169,15 @@ class LiteralExpression(Expression):
 
 
 @attr.s
+class TupleExpression(Expression):
+  expressions = attr.ib()
+
+  def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
+    return FuzzyValue(
+        [tuple(e.evaluate(curr_frame, prev_frame) for e in self.expressions)])
+
+
+@attr.s
 class CallExpression(Expression):
   function_reference = attr.ib()
   args = attr.ib(factory=list)
@@ -161,11 +192,31 @@ class CallExpression(Expression):
 
 
 @attr.s
-class ReferenceExpression(Expression):
-  name = attr.ib()
+class AttributeExpression(Expression):
+  base_expression = attr.ib()
+  attribute = attr.ib()
 
   def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
-    return curr_frame.get_assignment(self.name)
+    value = self.base_expression.evaluate(curr_frame, prev_frame)
+    return value.__getattribute__(self.attribute)
+
+
+@attr.s
+class SubscriptExpression(Expression):
+  base_expression = attr.ib()
+  subscript_list = attr.ib()
+
+  def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
+    value = self.base_expression.evaluate(curr_frame, prev_frame)
+    return value[tuple(e.evaluate() for e in self.subscript_list)]
+
+
+@attr.s
+class ReferenceExpression(Expression):
+  reference = attr.ib()
+
+  def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
+    return curr_frame.get_assignment(self.reference)
 
 
 @attr.s
@@ -217,7 +268,7 @@ class OperatorExpression(Expression):
     if self.operator == '+':
       return self.left.evaluate(curr_frame, prev_frame) + self.right.evaluate(
           curr_frame, prev_frame)
-    return
+    assert False, f'Cannot handle {self.operator} yet.'
 
 
 @attr.s
@@ -229,13 +280,18 @@ class AssignmentExpressionStatement:  # Looks like an Expression, but not techni
   def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame, prev_frame)
-    print(f'result: {result}')
-    print(f'self.right_expression: {self.right_expression}')
+    info(f'result: {result}')
+    info(f'self.right_expression: {self.right_expression}')
     if len(self.left_references) == 1:
       curr_frame[self.left_references[0]] = result
-    for i, reference in enumerate(self.left_references):
-      # TODO: Handle this properly...
-      curr_frame[reference] = result[i]
+      info(f'result: {result}')
+      info(
+          f'curr_frame[self.left_references[0]]: {curr_frame[self.left_references[0]]}'
+      )
+    else:
+      for i, reference in enumerate(self.left_references):
+        # TODO: Handle this properly...
+        curr_frame[reference] = result[i]
 
 
 @attr.s
@@ -486,7 +542,7 @@ class IfCFGNode(CFGNode):
 
   def process(self, curr_frame, prev_frame):
     for expression, node in self.expression_node_tuples:
-      result = expression.run(curr_frame, prev_frame)
+      result = expression.evaluate(curr_frame, prev_frame)
       if result.has_single_value() and result.value():
         # Expression is definitely true - evaluate and stop here.
         node.process(curr_frame, prev_frame)
@@ -535,16 +591,6 @@ class FuncCFGNode(CFGNode):
 
   def __str__(self):
     return ''.join([str(child) for child in self.children])
-
-
-@attr.s
-class IfCFGNode(CFGNode):
-
-  def __attrs_post_init__(self):
-    self.children = []
-
-  def id(self):
-    return self.__hash__()
 
 
 def is_linear_collection(type_str):

@@ -327,24 +327,7 @@ class TypeInferencer:
     for child in node.children:
       pass
 
-  def handle_if_stmt(self, node):
-    # # first child is 'if' keyword, next is conditional.
-    # conditional = node.children[1]
-    # # Next is ':', followed by some statement.
-    # self.typify_tree(node.children[3])
-    # if len(node.chilren) > 4:
-    #   # elifs, else...
-    iterator = iter(node.children)
-    for child in iterator:
-      try:
-        if child.type == 'keyword':
-          n = next(iterator)  # Conditional expression or an operator.
-          if n.type != 'operator':  # if some conditional expression
-            next(iterator)  # Skip pass the operator
-        else:
-          self.typify_tree(child)
-      except StopIteration:
-        pass
+
 
   def handle_while_stmt(self, node):
     for child in node.children:

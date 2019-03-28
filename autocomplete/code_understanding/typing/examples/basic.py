@@ -2,8 +2,20 @@ a = 1
 b = a + 2
 if True:
   b = 'asdf'
-else: b = True
-#
+elif (foo()):
+  a = 3
+
+# def bar():
+#   return True
+
+if bar():
+  a = 'a'
+
+
+
+# else:
+#   b = True
+# #
 # def foo():
 #   global b
 #   b = 4
@@ -11,6 +23,6 @@ else: b = True
 # foo()
 # print(b)
 # b = NotADirectoryError()
-  # def format(filenames):
-  #   for i, filename in enumerate(filenames):
-  #     print(f'{i}: {filename}')
+# def format(filenames):
+#   for i, filename in enumerate(filenames):
+#     print(f'{i}: {filename}')
