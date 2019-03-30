@@ -1,9 +1,10 @@
+from enum import Enum
 from itertools import chain
 from typing import Dict, List, Set
 
 import attr
 
-from autocomplete.nsn_logging import *
+from autocomplete.nsn_logging import info
 
 # @attr.s
 # class Type:
@@ -138,8 +139,7 @@ def literal_to_fuzzy(value):
 def fuzzy_types(val):
   if not isinstance(val, FuzzyValue):
     return (type(val),)
-  else:
-    return val.get_possible_types()
+  return val.get_possible_types()
 
 
 none_fuzzy_value = literal_to_fuzzy(None)
@@ -179,12 +179,12 @@ class TupleExpression(Expression):
 
 @attr.s
 class CallExpression(Expression):
-  function_reference = attr.ib()
+  function_variable = attr.ib()
   args = attr.ib(factory=list)
   kwargs = attr.ib(factory=dict)
 
   def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
-    function_assignment = curr_frame.get_assignment(self.function_reference)
+    function_assignment = curr_frame.get_assignment(self.function_variable)
     return function_assignment.evaluate(curr_frame, prev_frame)
     # function_assignment = self.function_name.assignments[-1]
     # assert isinstance(function_assignment.value, Function), function_assignment
@@ -212,11 +212,11 @@ class SubscriptExpression(Expression):
 
 
 @attr.s
-class ReferenceExpression(Expression):
-  reference = attr.ib()
+class VariableExpression(Expression):
+  name = attr.ib()
 
   def evaluate(self, curr_frame, prev_frame) -> FuzzyValue:
-    return curr_frame.get_assignment(self.reference)
+    return curr_frame.get_assignment(self)
 
 
 @attr.s
@@ -273,7 +273,7 @@ class OperatorExpression(Expression):
 
 @attr.s
 class AssignmentExpressionStatement:  # Looks like an Expression, but not technically one.
-  left_references = attr.ib()
+  left_variables = attr.ib()
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression = attr.ib()
 
@@ -282,30 +282,37 @@ class AssignmentExpressionStatement:  # Looks like an Expression, but not techni
     result = self.right_expression.evaluate(curr_frame, prev_frame)
     info(f'result: {result}')
     info(f'self.right_expression: {self.right_expression}')
-    if len(self.left_references) == 1:
-      curr_frame[self.left_references[0]] = result
+    if len(self.left_variables) == 1:
+      curr_frame[self.left_variables[0]] = result
       info(f'result: {result}')
       info(
-          f'curr_frame[self.left_references[0]]: {curr_frame[self.left_references[0]]}'
+          f'curr_frame[self.left_variables[0]]: {curr_frame[self.left_variables[0]]}'
       )
     else:
-      for i, reference in enumerate(self.left_references):
+      for i, variable in enumerate(self.left_variables):
         # TODO: Handle this properly...
-        curr_frame[reference] = result[i]
+        curr_frame[variable] = result[i]
 
 
 @attr.s
 class Function:
+  params = attr.ib()
   returns = attr.ib()
 
 
+@attr.s
 class Klass:
+  module = attr.ib()
   name = attr.ib()
   members = attr.ib()
 
 
+@attr.s
 class Instance:
   klass = attr.ib()
+
+  # def __attrs_post_init__(self):
+  #   self.members = copy(self.klass.members)
 
 
 @attr.s
@@ -320,49 +327,48 @@ class ImportFrom:
   as_name = attr.ib(kw_only=True)
 
 
-@attr.s  #(frozen=True) # hashable
-class Reference:
-  # List of some combination of Names (str), CallExpression, and ArrayAccessExpression.
-  # For example, a.b().c[0].d would roughly translate to:
-  # Reference(ArrayAccessExpression(Reference(CallExpression(Reference(a.b), c), 0), d)
-  # Reference([Name(a), Name(b), Call(c, *args), Index(d, *args)])
-  # The magic for evaluating this is in the Frame class.
-  sequence: List = attr.ib()
-  # def __hash__(self):
-  #   return tuple(self.sequence).__hash__()
-
-
-@attr.s  #(frozen=True) # hashable
-class ReferenceName:
-  name = attr.ib()
-  # def __hash__(self): return hash(tuple(self.name))
-  # def __eq__(self, other): return self.name == other.name
-
-
-@attr.s  # #(frozen=True) # hashable
-class ReferenceCall:
-  name = attr.ib()
-  args = attr.ib(factory=tuple)
-  kwargs = attr.ib(factory=dict)
-  # def __hash__(self):
-  #   return hash(self.name) + hash(tuple())
-
-
-@attr.s  #(frozen=True) # hashable
-class ReferenceArrayAccess:
-  name = attr.ib()
-  args = attr.ib(factory=tuple)
-
+# @attr.s  #(frozen=True) # hashable
+# class Variable:
+#   # List of some combination of Names (str), CallExpression, and ArrayAccessExpression.
+#   # For example, a.b().c[0].d would roughly translate to:
+#   # Variable(ArrayAccessExpression(Variable(CallExpression(Variable(a.b), c), 0), d)
+#   # Variable([Name(a), Name(b), Call(c, *args), Index(d, *args)])
+#   # The magic for evaluating this is in the Frame class.
+#   sequence: List = attr.ib()
+#   # def __hash__(self):
+#   #   return tuple(self.sequence).__hash__()
+#
+#
+# @attr.s  #(frozen=True) # hashable
+# class VariableName:
+#   name = attr.ib()
+#   # def __hash__(self): return hash(tuple(self.name))
+#   # def __eq__(self, other): return self.name == other.name
+#
+#
+# @attr.s  # #(frozen=True) # hashable
+# class VariableCall:
+#   name = attr.ib()
+#   args = attr.ib(factory=tuple)
+#   kwargs = attr.ib(factory=dict)
+#   # def __hash__(self):
+#   #   return hash(self.name) + hash(tuple())
+#
+#
+# @attr.s  #(frozen=True) # hashable
+# class VariableArrayAccess:
+#   name = attr.ib()
+#   args = attr.ib(factory=tuple)
 
 # @attr.s
-# class Reference:
+# class Variable:
 #   name = attr.ib(kw_only=True)
 #   scope = attr.ib(kw_only=True)
 #   # unknown = attr.ib(False)
 #   temp = attr.ib(False, kw_only=True)
 #
 #   def __attrs_post_init__(self):
-#     # Need this here lest all references share a single list
+#     # Need this here lest all variables share a single list
 #     self.assignments = []
 #
 #   def get_complete_name(self):
@@ -375,84 +381,114 @@ class ReferenceArrayAccess:
 #     return ''.join(out)
 
 # @attr.s
-# class IndexReference:
-#   source_reference = attr.ib(kw_only=True)
+# class IndexVariable:
+#   source_variable = attr.ib(kw_only=True)
 #   index = attr.ib(kw_only=True)
 #   assignments = []
 
 #
 # @attr.s
-# class ReferenceAssignment:
-#   reference = attr.ib(kw_only=True)
+# class VariableAssignment:
+#   variable = attr.ib(kw_only=True)
 #   pos = attr.ib(kw_only=True)
 #   value = attr.ib(kw_only=True)
 #
 
 
+@attr.s
+class Parameter:
+  name = attr.ib()
+  type = attr.ib()
+  default = attr.ib(None)
+
+
+class ParameterType(Enum):
+  SINGLE = 0
+  ARGS = 1
+  KWARGS = 2
+
+
+Variable = Expression
+
+
 class Frame:
   # __slots__ = 'globals', 'locals', 'builtins'
-  def __init__(self, globals, locals):
-    self.globals = globals
-    self.locals = locals
-    self.builtins = []  # TODO
+  def __init__(self, globals_, locals_):
+    self.globals: Dict = globals_
+    self.locals: Dict = locals_
+    self.builtins: Dict = {}  # TODO
+    self.returns: List[FuzzyValue] = []
 
   def make_child(self) -> 'Frame':
-    return Frame(self.globals + self.locals, [])
+    return Frame({**self.globals, **self.locals}, {})
 
-  def __getitem__(self, reference: Reference):
-    return self.get_assignment(reference)
+  def __getitem__(self, variable: Variable):
+    return self.get_assignment(variable)
 
-  def __setitem__(self, reference: Reference, value: FuzzyValue):
-    # assert isinstance(reference, Reference), reference
-    if len(reference.sequence) == 1:
-      self.locals[reference.sequence[0].name] = value
+  def __setitem__(self, variable: Variable, value: FuzzyValue):
+    # assert isinstance(variable, Variable), variable
+    if isinstance(variable, VariableExpression):
+      self.locals[variable.name] = value
     else:
-      if len(reference.sequence) == 2:
-        base = self.locals[reference.sequence[0].name]
-      else:
-        base = self.get_assignment(Reference(reference.sequence[:-1]))
+      assert isinstance(variable, AttributeExpression), variable
+      fuzzy_value = variable.base_expression.evaluate(self, None)
+      fuzzy_value.setattribute(variable.attribute, value)
+      # if len(variable.sequence) == 2:
+      #   base = self.locals[variable.sequence[0].name]
+      # else:
+      #   base = self.get_assignment(Variable(variable.sequence[:-1]))
 
-      setattr(base, reference.sequence[1], value)
+      # setattr(base, variable.sequence[1], value)
     # TODO: Handle nonlocal & global keyword states.
 
-  def get_assignment(self, reference: Reference) -> FuzzyValue:
-    reference_iter = iter(reference.sequence)
-    first_identifier = next(
-        reference_iter)  # pretend a reference has to have at last one val?
+  def get_assignment(self, variable: Variable) -> FuzzyValue:
+    if isinstance(variable, AttributeExpression):
+      fuzzy_value = variable.base_expression.evaluate(self, None)
+      return fuzzy_value.getattribute(variable.attribute)
+    assert isinstance(variable, VariableExpression), variable
+
+    name = variable.name
     for group in (self.locals, self.globals, self.builtins):
       # Given a.b.c, Python will take the most-local definition of a and
       # search from there.
-      if first_identifier.name in group:
-        fuzzy_value = group[first_identifier.name]
-        # Reference([Name(a), Name(b), Call(c, *args), Index(d, *args)])
-        for identifier in reference_iter:
-          fuzzy_value = getattr(fuzzy_value, identifier.name)
-          if isinstance(identifier, ReferenceName):
-            continue
-          elif isinstance(identifier, ReferenceCall):
-            fuzzy_value = self._invoke_call(fuzzy_value, identifier)
-          elif isinstance(identifier, ReferenceArrayAccess):
-            fuzzy_value = self._invoke_array_access(fuzzy_value, identifier)
-          else:
-            assert False, identifier
-        return fuzzy_value
+      if name in group:
+        return group[name]
+        # # Variable([Name(a), Name(b), Call(c, *args), Index(d, *args)])
+        # for identifier in variable_iter:
+        #   fuzzy_value = getattr(fuzzy_value, identifier.name)
+        #   if isinstance(identifier, VariableName):
+        #     continue
+        #   elif isinstance(identifier, VariableCall):
+        #     fuzzy_value = self._invoke_call(fuzzy_value, identifier)
+        #   elif isinstance(identifier, VariableArrayAccess):
+        #     fuzzy_value = self._invoke_array_access(fuzzy_value, identifier)
+        #   else:
+        #     assert False, identifier
+        # return fuzzy_value
     # TODO: lineno, frame contents.
-    raise ValueError(f'{reference} doesn\'t exist in current context!')
+    raise ValueError(f'{variable} doesn\'t exist in current context!')
 
-  def _invoke_call(self, call_reference, identifier):
-    dereferenced_args = [self.get_assignment(arg) for arg in identifier.args]
-    dereferenced_kwargs = {
-        k: self.get_assignment(v) for k, v in identifier.kwargs.items()
-    }
-    return call_reference(*dereferenced_args, **dereferenced_kwargs)
+  #
+  # def _invoke_call(self, call_variable, identifier):
+  #   devariabled_args = [self.get_assignment(arg) for arg in identifier.args]
+  #   devariabled_kwargs = {
+  #       k: self.get_assignment(v) for k, v in identifier.kwargs.items()
+  #   }
+  #   return call_variable(*devariabled_args, **devariabled_kwargs)
+  #
+  # def _invoke_array_access(self, call_variable, identifier):
+  #   devariabled_args = [self.get_assignment(arg) for arg in identifier.args]
+  #   raise NotImplementedError()
+  #   return call_variable  #[*devariabled_args]
 
-  def _invoke_array_access(self, call_reference, identifier):
-    dereferenced_args = [self.get_assignment(arg) for arg in identifier.args]
-    raise NotImplementedError()
-    return call_reference  #[*dereferenced_args]
+  def add_return(self, value):
+    self.returns.append(value)
+
+  def get_returns(self):
+    return self.returns
 
   def __str__(self):
-    return str([self.locals, self.globals, self.builtins])
+    return f'{[self.locals, self.globals, self.builtins]}\n'
 
 
 # class MemberDict:
@@ -461,24 +497,24 @@ class Frame:
 #     self.name = name
 #     self._values = {}
 #
-#   def __getitem__(self, reference):
-#     first_identifier = reference.get_first_identifier()
+#   def __getitem__(self, variable):
+#     first_identifier = variable.get_first_identifier()
 #     if first_identifier not in self._values:
 #       return False
-#     reference = self._values[first_identifier]
+#     variable = self._values[first_identifier]
 #     raise NotImplementedError() # TODO: FINISH!
 #     # if first_identifier.is_name
 #     # if len()
 #
-#   def __setitem__(self, reference):
-#     first_identifier = reference.get_first_identifier()
+#   def __setitem__(self, variable):
+#     first_identifier = variable.get_first_identifier()
 #     if first_identifier not in self._values:
 #       return False
-#     reference = self._values[first_identifier]
+#     variable = self._values[first_identifier]
 #
-#   def __contains__(self, reference):
+#   def __contains__(self, variable):
 #     try:
-#       self[reference]
+#       self[variable]
 #       return True
 #     except KeyError:
 #       return False
@@ -488,27 +524,26 @@ class Frame:
 
 
 # Node creation:
-class CFGNode:
+class CfgNode:
 
   def process(self, curr_frame, prev_frame):
     raise NotImplementedError()  # abstract
 
-  def condense(self):
-    return self
+@attr.s
+class ExpressionCfgNode:
+  expression = attr.ib()
+  def process(self, curr_frame, prev_frame):
+    self.expression.evaluate(curr_frame, prev_frame)
 
 
-# class Statement:
-#   def evaluate(self, curr_frame, prev_frame):
-
-
-class NoOpCfgNode(CFGNode):
+class NoOpCfgNode(CfgNode):
 
   def process(self, curr_frame, prev_frame):
     pass
 
 
-class StmtCFGNode(CFGNode):
-  # TypeError: descriptor 'statement' for 'StmtCFGNode' objects doesn't apply to 'StmtCFGNode' object
+class StmtCfgNode(CfgNode):
+  # TypeError: descriptor 'statement' for 'StmtCfgNode' objects doesn't apply to 'StmtCfgNode' object
   # __slots__ = 'statement', 'next_node' # TODO Figure out why this is broken.
 
   def __init__(self, statement, code=''):
@@ -527,13 +562,13 @@ class StmtCFGNode(CFGNode):
   def _to_str(self):
     out = []
     if self.code:
-      out.append(f'{self.__class__.__name__}: {self.code}\n')
+      out.append(f'{self.__class__.__name__}: {self.code}')
     if self.next_node:
       out.append(str(self.next_node))
-    return ''.join(out)
+    return '\n'.join(out)
 
 
-class IfCFGNode(CFGNode):
+class IfCfgNode(CfgNode):
   # __slots__ = 'expression_node_tuples'
 
   def __init__(self, expression_node_tuples):
@@ -554,10 +589,10 @@ class IfCFGNode(CFGNode):
         node.process(curr_frame, prev_frame)
 
 
-class ClassCFGNode(CFGNode):
+class ClassCfgNode(CfgNode):
 
   def __init__(self, name, children):
-    # TODO: Add to reference dict?
+    # TODO: Add to variable dict?
     self.name = name
     self.children = children
 
@@ -565,7 +600,7 @@ class ClassCFGNode(CFGNode):
     curr_frame.locals[self.name] = Klass
 
 
-class GroupCFGNode(CFGNode):
+class GroupCfgNode(CfgNode):
 
   def __init__(self, children):
     self.children = children
@@ -575,22 +610,64 @@ class GroupCFGNode(CFGNode):
       child.process(curr_frame, prev_frame)
 
   def __str__(self):
-    return ''.join([str(child) for child in self.children])
+    return '\n'.join([str(child) for child in self.children])
 
 
-class FuncCFGNode(CFGNode):
+@attr.s
+class FuncExpression(Expression):
+  parameters = attr.ib()
+  graph = attr.ib()
 
-  def __init__(self, children):
-    self.children = children
+  def evaluate(self, curr_frame, prev_frame):
+    new_frame = curr_frame.make_child()
+    self.graph.process(new_frame, curr_frame)
+
+    returns = new_frame.get_returns()
+    if not returns:
+      return none_fuzzy_value
+    out = returns[0]
+    for ret in returns[1:]:
+      out = out.merge(ret)
+    return out
+
+
+@attr.s
+class StubFuncExpression(Expression):
+  parameters = attr.ib()
+  returns = attr.ib()
+
+  def evaluate(self, curr_frame, prev_frame):
+    # TODO: Handle parameters.
+    return self.returns
+
+
+@attr.s
+class FuncCfgNode(CfgNode):
+  name = attr.ib()
+  parameters = attr.ib()
+  suite = attr.ib()
 
   def process(self, curr_frame, prev_frame):
-    new_frame = curr_frame.make_child()
-    for child in self.children:
-      child.process(new_frame, curr_frame)
-    # TODO: new_frame.finish?
+    processed_params = []
+    for param in self.parameters:
+      if param.default is None:
+        processed_params.append(param)
+      else:  # Process parameter defaults at the time of definition.
+        default = param.default.evaluate(curr_frame, prev_frame)
+        processed_params.append(Parameter(param.name, param.type, default))
+    curr_frame[VariableExpression(self.name)] = FuncExpression(
+        processed_params, self.suite)
 
   def __str__(self):
-    return ''.join([str(child) for child in self.children])
+    return f'def {self.name}({self.parameters}):\n  {self.suite}\n'
+
+
+@attr.s
+class ReturnCfgNode(CfgNode):
+  expression = attr.ib()
+
+  def process(self, curr_frame, prev_frame):
+    curr_frame.add_return(self.expression.evaluate(curr_frame, prev_frame))
 
 
 def is_linear_collection(type_str):

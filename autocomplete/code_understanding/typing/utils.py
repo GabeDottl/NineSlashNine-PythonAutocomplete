@@ -1,18 +1,19 @@
+from enum import Enum
 from typing import List, Tuple, Union
 
 from autocomplete.code_understanding.typing.classes import (AssignmentExpressionStatement,
                                                             AttributeExpression,
                                                             CallExpression,
-                                                            CFGNode,
+                                                            CfgNode,
                                                             Expression,
                                                             LiteralExpression,
                                                             OperatorExpression,
-                                                            Reference,
-                                                            ReferenceCall,
-                                                            ReferenceExpression,
-                                                            ReferenceName,
+                                                            Parameter,
+                                                            ParameterType,
                                                             SubscriptExpression,
-                                                            TupleExpression)
+                                                            TupleExpression,
+                                                            Variable,
+                                                            VariableExpression)
 
 
 def statement_from_expr_stmt(node):
@@ -24,9 +25,9 @@ def statement_from_expr_stmt(node):
   child = node.children[0]
 
   if child.type == 'testlist_star_expr':
-    references = references_from_testlist_comp(node)
+    variables = expressions_from_testlist_comp(node)
   else:
-    references = [reference_from_node(child)]
+    variables = [expression_from_node(child)]
   if len(node.children) == 2:  # a += b - augmented assignment.
     annasign = node.children[1]
     assert annasign.type == 'annassign', node_info(node)
@@ -38,12 +39,12 @@ def statement_from_expr_stmt(node):
     operator = node.children[1]
     value_node = node.children[-1]
   result_expression = expression_from_node(value_node)
-  return AssignmentExpressionStatement(references, operator.value,
+  return AssignmentExpressionStatement(variables, operator.value,
                                        result_expression)
 
 
 def create_expression_node_tuples_from_if_stmt(
-    cfg_builder, node) -> List[Tuple[Expression, CFGNode]]:
+    cfg_builder, node) -> List[Tuple[Expression, CfgNode]]:
   expression_node_tuples = []
   iterator = iter(node.children)
   for child in iterator:
@@ -72,33 +73,65 @@ def create_expression_node_tuples_from_if_stmt(
   return expression_node_tuples
 
 
-def reference_from_node(node) -> Reference:
-  if node.type == 'name':  # Simplest case - a=1
-    return Reference([ReferenceName(node.value)])
-  elif node.type == 'atom':
-    # atom: ('(' [yield_expr|testlist_comp] ')' |
-    #       '[' [testlist_comp] ']' |
-    #       '{' [dictorsetmaker] '}' |
-    #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
-    child = node.children[0]
-    if child.type == 'operator':
-      assert len(node.children) == 3, node_info(node)
-      if child.value == '(' or child.value == '[':
-        return reference_from_node(node.children[1])
+#
+# def reference_from_node(node) -> Variable:
+#   if node.type == 'name':  # Simplest case - a=1
+#     return VariableExpression
+#   elif node.type == 'atom':
+#     # atom: ('(' [yield_expr|testlist_comp] ')' |
+#     #       '[' [testlist_comp] ']' |
+#     #       '{' [dictorsetmaker] '}' |
+#     #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
+#     child = node.children[0]
+#     if child.type == 'operator':
+#       assert len(node.children) == 3, node_info(node)
+#       if child.value == '(' or child.value == '[':
+#         return reference_from_node(node.children[1])
+#       else:
+#         assert False, node_info(child)
+#     else:
+#       assert len(node.children) == 1 and child.type == 'name', node_info(child)
+#       return reference_from_node(child)
+#   elif node.type == 'atom_expr':
+#     return reference_from_atom_expr(node)
+#   elif node.type == 'testlist_comp':
+#     return references_from_testlist_comp(node)
+#   else:
+#     assert False, node_info(node)
+
+
+def parameters_from_parameters(node) -> List[Parameter]:
+  assert node.children[0].type == 'operator', node_info(node)  # paran
+  out = []
+  for param in node.children[1:-1]:  # Skip parens.
+    assert param.type == 'param', node_info(param)
+    if len(param.children) == 1:  # name
+      out.append(Parameter(param.children[0].value, ParameterType.SINGLE))
+    elif len(param.children) == 2:  # name, ',' OR *, args OR **, kwargs
+      if param.children[0].type == 'name':
+        out.append(Parameter(param.children[0].value, ParameterType.SINGLE))
       else:
-        assert False, node_info(child)
-    else:
-      assert len(node.children) == 1 and child.type == 'name', node_info(child)
-      return reference_from_node(child)
-  elif node.type == 'atom_expr':
-    return reference_from_atom_expr(node)
-  elif node.type == 'testlist_comp':
-    return references_from_testlist_comp(node)
-  else:
-    assert False, node_info(node)
+        assert param.children[0].type == 'operator', node_info(param)
+        if param.children[0].value == '*':
+          out.append(Parameter(param.children[1].value, ParameterType.ARGS))
+        else:  # **
+          out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
+    elif len(param.children) == 3:  # len(3)
+      assert param.children[0].type == 'operator'
+      if param.children[0].value == '*':
+        out.append(Parameter(param.children[1].value, ParameterType.ARGS))
+      else:  # **
+        out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
+    else:  # if len(param.children) == 4:  # name, =, expr, ','
+      assert len(param.children) == 4, node_info(param)
+      out.append(
+          Parameter(param.children[0].value, ParameterType.SINGLE,
+                    expression_from_node(param.children[-2])))
+
+  return out
 
 
-def references_from_testlist_comp(node) -> List[Reference]:
+def expressions_from_testlist_comp(node) -> List[Variable]:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
@@ -132,9 +165,9 @@ def expression_from_testlist_comp(node) -> TupleExpression:
     return TupleExpression(out)
 
 
-def reference_from_atom_expr(node):
-  expression = expression_from_atom_expr(node)
-  assert False, node_info(node)
+# def reference_from_atom_expr(node):
+#   expression = expression_from_atom_expr(node)
+#   assert False, node_info(node)
 
 
 def expression_from_atom_expr(node) -> Expression:
@@ -167,7 +200,8 @@ def expression_from_atom_expr(node) -> Expression:
                                             subscript_expressions)
     else:
       assert trailer.children[0].value == '.', trailer.get_code()
-      last_expression = AttributeExpression(last_expression, trailer.children[1].value)
+      last_expression = AttributeExpression(last_expression,
+                                            trailer.children[1].value)
   return last_expression
 
 
@@ -206,13 +240,15 @@ def args_and_kwargs_from_arglist(node):
     for child in iterator:
       if child.type == 'argument':
         if child.children[0].type == 'name':  # kwarg
-          kwargs[child.children[0].value] = expression_from_node(child.children[2])
+          kwargs[child.children[0].value] = expression_from_node(
+              child.children[2])
         else:
           assert len(child.children) == 2, node_info(child)
           raise NotImplementedError()  # *args or **kwargs
       elif child.type != 'operator':  # not ','
         args.append(expression_from_node(child))
     return args, kwargs
+
 
 def expression_from_node(node):
   if node.type == 'number':
@@ -224,8 +260,7 @@ def expression_from_node(node):
   elif node.type == 'operator' and node.value == '...':
     return LiteralExpression(keyword_eval(node.value))
   elif node.type == 'name':
-    reference = Reference([ReferenceName(node.value)])
-    return ReferenceExpression(reference)
+    return VariableExpression(node.value)
   elif node.type == 'arith_expr':
     return expression_from_arith_expr(node)
   elif node.type == 'atom':

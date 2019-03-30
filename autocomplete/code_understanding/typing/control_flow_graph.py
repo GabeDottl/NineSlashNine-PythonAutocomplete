@@ -1,11 +1,4 @@
 # from __future__ import annotations
-from functools import wraps
-
-import attr
-
-from autocomplete.code_understanding.typing.classes import *
-from autocomplete.code_understanding.typing.utils import *
-
 # Each statement is a node, each linear group is a subgraph?
 #
 # When control flow is hit, a branch is created.
@@ -24,13 +17,27 @@ from autocomplete.code_understanding.typing.utils import *
 #
 # DFS down tree to node to determine values
 # - Memoize where possible + shortcut
+from autocomplete.code_understanding.typing.classes import (ExpressionCfgNode,
+                                                            Frame, FuncCfgNode,
+                                                            GroupCfgNode,
+                                                            IfCfgNode,
+                                                            NoOpCfgNode,
+                                                            ReturnCfgNode,
+                                                            StmtCfgNode)
+from autocomplete.code_understanding.typing.utils import (create_expression_node_tuples_from_if_stmt,
+                                                          expression_from_node,
+                                                          node_info,
+                                                          parameters_from_parameters,
+                                                          statement_from_expr_stmt)
+
 
 def run_graph(graph, frame=None):
   # TODO: Create proper.
   if not frame:
-    frame = Frame(globals={}, locals={})
+    frame = Frame({}, {})
   graph.process(frame, None)
   return frame
+
 
 def condense_graph(graph):
   if not hasattr(graph, 'children'):
@@ -38,17 +45,17 @@ def condense_graph(graph):
 
   children = [condense_graph(child) for child in graph.children]
   children = list(filter(lambda x: not isinstance(x, NoOpCfgNode), children))
-  if len(children) == 0:
+  if children:
     return NoOpCfgNode()
   elif len(children) == 1:
     return children[0]
-  else:
-    return GroupCFGNode(children)
+  return GroupCfgNode(children)
 
 
 class ControlFlowGraphBuilder:
+
   def create_cfg_node(self, node):
-    '''Create handles all nodes which should create their own CFGNode - i.e.
+    '''Create handles all nodes which should create their own CfgNode - i.e.
     nodes that contain a complete statement/definition or control flow.'''
     try:
       return getattr(self, f'create_cfg_node_for_{node.type}')(node)
@@ -56,25 +63,53 @@ class ControlFlowGraphBuilder:
       print(node_info(node))
       raise e
 
+  def create_cfg_node_for_single_input(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
 
-  def create_cfg_node_for_single_input(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
-  def create_cfg_node_for_file_input(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
-  def create_cfg_node_for_eval_input(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
-  def create_cfg_node_for_stmt(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
-  def create_cfg_node_for_simple_stmt(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
-  def create_cfg_node_for_small_stmt(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
-  def create_cfg_node_for_suite(self, node): return GroupCFGNode([self.create_cfg_node(child) for child in node.children])
+  def create_cfg_node_for_file_input(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
+
+  def create_cfg_node_for_eval_input(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
+
+  def create_cfg_node_for_stmt(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
+
+  def create_cfg_node_for_simple_stmt(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
+
+  def create_cfg_node_for_small_stmt(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
+
+  def create_cfg_node_for_suite(self, node):
+    return GroupCfgNode(
+        [self.create_cfg_node(child) for child in node.children])
 
   # Noop nodes for our purposes.
-  def create_cfg_node_for_del_stmt(self, node): return NoOpCfgNode()
+  def create_cfg_node_for_del_stmt(self, node):
+    return NoOpCfgNode()
+
   def create_cfg_node_for_keyword(self, node):
-    if node.value == 'pass':
-      return NoOpCfgNode()
-    else:
-      assert False, node_info(node)
-  def create_cfg_node_for_pass(self, node): return NoOpCfgNode()
-  def create_cfg_node_for_newline(self, node): return NoOpCfgNode()
-  def create_cfg_node_for_endmarker(self, node): return NoOpCfgNode()
+    assert node.value == 'pass', node_info
+    return NoOpCfgNode()
+
+  def create_cfg_node_for_pass(self, node):
+    return NoOpCfgNode()
+
+  def create_cfg_node_for_newline(self, node):
+    return NoOpCfgNode()
+
+  def create_cfg_node_for_endmarker(self, node):
+    return NoOpCfgNode()
+
+  def create_cfg_node_for_name(self, node):
+    return NoOpCfgNode()
 
   def create_cfg_node_for_decorated(self, node):
     # TODO: Handle first child decorator or decorators.
@@ -84,7 +119,7 @@ class ControlFlowGraphBuilder:
   # def create_cfg_node_for_decorator(self, node): print(f'Skipping {node.type}')
   # def create_cfg_node_for_decorators(self, node): print(f'Skipping {node.type}')
 
-  # Parso doesn't handle these grammar nodes in the expected way:
+  # Parso doesn't handle these grammar nodes in the expectezd way:
   # async_func's are treated as async_stmt with a funcdef inside.
   # def create_cfg_node_for_async_funcdef(self, node): print(f'Skipping {node.type}')
 
@@ -92,43 +127,88 @@ class ControlFlowGraphBuilder:
   # def create_cfg_node_for_augassign(self, node): print(f'Skipping {node.type}')
 
   def create_cfg_node_for_if_stmt(self, node):
-    return IfCFGNode(create_expression_node_tuples_from_if_stmt(self, node))
-
+    return IfCfgNode(create_expression_node_tuples_from_if_stmt(self, node))
 
   def create_cfg_node_for_funcdef(self, node):
-    children = [self.create_cfg_node(child) for child in node.children]
-    return FuncCFGNode(children)
+    # Children are: def name params : suite
+    name = node.children[1].value
+    parameters = parameters_from_parameters(node.children[2])
+    suite = self.create_cfg_node(node.children[-1])
+    return FuncCfgNode(name, parameters, suite)
 
   def create_cfg_node_for_expr_stmt(self, node):
     statement = statement_from_expr_stmt(node)
-    print(f'Creating StmtCFGNode for {node.get_code()}')
-    return StmtCFGNode(statement, node.get_code())
+    print(f'Creating StmtCfgNode for {node.get_code()}')
+    return StmtCfgNode(statement, node.get_code())
 
-  def create_cfg_node_for_flow_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_break_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_continue_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_return_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_yield_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_raise_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_import_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_import_name(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_import_from(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_global_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_nonlocal_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_assert_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_compound_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_async_stmt(self, node): print(f'Skipping {node.type}')
+  def create_cfg_node_for_atom_expr(self, node):
+    expression = expression_from_node(node)
+    return ExpressionCfgNode(expression)
 
-  def create_cfg_node_for_while_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_for_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_try_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_except_clause(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_with_stmt(self, node): print(f'Skipping {node.type}')
-  def create_cfg_node_for_with_item(self, node): print(f'Skipping {node.type}')
+  def create_cfg_node_for_return_stmt(self, node):
+    # First child is 'return', second is result.
+    assert len(node.children) == 2, node_info(node)
+    return ReturnCfgNode(expression_from_node(node.children[1]))
 
+  def create_cfg_node_for_flow_stmt(self, node):
+    print(f'Skipping {node.type}')
 
-  def create_cfg_node_for_classdef(self, node): print(f'Skipping {node.type}')
+  def create_cfg_node_for_break_stmt(self, node):
+    print(f'Skipping {node.type}')
 
+  def create_cfg_node_for_continue_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_yield_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_raise_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_import_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_import_name(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_import_from(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_global_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_nonlocal_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_assert_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_compound_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_async_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_while_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_for_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_try_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_except_clause(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_with_stmt(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_with_item(self, node):
+    print(f'Skipping {node.type}')
+
+  def create_cfg_node_for_classdef(self, node):
+    print(f'Skipping {node.type}')
 
   # def process_parameters(self, node): print(f'Skipping {node.type}')
   # def process_typedargslist(self, node): print(f'Skipping {node.type}')
@@ -161,7 +241,7 @@ class ControlFlowGraphBuilder:
   # def process_term(self, node): print(f'Skipping {node.type}')
   # def process_factor(self, node): print(f'Skipping {node.type}')
   # def process_power(self, node): print(f'Skipping {node.type}')
-  # def process_atom_expr(self, node): print(f'Skipping {node.type}')
+
   # def process_atom(self, node): print(f'Skipping {node.type}')
   # def process_testlist_comp(self, node): print(f'Skipping {node.type}')
   # def process_trailer(self, node): print(f'Skipping {node.type}')
