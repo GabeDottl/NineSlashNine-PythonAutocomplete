@@ -1,19 +1,19 @@
-from enum import Enum
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
-from autocomplete.code_understanding.typing.classes import (AssignmentExpressionStatement,
-                                                            AttributeExpression,
-                                                            CallExpression,
-                                                            CfgNode,
-                                                            Expression,
-                                                            LiteralExpression,
-                                                            OperatorExpression,
-                                                            Parameter,
-                                                            ParameterType,
-                                                            SubscriptExpression,
-                                                            TupleExpression,
-                                                            Variable,
-                                                            VariableExpression)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import \
+    CfgNode
+from autocomplete.code_understanding.typing.expressions import (AssignmentExpressionStatement,
+                                                                AttributeExpression,
+                                                                CallExpression,
+                                                                Expression,
+                                                                LiteralExpression,
+                                                                MathExpression,
+                                                                SubscriptExpression,
+                                                                TupleExpression,
+                                                                Variable,
+                                                                VariableExpression)
+from autocomplete.code_understanding.typing.language_objects import (Parameter,
+                                                                     ParameterType)
 
 
 def statement_from_expr_stmt(node):
@@ -144,7 +144,7 @@ def expressions_from_testlist_comp(node) -> List[Variable]:
       if child.type == 'operator':
         assert child.value == ','
         continue
-      out.append(reference_from_node(child))
+      out.append(expression_from_node(child))
     return out
 
 
@@ -261,8 +261,8 @@ def expression_from_node(node):
     return LiteralExpression(keyword_eval(node.value))
   elif node.type == 'name':
     return VariableExpression(node.value)
-  elif node.type == 'arith_expr':
-    return expression_from_arith_expr(node)
+  elif node.type == 'arith_expr' or node.type == 'term' or node.type == 'factor':
+    return expression_from_math_expr(node)
   elif node.type == 'atom':
     return expression_from_atom(node)
   elif node.type == 'atom_expr':
@@ -293,13 +293,12 @@ def expression_from_atom(node):
     raise ValueError(node_info(node))
 
 
-def expression_from_arith_expr(node):
+def expression_from_math_expr(node):
   assert len(node.children) == 3, node_info(node)
   left = expression_from_node(node.children[0])
   right = expression_from_node(node.children[2])
-  return OperatorExpression(
+  return MathExpression(
       left=left, operator=node.children[1].value, right=right)
-
 
 def children_contains_operator(node, operator_str):
   for child in node.children:

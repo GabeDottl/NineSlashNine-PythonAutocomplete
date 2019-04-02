@@ -320,7 +320,7 @@ class TypeInferencer:
     assert len(node.children) == 3, node_info(node)
     left = self.expression_from_node(node.children[0])
     right = self.expression_from_node(node.children[2])
-    return OperatorExpression(
+    return MathExpression(
         left=left, operator=node.children[1].value, right=right)
 
   def handle_for_stmt(self, node):

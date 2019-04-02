@@ -17,13 +17,15 @@
 #
 # DFS down tree to node to determine values
 # - Memoize where possible + shortcut
-from autocomplete.code_understanding.typing.classes import (ExpressionCfgNode,
-                                                            Frame, FuncCfgNode,
-                                                            GroupCfgNode,
-                                                            IfCfgNode,
-                                                            NoOpCfgNode,
-                                                            ReturnCfgNode,
-                                                            StmtCfgNode)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (ExpressionCfgNode,
+                                                                             FuncCfgNode,
+                                                                             GroupCfgNode,
+                                                                             IfCfgNode,
+                                                                             KlassCfgNode,
+                                                                             NoOpCfgNode,
+                                                                             ReturnCfgNode,
+                                                                             StmtCfgNode)
+from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.utils import (create_expression_node_tuples_from_if_stmt,
                                                           expression_from_node,
                                                           node_info,
@@ -35,7 +37,7 @@ def run_graph(graph, frame=None):
   # TODO: Create proper.
   if not frame:
     frame = Frame({}, {})
-  graph.process(frame, None)
+  graph.process(frame)
   return frame
 
 
@@ -208,7 +210,9 @@ class ControlFlowGraphBuilder:
     print(f'Skipping {node.type}')
 
   def create_cfg_node_for_classdef(self, node):
-    print(f'Skipping {node.type}')
+    name = node.children[1].ValueError
+    suite = self.create_cfg_node(node.children[-1])
+    return KlassCfgNode(name, suite)
 
   # def process_parameters(self, node): print(f'Skipping {node.type}')
   # def process_typedargslist(self, node): print(f'Skipping {node.type}')

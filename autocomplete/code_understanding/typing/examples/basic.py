@@ -7,15 +7,19 @@
 # else:
 #   a = 3
 
-def bar(b, a=1, *args, **kwargs):
-  a = 2
-  return 1 + a
+# def bar(b, a=1, *args, **kwargs):
+#   a = 2
+#   return 1 + a
+#
+# b = bar(3)
+#
+# bar()
 
-b = bar(3)
+def bar(a, b, c):
+  return a * (b - c)
 
-bar()
-
-
+out = bar(1,c=2,b=3)
+#
 # class AClass:
 #   a = 1
 #   q = 's'
