@@ -1,11 +1,15 @@
+import traceback
+
 import attr
 
 from autocomplete.code_understanding.typing.classes import FuzzyValue
 from autocomplete.code_understanding.typing.expressions import \
     VariableExpression
+from autocomplete.code_understanding.typing.frame import FrameType
 from autocomplete.code_understanding.typing.language_objects import (Function,
                                                                      Klass,
                                                                      Parameter)
+from autocomplete.nsn_logging import info
 
 
 class CfgNode:
@@ -37,8 +41,18 @@ class StmtCfgNode(CfgNode):
     self.next_node = None
     self.code = code
 
-  def process(self, curr_frame):
-    self.statement.evaluate(curr_frame)
+  def process(self, curr_frame, strict=True):
+    try:
+      self.statement.evaluate(curr_frame)
+    except ValueError as e:
+      if not strict:
+        info(f'ValueError during: {self.code}')
+        # raise e
+        info(f'ValueError: {e}')
+        # e.tb
+      else:
+        info(f'self.code: {self.code}')
+        raise e
     if self.next_node:
       self.next_node.process(curr_frame)
 
@@ -86,7 +100,7 @@ class KlassCfgNode(CfgNode):
     # The members of the class shall be filled
     klass = Klass(self.name, members=None)
     curr_frame[self.name] = FuzzyValue([klass])
-    new_frame = curr_frame.make_child()
+    new_frame = curr_frame.make_child(type=FrameType.CLASS)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
     klass.members = new_frame.locals

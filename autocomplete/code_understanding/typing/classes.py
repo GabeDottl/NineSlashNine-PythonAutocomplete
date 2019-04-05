@@ -1,3 +1,4 @@
+from functools import partialmethod
 from itertools import chain
 from typing import Dict, List, Set
 
@@ -114,8 +115,52 @@ from autocomplete.nsn_logging import info
 #   common_aliases = attr.ib(factory=list)  # e.g. 'node', 'child'
 #
 
+_OPERATORS= [
+# fv'__abs__',
+ '__add__',
+ '__and__',
+ # '__bool__',
+ # '__invert__',
+ # '__le__',
+ '__lshift__',
+ # '__lt__',
+ '__mod__',
+ '__mul__',
+ # '__ne__',
+ # '__neg__',
+ # '__new__',
+ '__or__',
+ # '__pos__',
+ '__pow__',
+ '__radd__',
+ '__rand__',
+ '__rdivmod__',
+ # '__reduce__',
+ # '__reduce_ex__',
+ # '__repr__',
+ '__rfloordiv__',
+ '__rlshift__',
+ '__rmod__',
+ '__rmul__',
+ # '__ror__',
+ # '__round__',
+ # '__rpow__',
+ # '__rrshift__',
+ # '__rshift__',
+ # '__rsub__',
+ # '__rtruediv__',
+ # '__rxor__',
+ '__sub__',
+ '__truediv__',
+ # '__trunc__',
+ '__xor__'
+ ]
+  # # '__setattr__',
+  # '__sizeof__',
+  # '__str__',
+ # '__subclasshook__',
 
-@attr.s
+@attr.s(str=False, repr=False)
 class FuzzyValue:
   """A FuzzyValue is an abstraction over the result of executing an expression.
 
@@ -134,9 +179,19 @@ class FuzzyValue:
   _values: List = attr.ib()  # Tuple of possible values
   # is_ambiguous = attr.ib()
   _types: Set = attr.ib(factory=set)  # Tuple of possible types
-  _attributes: Dict = attr.ib(factory=dict)
+  _last_creation_string = attr.ib('')
+  # Attributes that have been set on this value that match None of the current
+  # values. Otherwise, setting attributes will fit to whatever they can.
+  _extra_attributes: Dict = attr.ib(factory=dict)
 
   # TODO: unexecuted_expressions?
+
+  def __str__(self):
+    return f'FV({self._values} {self._types} {self._last_creation_string})'
+
+  def __repr__(self):
+    return str(self)
+
 
   def merge(self, other: 'FuzzyValue'):
     return FuzzyValue(self._values + other._values, self._types + other._types)
@@ -155,7 +210,7 @@ class FuzzyValue:
 
   def value(self):
     if not self.has_single_value():
-      raise ValueError(f'Does not have a single value: {self.values}')
+      raise ValueError(f'Does not have a single value: {self._values}')
     if isinstance(self._values[0], FuzzyValue):  # Follow the rabbit hole.
       return self._values[0].value()
     return self._values[0]
@@ -165,34 +220,62 @@ class FuzzyValue:
     return (any(self._values) and not all(self._values) and
             len(self._values) > 0)
 
-  # def assign(self, fv: FuzzyValue):
-  #   self._values = fv._values
-  #   self._types = fv._types
-  #   self._attributes = fv._attributes
+  def hasattribute(self, name):
+    # TODO Check _values
+    if name in self._extra_attributes:
+      return True
+    for val in self._values:
+      if hasattr(val, 'hasattribute') and val.hasattribute(name):
+        return True
+
 
   def getattribute(self, name):
     # TODO Check _values
-    if name in self._attributes:
-      return self._attributes[name]
+    if name in self._extra_attributes:
+      return self._extra_attributes[name]
+    matches = []
     for val in self._values:
-      if hasattr(val, name):
-        return val.__getattribute__(name)
+      if hasattr(val, 'hasattribute') and val.hasattribute(name):
+        matches.append(val.getattribute(name))
+    if matches:
+      if len(matches) > 1:
+        return FuzzyValue(matches)
+      return matches[0]
+    raise ValueError(f'No value with attribute for {name} on {self}')
     info(f'Failed to find attribute {name}')
     return FuzzyValue([])
 
   def setattribute(self, name, value):
-    self._attributes[name] = value
+    match = None
+    if len(self._values) == 1:
+      self._values[0].setattribute(name, value)
+      return
+    for val in self._values:
+      if hasattr(val, 'hasattribute') and val.hasattribute(name):
+        if match:
+          info('Ambiguous assignment for {name} on {self}')
+          self._extra_attributes[name] = value
+          return
+        else:
+          match = val
+    if not match:
+      raise ValueError(f'No value with attribute for {name} on {self}')
+      info(f'No value with attribute for {name} on {self}')
+      self._extra_attributes[name] = value
+    else:
+      val.setattribute(name, value)
 
-  def __add__(self, other):
+
+  def _operator(self, other, operator):
     try:
-      return FuzzyValue([self.value() + other.value()])
+      return FuzzyValue([getattr(self.value(), operator)(other.value())])
     except ValueError:
       types = self._types.union(other._types)
       values = []
       for v1 in self._values:
         try:
           for v2 in other._values:
-            values.append(v1 + v2)
+            values.append(getattr(v1, operator)(v2))
         except TypeError:
           continue
       for v in chain(self._values, other._values):
@@ -206,6 +289,9 @@ class FuzzyValue:
       return self
     raise NotImplementedError()
 
+# Add various operators too FuzzyValue class.
+for operator_str in _OPERATORS:
+  setattr(FuzzyValue, operator_str, partialmethod(FuzzyValue._operator, operator=operator_str))
 
 def literal_to_fuzzy(value):
   return FuzzyValue([value])

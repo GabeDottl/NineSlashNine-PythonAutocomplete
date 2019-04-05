@@ -28,8 +28,7 @@ class TupleExpression(Expression):
   expressions = attr.ib()
 
   def evaluate(self, curr_frame) -> FuzzyValue:
-    return FuzzyValue(
-        [tuple(e.evaluate(curr_frame) for e in self.expressions)])
+    return FuzzyValue([tuple(e.evaluate(curr_frame) for e in self.expressions)])
 
 
 @attr.s
@@ -54,8 +53,8 @@ class AttributeExpression(Expression):
   attribute = attr.ib()
 
   def evaluate(self, curr_frame) -> FuzzyValue:
-    value = self.base_expression.evaluate(curr_frame)
-    return value.__getattribute__(self.attribute)
+    value: FuzzyValue = self.base_expression.evaluate(curr_frame)
+    return value.getattribute(self.attribute)
 
 
 @attr.s
@@ -73,7 +72,7 @@ class VariableExpression(Expression):
   name = attr.ib()
 
   def evaluate(self, curr_frame) -> FuzzyValue:
-    return curr_frame.get_assignment(self)
+    return curr_frame[self]
 
 
 @attr.s
@@ -122,9 +121,38 @@ class MathExpression(Expression):
     # factor: ('+'|'-'|'~') factor | power
     # power: atom_expr ['**' factor]
     # TODO: handle options...
+    l = self.left.evaluate(curr_frame)
+    r = self.right.evaluate(curr_frame)
+    if self.operator == '|':
+      return l | r
+    if self.operator == '^':
+      return l ^ r
+    if self.operator == '&':
+      return l & r
+    if self.operator == '<<':
+      return l << r
+    if self.operator == '>>':
+      return l >> r
     if self.operator == '+':
-      return self.left.evaluate(curr_frame) + self.right.evaluate(
-          curr_frame)
+      return l + r
+    if self.operator == '-':
+      return l - r
+    if self.operator == '*':
+      return l * r
+    if self.operator == '@':
+      return l @ r
+    if self.operator == '/':
+      return l / r
+    if self.operator == '%':
+      return l % r
+    if self.operator == '//':
+      return l // r
+    # if self.operator == '~': return l ~ r  # Invalid syntax?
+    if self.operator == '**':
+      return l**r
+
+    if self.operator == '*':
+      return l * r
     assert False, f'Cannot handle {self.operator} yet.'
 
 
@@ -137,17 +165,19 @@ class AssignmentExpressionStatement:  # Looks like an Expression, but not techni
   def evaluate(self, curr_frame) -> FuzzyValue:
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
-    info(f'result: {result}')
-    info(f'self.right_expression: {self.right_expression}')
+    # info(f'result: {result}')
+    # info(f'self.right_expression: {self.right_expression}')
     if len(self.left_variables) == 1:
+      info(self.left_variables[0])
       curr_frame[self.left_variables[0]] = result
       info(f'result: {result}')
-      info(
-          f'curr_frame[self.left_variables[0]]: {curr_frame[self.left_variables[0]]}'
-      )
+      # info(
+      #     f'curr_frame[self.left_variables[0]]: {curr_frame[self.left_variables[0]]}'
+      # )
     else:
       for i, variable in enumerate(self.left_variables):
         # TODO: Handle this properly...
         curr_frame[variable] = result[i]
+
 
 Variable = Expression

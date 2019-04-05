@@ -31,12 +31,13 @@ from autocomplete.code_understanding.typing.utils import (create_expression_node
                                                           node_info,
                                                           parameters_from_parameters,
                                                           statement_from_expr_stmt)
+from autocomplete.nsn_logging import info
 
 
 def run_graph(graph, frame=None):
   # TODO: Create proper.
   if not frame:
-    frame = Frame({}, {})
+    frame = Frame()
   graph.process(frame)
   return frame
 
@@ -62,7 +63,7 @@ class ControlFlowGraphBuilder:
     try:
       return getattr(self, f'create_cfg_node_for_{node.type}')(node)
     except AttributeError as e:
-      print(node_info(node))
+      info(node_info(node))
       raise e
 
   def create_cfg_node_for_single_input(self, node):
@@ -118,15 +119,15 @@ class ControlFlowGraphBuilder:
     assert len(node.children) == 1, node_info(node)
     return self.create_cfg_node(node.children[1])
 
-  # def create_cfg_node_for_decorator(self, node): print(f'Skipping {node.type}')
-  # def create_cfg_node_for_decorators(self, node): print(f'Skipping {node.type}')
+  # def create_cfg_node_for_decorator(self, node): info(f'Skipping {node.type}')
+  # def create_cfg_node_for_decorators(self, node): info(f'Skipping {node.type}')
 
   # Parso doesn't handle these grammar nodes in the expectezd way:
   # async_func's are treated as async_stmt with a funcdef inside.
-  # def create_cfg_node_for_async_funcdef(self, node): print(f'Skipping {node.type}')
+  # def create_cfg_node_for_async_funcdef(self, node): info(f'Skipping {node.type}')
 
   # augassign is treated as a regular assignment with a special operator (e.g. +=)
-  # def create_cfg_node_for_augassign(self, node): print(f'Skipping {node.type}')
+  # def create_cfg_node_for_augassign(self, node): info(f'Skipping {node.type}')
 
   def create_cfg_node_for_if_stmt(self, node):
     return IfCfgNode(create_expression_node_tuples_from_if_stmt(self, node))
@@ -140,7 +141,7 @@ class ControlFlowGraphBuilder:
 
   def create_cfg_node_for_expr_stmt(self, node):
     statement = statement_from_expr_stmt(node)
-    print(f'Creating StmtCfgNode for {node.get_code()}')
+    # info(f'Creating StmtCfgNode for {node.get_code()}')
     return StmtCfgNode(statement, node.get_code())
 
   def create_cfg_node_for_atom_expr(self, node):
@@ -153,115 +154,115 @@ class ControlFlowGraphBuilder:
     return ReturnCfgNode(expression_from_node(node.children[1]))
 
   def create_cfg_node_for_flow_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_break_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_continue_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_yield_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_raise_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_import_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_import_name(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_import_from(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_global_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_nonlocal_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_assert_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_compound_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_async_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_while_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_for_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_try_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_except_clause(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_with_stmt(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_with_item(self, node):
-    print(f'Skipping {node.type}')
+    info(f'Skipping {node.type}')
 
   def create_cfg_node_for_classdef(self, node):
-    name = node.children[1].ValueError
+    name = node.children[1].value
     suite = self.create_cfg_node(node.children[-1])
     return KlassCfgNode(name, suite)
 
-  # def process_parameters(self, node): print(f'Skipping {node.type}')
-  # def process_typedargslist(self, node): print(f'Skipping {node.type}')
-  # def process_tfpdef(self, node): print(f'Skipping {node.type}')
-  # def process_varargslist(self, node): print(f'Skipping {node.type}')
-  # def process_vfpdef(self, node): print(f'Skipping {node.type}')
-  # def process_annassign(self, node): print(f'Skipping {node.type}')
-  # def process_testlist_star_expr(self, node): print(f'Skipping {node.type}')
-  # def process_import_as_name(self, node): print(f'Skipping {node.type}')
-  # def process_dotted_as_name(self, node): print(f'Skipping {node.type}')
-  # def process_import_as_names(self, node): print(f'Skipping {node.type}')
-  # def process_dotted_as_names(self, node): print(f'Skipping {node.type}')
-  # def process_dotted_name(self, node): print(f'Skipping {node.type}')
+  # def process_parameters(self, node): info(f'Skipping {node.type}')
+  # def process_typedargslist(self, node): info(f'Skipping {node.type}')
+  # def process_tfpdef(self, node): info(f'Skipping {node.type}')
+  # def process_varargslist(self, node): info(f'Skipping {node.type}')
+  # def process_vfpdef(self, node): info(f'Skipping {node.type}')
+  # def process_annassign(self, node): info(f'Skipping {node.type}')
+  # def process_testlist_star_expr(self, node): info(f'Skipping {node.type}')
+  # def process_import_as_name(self, node): info(f'Skipping {node.type}')
+  # def process_dotted_as_name(self, node): info(f'Skipping {node.type}')
+  # def process_import_as_names(self, node): info(f'Skipping {node.type}')
+  # def process_dotted_as_names(self, node): info(f'Skipping {node.type}')
+  # def process_dotted_name(self, node): info(f'Skipping {node.type}')
 
-  # def process_test(self, node): print(f'Skipping {node.type}')
-  # def process_test_nocond(self, node): print(f'Skipping {node.type}')
-  # def process_lambdef(self, node): print(f'Skipping {node.type}')
-  # def process_lambdef_nocond(self, node): print(f'Skipping {node.type}')
-  # def process_or_test(self, node): print(f'Skipping {node.type}')
-  # def process_and_test(self, node): print(f'Skipping {node.type}')
-  # def process_not_test(self, node): print(f'Skipping {node.type}')
-  # def process_comparison(self, node): print(f'Skipping {node.type}')
-  # def process_comp_op(self, node): print(f'Skipping {node.type}')
-  # def process_star_expr(self, node): print(f'Skipping {node.type}')
-  # def process_expr(self, node): print(f'Skipping {node.type}')
-  # def process_xor_expr(self, node): print(f'Skipping {node.type}')
-  # def process_and_expr(self, node): print(f'Skipping {node.type}')
-  # def process_shift_expr(self, node): print(f'Skipping {node.type}')
-  # def process_arith_expr(self, node): print(f'Skipping {node.type}')
-  # def process_term(self, node): print(f'Skipping {node.type}')
-  # def process_factor(self, node): print(f'Skipping {node.type}')
-  # def process_power(self, node): print(f'Skipping {node.type}')
+  # def process_test(self, node): info(f'Skipping {node.type}')
+  # def process_test_nocond(self, node): info(f'Skipping {node.type}')
+  # def process_lambdef(self, node): info(f'Skipping {node.type}')
+  # def process_lambdef_nocond(self, node): info(f'Skipping {node.type}')
+  # def process_or_test(self, node): info(f'Skipping {node.type}')
+  # def process_and_test(self, node): info(f'Skipping {node.type}')
+  # def process_not_test(self, node): info(f'Skipping {node.type}')
+  # def process_comparison(self, node): info(f'Skipping {node.type}')
+  # def process_comp_op(self, node): info(f'Skipping {node.type}')
+  # def process_star_expr(self, node): info(f'Skipping {node.type}')
+  # def process_expr(self, node): info(f'Skipping {node.type}')
+  # def process_xor_expr(self, node): info(f'Skipping {node.type}')
+  # def process_and_expr(self, node): info(f'Skipping {node.type}')
+  # def process_shift_expr(self, node): info(f'Skipping {node.type}')
+  # def process_arith_expr(self, node): info(f'Skipping {node.type}')
+  # def process_term(self, node): info(f'Skipping {node.type}')
+  # def process_factor(self, node): info(f'Skipping {node.type}')
+  # def process_power(self, node): info(f'Skipping {node.type}')
 
-  # def process_atom(self, node): print(f'Skipping {node.type}')
-  # def process_testlist_comp(self, node): print(f'Skipping {node.type}')
-  # def process_trailer(self, node): print(f'Skipping {node.type}')
-  # def process_subscriptlist(self, node): print(f'Skipping {node.type}')
-  # def process_subscript(self, node): print(f'Skipping {node.type}')
-  # def process_sliceop(self, node): print(f'Skipping {node.type}')
-  # def process_exprlist(self, node): print(f'Skipping {node.type}')
-  # def process_testlist(self, node): print(f'Skipping {node.type}')
-  # def process_dictorsetmaker(self, node): print(f'Skipping {node.type}')
+  # def process_atom(self, node): info(f'Skipping {node.type}')
+  # def process_testlist_comp(self, node): info(f'Skipping {node.type}')
+  # def process_trailer(self, node): info(f'Skipping {node.type}')
+  # def process_subscriptlist(self, node): info(f'Skipping {node.type}')
+  # def process_subscript(self, node): info(f'Skipping {node.type}')
+  # def process_sliceop(self, node): info(f'Skipping {node.type}')
+  # def process_exprlist(self, node): info(f'Skipping {node.type}')
+  # def process_testlist(self, node): info(f'Skipping {node.type}')
+  # def process_dictorsetmaker(self, node): info(f'Skipping {node.type}')
 
-  # def process_arglist(self, node): print(f'Skipping {node.type}')
-  # def process_argument(self, node): print(f'Skipping {node.type}')
-  # def process_comp_iter(self, node): print(f'Skipping {node.type}')
-  # def process_sync_comp_for(self, node): print(f'Skipping {node.type}')
-  # def process_comp_for(self, node): print(f'Skipping {node.type}')
-  # def process_comp_if(self, node): print(f'Skipping {node.type}')
-  # def process_encoding_decl(self, node): print(f'Skipping {node.type}')
-  # def process_yield_expr(self, node): print(f'Skipping {node.type}')
-  # def process_yield_arg(self, node): print(f'Skipping {node.type}')
+  # def process_arglist(self, node): info(f'Skipping {node.type}')
+  # def process_argument(self, node): info(f'Skipping {node.type}')
+  # def process_comp_iter(self, node): info(f'Skipping {node.type}')
+  # def process_sync_comp_for(self, node): info(f'Skipping {node.type}')
+  # def process_comp_for(self, node): info(f'Skipping {node.type}')
+  # def process_comp_if(self, node): info(f'Skipping {node.type}')
+  # def process_encoding_decl(self, node): info(f'Skipping {node.type}')
+  # def process_yield_expr(self, node): info(f'Skipping {node.type}')
+  # def process_yield_arg(self, node): info(f'Skipping {node.type}')
