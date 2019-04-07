@@ -121,12 +121,15 @@ _OPERATORS= [
  '__and__',
  # '__bool__',
  # '__invert__',
- # '__le__',
+ '__ge__',
+ '__gt__',
+ '__le__',
+ '__lt__',
  '__lshift__',
- # '__lt__',
+
  '__mod__',
  '__mul__',
- # '__ne__',
+ '__ne__',
  # '__neg__',
  # '__new__',
  '__or__',
@@ -183,11 +186,12 @@ class FuzzyValue:
   # Attributes that have been set on this value that match None of the current
   # values. Otherwise, setting attributes will fit to whatever they can.
   _extra_attributes: Dict = attr.ib(factory=dict)
+  _dynamic_creation = attr.ib(False)
 
   # TODO: unexecuted_expressions?
 
   def __str__(self):
-    return f'FV({self._values} {self._types} {self._last_creation_string})'
+    return f'FV({self._values}{self._types if self._types else ""}{self._last_creation_string})'
 
   def __repr__(self):
     return str(self)
@@ -225,46 +229,58 @@ class FuzzyValue:
     if name in self._extra_attributes:
       return True
     for val in self._values:
-      if hasattr(val, 'hasattribute') and val.hasattribute(name):
+      if hasattr(val, 'hasattribute') and val.has_attribute(name):
         return True
 
 
   def getattribute(self, name):
-    # TODO Check _values
     if name in self._extra_attributes:
       return self._extra_attributes[name]
     matches = []
+    
     for val in self._values:
-      if hasattr(val, 'hasattribute') and val.hasattribute(name):
-        matches.append(val.getattribute(name))
+      if hasattr(val, 'hasattribute') and val.has_attribute(name):
+        matches.append(val.get_attribute(name))
+    
     if matches:
       if len(matches) > 1:
         return FuzzyValue(matches)
       return matches[0]
-    raise ValueError(f'No value with attribute for {name} on {self}')
-    info(f'Failed to find attribute {name}')
-    return FuzzyValue([])
+    
+    if not self._dynamic_creation:
+      raise ValueError(f'No value with attribute for {name} on {self}')
+    info(f'Failed to find attribute {name}; creating an empty FuzzyValue for it.')
+    return FuzzyValue([], dynamic_creation=True)
 
-  def setattribute(self, name, value):
-    match = None
+  def set_attribute(self, name, value):
+    if not isinstance(value, FuzzyValue):
+      value = FuzzyValue([value])
+
     if len(self._values) == 1:
-      self._values[0].setattribute(name, value)
+      self._values[0].set_attribute(name, value)
       return
+
+    match = None
     for val in self._values:
-      if hasattr(val, 'hasattribute') and val.hasattribute(name):
+      if hasattr(val, 'hasattribute') and val.has_attribute(name):
         if match:
           info('Ambiguous assignment for {name} on {self}')
           self._extra_attributes[name] = value
           return
         else:
           match = val
-    if not match:
-      raise ValueError(f'No value with attribute for {name} on {self}')
-      info(f'No value with attribute for {name} on {self}')
-      self._extra_attributes[name] = value
-    else:
-      val.setattribute(name, value)
 
+    if not match and not self._dynamic_creation:
+      raise ValueError(f'No value with attribute for {name} on {self}')
+    elif match:
+      return  # Already set
+    else:
+      info(f'Dynamically adding {name} attribute with ')
+      self._extra_attributes[name] = value
+
+  def apply(self, func):
+    for value in self._values:
+      func(value)
 
   def _operator(self, other, operator):
     try:

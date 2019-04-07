@@ -1,0 +1,721 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+ABC	../code_understanding/typing/expressions.py	/^from abc import ABC, abstractmethod$/;"	kind:namespace	line:1
+ABC	../code_understanding/typing/language_objects.py	/^from abc import ABC$/;"	kind:namespace	line:1
+AClass	../code_understanding/typing/examples/basic.py	/^class AClass:$/;"	kind:class	line:26
+AClass	../code_understanding/typing/examples/test_main_sample_code.py	/^class AClass:$/;"	kind:class	line:7
+ARGS	../code_understanding/typing/language_objects.py	/^  ARGS = 1$/;"	kind:variable	line:221
+AssignmentExpressionStatement	../code_understanding/typing/expressions.py	/^class AssignmentExpressionStatement:  # Looks like an Expression, but not technically one.$/;"	kind:class	line:195
+AssignmentExpressionStatement	../code_understanding/typing/utils.py	/^from autocomplete.code_understanding.typing.expressions import (AssignmentExpressionStatement,$/;"	kind:namespace	line:6
+AstDrawer	../code_understanding/ast/draw_ast.py	/^class AstDrawer(ast.NodeVisitor):$/;"	kind:class	line:13
+AstFieldExplorer	../code_understanding/ast/ast_field_explorer.py	/^class AstFieldExplorer(ast.NodeVisitor):$/;"	kind:class	line:4
+AstTypeFinder	../code_understanding/ast/ast_search.py	/^class AstTypeFinder(ast.NodeVisitor):$/;"	kind:class	line:4
+Attributable	../code_understanding/typing/language_objects.py	/^class Attributable(ABC):$/;"	kind:class	line:117
+AttributeExpression	../code_understanding/typing/expressions.py	/^class AttributeExpression(Expression):$/;"	kind:class	line:51
+AttributeExpression	../code_understanding/typing/frame.py	/^from autocomplete.code_understanding.typing.expressions import (AttributeExpression,$/;"	kind:namespace	line:6
+AutocompleteTrie	../reverse_history/trie.py	/^class AutocompleteTrie:$/;"	kind:class	line:105
+BOUND_INSTANCE_METHOD	../code_understanding/typing/language_objects.py	/^  BOUND_INSTANCE_METHOD = 4$/;"	kind:variable	line:21
+Boo	../code_understanding/fake/fake.py	/^  class Boo: # inner class$/;"	kind:class	line:29
+CLASS	../code_understanding/typing/frame.py	/^  CLASS = 2$/;"	kind:variable	line:15
+CLASS_METHOD	../code_understanding/typing/language_objects.py	/^  CLASS_METHOD = 1$/;"	kind:variable	line:18
+CallExpression	../code_understanding/typing/expressions.py	/^class CallExpression(Expression):$/;"	kind:class	line:35
+CfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class CfgNode:$/;"	kind:class	line:48
+CfgNode	../code_understanding/typing/utils.py	/^    CfgNode$/;"	kind:namespace	line:5
+ComparisonExpression	../code_understanding/typing/expressions.py	/^class ComparisonExpression(Expression):$/;"	kind:class	line:160
+ControlFlowGraphBuilder	../code_understanding/typing/control_flow_graph.py	/^class ControlFlowGraphBuilder:$/;"	kind:class	line:68
+Counter	../reverse_history/trie_test.py	/^from collections import Counter$/;"	kind:namespace	line:2
+Dict	../code_understanding/typing/frame.py	/^from typing import Dict, List$/;"	kind:namespace	line:2
+Dict	../code_understanding/typing/fuzzy_value.py	/^from typing import Dict, List, Set$/;"	kind:namespace	line:3
+Enum	../code_understanding/typing/frame.py	/^from enum import Enum$/;"	kind:namespace	line:1
+Enum	../code_understanding/typing/language_objects.py	/^from enum import Enum$/;"	kind:namespace	line:3
+Example	../code_understanding/typing/examples/max_grammar.py	/^class Example(Object):$/;"	kind:class	line:20
+Expression	../code_understanding/typing/expressions.py	/^class Expression(ABC):$/;"	kind:class	line:11
+ExpressionCfgNode	../code_understanding/typing/control_flow_graph.py	/^from autocomplete.code_understanding.typing.control_flow_graph_nodes import (ExpressionCfgNode,$/;"	kind:namespace	line:22
+ExpressionCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class ExpressionCfgNode:$/;"	kind:class	line:56
+FREE	../code_understanding/typing/language_objects.py	/^  FREE = 0$/;"	kind:variable	line:17
+FUNCTION	../code_understanding/typing/frame.py	/^  FUNCTION = 3$/;"	kind:variable	line:16
+Foo	../code_understanding/fake/fake.py	/^class Foo:$/;"	kind:class	line:13
+Foo	../code_understanding/typing/sample.py	/^class Foo:$/;"	kind:class	line:3
+ForExpression	../code_understanding/typing/expressions.py	/^class ForExpression(Expression):$/;"	kind:class	line:99
+Frame	../code_understanding/typing/control_flow_graph.py	/^from autocomplete.code_understanding.typing.frame import Frame$/;"	kind:namespace	line:32
+Frame	../code_understanding/typing/frame.py	/^class Frame:$/;"	kind:class	line:20
+Frame	../code_understanding/typing/language_objects.py	/^from autocomplete.code_understanding.typing.frame import Frame, FrameType$/;"	kind:namespace	line:10
+FrameType	../code_understanding/typing/control_flow_graph_nodes.py	/^from autocomplete.code_understanding.typing.frame import FrameType$/;"	kind:namespace	line:8
+FrameType	../code_understanding/typing/frame.py	/^class FrameType(Enum):$/;"	kind:class	line:13
+FrameType	../code_understanding/typing/language_objects.py	/^from autocomplete.code_understanding.typing.frame import Frame, FrameType$/;"	kind:namespace	line:10
+FromImportCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class FromImportCfgNode(CfgNode):$/;"	kind:class	line:77
+FuncCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class FuncCfgNode(CfgNode):$/;"	kind:class	line:192
+Function	../code_understanding/typing/control_flow_graph_nodes.py	/^from autocomplete.code_understanding.typing.language_objects import (Function,$/;"	kind:namespace	line:11
+Function	../code_understanding/typing/language_objects.py	/^class Function:$/;"	kind:class	line:25
+Function	../code_understanding/typing/tests/test_main.py	/^from autocomplete.code_understanding.typing.language_objects import (Function,$/;"	kind:namespace	line:5
+FunctionType	../code_understanding/typing/language_objects.py	/^class FunctionType(Enum):$/;"	kind:class	line:16
+FuzzyValue	../code_understanding/typing/frame.py	/^from autocomplete.code_understanding.typing.fuzzy_value import FuzzyValue$/;"	kind:namespace	line:9
+FuzzyValue	../code_understanding/typing/fuzzy_value.py	/^class FuzzyValue:$/;"	kind:class	line:167
+GroupCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class GroupCfgNode(CfgNode):$/;"	kind:class	line:177
+IfCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class IfCfgNode(CfgNode):$/;"	kind:class	line:131
+IfExpression	../code_understanding/typing/expressions.py	/^class IfExpression(Expression):$/;"	kind:class	line:79
+ImportCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class ImportCfgNode(CfgNode):$/;"	kind:class	line:65
+ImportFrom	../code_understanding/typing/fuzzy_value.py	/^class ImportFrom:$/;"	kind:class	line:324
+ImportOf	../code_understanding/typing/fuzzy_value.py	/^class ImportOf:$/;"	kind:class	line:319
+Instance	../code_understanding/typing/language_objects.py	/^class Instance(Attributable):$/;"	kind:class	line:172
+KWARGS	../code_understanding/typing/language_objects.py	/^  KWARGS = 2$/;"	kind:variable	line:222
+Klass	../code_understanding/typing/language_objects.py	/^class Klass(Attributable):$/;"	kind:class	line:130
+KlassCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class KlassCfgNode(CfgNode):$/;"	kind:class	line:152
+LOCAL	../code_understanding/typing/language_objects.py	/^  LOCAL = 2$/;"	kind:variable	line:186
+List	../code_understanding/typing/examples/max_grammar.py	/^from typing import List$/;"	kind:namespace	line:4
+List	../code_understanding/typing/frame.py	/^from typing import Dict, List$/;"	kind:namespace	line:2
+List	../code_understanding/typing/fuzzy_value.py	/^from typing import Dict, List, Set$/;"	kind:namespace	line:3
+List	../code_understanding/typing/utils.py	/^from typing import List, Tuple, Union$/;"	kind:namespace	line:2
+LiteralExpression	../code_understanding/typing/expressions.py	/^class LiteralExpression(Expression):$/;"	kind:class	line:19
+LiteralExpression	../code_understanding/typing/language_objects.py	/^from autocomplete.code_understanding.typing.expressions import (LiteralExpression,$/;"	kind:namespace	line:8
+LoopException	../reverse_history/trie.py	/^    class LoopException(Exception):$/;"	kind:class	line:36
+MathExpression	../code_understanding/typing/expressions.py	/^class MathExpression(Expression):$/;"	kind:class	line:109
+Module	../code_understanding/typing/language_objects.py	/^class Module(Attributable):$/;"	kind:class	line:190
+Module	../code_understanding/typing/module_loader.py	/^from autocomplete.code_understanding.typing.language_objects import (Module,$/;"	kind:namespace	line:13
+ModuleType	../code_understanding/typing/language_objects.py	/^class ModuleType(Enum):$/;"	kind:class	line:183
+NAME	../naive_suggestion_sort/count_names.py	/^from tokenize import tokenize, NAME$/;"	kind:namespace	line:4
+NONE_FUZZY_VALUE	../code_understanding/typing/control_flow_graph_nodes.py	/^from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,$/;"	kind:namespace	line:9
+NONE_FUZZY_VALUE	../code_understanding/typing/expressions.py	/^from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,$/;"	kind:namespace	line:5
+NONE_FUZZY_VALUE	../code_understanding/typing/fuzzy_value.py	/^NONE_FUZZY_VALUE = literal_to_fuzzy(None)$/;"	kind:variable	line:314
+NONE_FUZZY_VALUE	../code_understanding/typing/language_objects.py	/^from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,$/;"	kind:namespace	line:11
+NORMAL	../code_understanding/typing/frame.py	/^  NORMAL = 1$/;"	kind:variable	line:14
+Namespace	../code_understanding/namespace.py	/^class Namespace:$/;"	kind:class	line:1
+NoOpCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class NoOpCfgNode(CfgNode):$/;"	kind:class	line:94
+Node	../reverse_history/trie.py	/^class Node:$/;"	kind:class	line:1
+OrderedDict	../naive_suggestion_sort/count_names.py	/^from collections import defaultdict, OrderedDict$/;"	kind:namespace	line:6
+PUBLIC	../code_understanding/typing/language_objects.py	/^  PUBLIC = 1$/;"	kind:variable	line:185
+Parameter	../code_understanding/typing/language_objects.py	/^class Parameter:$/;"	kind:class	line:201
+Parameter	../code_understanding/typing/utils.py	/^from autocomplete.code_understanding.typing.language_objects import (Parameter,$/;"	kind:namespace	line:17
+ParameterType	../code_understanding/typing/language_objects.py	/^class ParameterType(Enum):$/;"	kind:class	line:219
+ParsoDrawer	../code_understanding/typing/draw_parso.py	/^class ParsoDrawer:$/;"	kind:class	line:11
+PythonExporter	../jupyter_notebook_to_code.py	/^from nbconvert import PythonExporter$/;"	kind:namespace	line:1
+ReferenceAstNodeVisitor	../code_understanding/ast/reference_ast_node_visitor.py	/^class ReferenceAstNodeVisitor(ast.NodeVisitor):$/;"	kind:class	line:9
+ReferenceAstNodeVisitor	../code_understanding/project_analysis.py	/^from autocomplete.code_understanding.reference_ast_node_visitor import ReferenceAstNodeVisitor$/;"	kind:namespace	line:3
+RemainderSplitException	../reverse_history/trie.py	/^    class RemainderSplitException(Exception):$/;"	kind:class	line:155
+ReturnCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class ReturnCfgNode(CfgNode):$/;"	kind:class	line:215
+SINGLE	../code_understanding/typing/language_objects.py	/^  SINGLE = 0$/;"	kind:variable	line:220
+STATIC_METHOD	../code_understanding/typing/language_objects.py	/^  STATIC_METHOD = 2  # Essentially, free.$/;"	kind:variable	line:19
+SYSTEM	../code_understanding/typing/language_objects.py	/^  SYSTEM = 0$/;"	kind:variable	line:184
+Set	../code_understanding/typing/fuzzy_value.py	/^from typing import Dict, List, Set$/;"	kind:namespace	line:3
+SimpleRegexAutocompleter	../regex_autocompleter.py	/^class SimpleRegexAutocompleter:$/;"	kind:class	line:11
+StmtCfgNode	../code_understanding/typing/control_flow_graph_nodes.py	/^class StmtCfgNode(CfgNode):$/;"	kind:class	line:103
+StubFunction	../code_understanding/typing/language_objects.py	/^class StubFunction:$/;"	kind:class	line:101
+SubscriptExpression	../code_understanding/typing/expressions.py	/^class SubscriptExpression(Expression):$/;"	kind:class	line:61
+T	../code_understanding/typing/sample.py	/^  T = namedtuple('T', ['y'])$/;"	kind:variable	line:5
+Tuple	../code_understanding/typing/utils.py	/^from typing import List, Tuple, Union$/;"	kind:namespace	line:2
+TupleExpression	../code_understanding/typing/expressions.py	/^class TupleExpression(Expression):$/;"	kind:class	line:27
+TypeInferencer	../code_understanding/typing/type_inferencer.py	/^class TypeInferencer:$/;"	kind:class	line:26
+UNBOUND_INSTANCE_METHOD	../code_understanding/typing/language_objects.py	/^  UNBOUND_INSTANCE_METHOD = 3$/;"	kind:variable	line:20
+UNKNOWN	../code_understanding/typing/language_objects.py	/^  UNKNOWN = 3$/;"	kind:variable	line:187
+UNKNOWN_FUZZY_VALUE	../code_understanding/typing/fuzzy_value.py	/^UNKNOWN_FUZZY_VALUE = FuzzyValue(tuple())$/;"	kind:variable	line:315
+Union	../code_understanding/typing/utils.py	/^from typing import List, Tuple, Union$/;"	kind:namespace	line:2
+Variable	../code_understanding/typing/expressions.py	/^Variable = Expression$/;"	kind:variable	line:218
+VariableExpression	../code_understanding/typing/control_flow_graph_nodes.py	/^    VariableExpression$/;"	kind:namespace	line:7
+VariableExpression	../code_understanding/typing/expressions.py	/^class VariableExpression(Expression):$/;"	kind:class	line:71
+Visitor	../reverse_history/trie_builder.py	/^class Visitor(ast.NodeVisitor):$/;"	kind:class	line:7
+_OPERATORS	../code_understanding/typing/fuzzy_value.py	/^_OPERATORS= [$/;"	kind:variable	line:118
+__contains__	../code_understanding/typing/frame.py	/^  def __contains__(self, name):$/;"	kind:member	line:86
+__exception_processed	../code_understanding/typing/control_flow_graph_nodes.py	/^__exception_processed = False$/;"	kind:variable	line:18
+__getitem__	../code_understanding/typing/frame.py	/^  def __getitem__(self, variable: Variable) -> FuzzyValue:$/;"	kind:member	line:67
+__getitem__	../code_understanding/typing/fuzzy_value.py	/^  def __getitem__(self, index):$/;"	kind:member	line:293
+__init__	../code_understanding/ast/ast_field_explorer.py	/^  def __init__(self):$/;"	kind:member	line:6
+__init__	../code_understanding/ast/ast_search.py	/^  def __init__(self):$/;"	kind:member	line:5
+__init__	../code_understanding/ast/draw_ast.py	/^  def __init__(self, path='\/tmp\/ast'):$/;"	kind:member	line:14
+__init__	../code_understanding/ast/reference_ast_node_visitor.py	/^  def __init__(self,$/;"	kind:member	line:12
+__init__	../code_understanding/fake/fake.py	/^  def __init__(self):$/;"	kind:member	line:17
+__init__	../code_understanding/typing/draw_parso.py	/^  def __init__(self, path='\/tmp\/parso'):$/;"	kind:member	line:12
+__init__	../code_understanding/typing/examples/basic.py	/^  def __init__(self, b):$/;"	kind:member	line:28
+__init__	../code_understanding/typing/examples/max_grammar.py	/^  def __init__(self, kw_arg=1, *args, **kwargs):$/;"	kind:member	line:24
+__init__	../code_understanding/typing/examples/test_main_sample_code.py	/^  def __init__(self, b):$/;"	kind:member	line:9
+__init__	../code_understanding/typing/sample.py	/^  def __init__(self):$/;"	kind:member	line:8
+__init__	../regex_autocompleter.py	/^  def __init__(self, path):$/;"	kind:member	line:12
+__init__	../reverse_history/trie.py	/^      def __init__(self, split_point):$/;"	kind:member	line:156
+__init__	../reverse_history/trie.py	/^  def __init__(self):$/;"	kind:member	line:107
+__init__	../reverse_history/trie.py	/^  def __init__(self):$/;"	kind:member	line:3
+__init__	../reverse_history/trie_builder.py	/^  def __init__(self, trie):$/;"	kind:member	line:8
+__init__.py	../__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/ast/__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/broken/__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/fake/__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/inspect/__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/simple_ml_prediction/__init__.py	1;"	kind:file	line:1
+__init__.py	../code_understanding/typing/__init__.py	1;"	kind:file	line:1
+__init__.py	../debug/__init__.py	1;"	kind:file	line:1
+__init__.py	../naive_suggestion_sort/__init__.py	1;"	kind:file	line:1
+__init__.py	../reverse_history/__init__.py	1;"	kind:file	line:1
+__module_dict	../code_understanding/typing/module_loader.py	/^__module_dict = None$/;"	kind:variable	line:17
+__repr__	../code_understanding/typing/frame.py	/^  def __repr__(self):$/;"	kind:member	line:109
+__repr__	../code_understanding/typing/fuzzy_value.py	/^  def __repr__(self):$/;"	kind:member	line:195
+__repr__	../code_understanding/typing/language_objects.py	/^  def __repr__(self):$/;"	kind:member	line:113
+__repr__	../code_understanding/typing/language_objects.py	/^  def __repr__(self):$/;"	kind:member	line:137
+__repr__	../code_understanding/typing/language_objects.py	/^  def __repr__(self):$/;"	kind:member	line:179
+__repr__	../code_understanding/typing/language_objects.py	/^  def __repr__(self):$/;"	kind:member	line:215
+__repr__	../code_understanding/typing/language_objects.py	/^  def __repr__(self):$/;"	kind:member	line:96
+__setitem__	../code_understanding/typing/frame.py	/^  def __setitem__(self, variable: Variable, value: FuzzyValue):$/;"	kind:member	line:44
+__str__	../code_understanding/typing/control_flow_graph_nodes.py	/^  def __str__(self):$/;"	kind:member	line:119
+__str__	../code_understanding/typing/control_flow_graph_nodes.py	/^  def __str__(self):$/;"	kind:member	line:186
+__str__	../code_understanding/typing/control_flow_graph_nodes.py	/^  def __str__(self):$/;"	kind:member	line:210
+__str__	../code_understanding/typing/frame.py	/^  def __str__(self):$/;"	kind:member	line:106
+__str__	../code_understanding/typing/fuzzy_value.py	/^  def __str__(self):$/;"	kind:member	line:192
+__str__	../code_understanding/typing/language_objects.py	/^  def __str__(self):$/;"	kind:member	line:110
+__str__	../code_understanding/typing/language_objects.py	/^  def __str__(self):$/;"	kind:member	line:134
+__str__	../code_understanding/typing/language_objects.py	/^  def __str__(self):$/;"	kind:member	line:176
+__str__	../code_understanding/typing/language_objects.py	/^  def __str__(self):$/;"	kind:member	line:206
+__str__	../code_understanding/typing/language_objects.py	/^  def __str__(self):$/;"	kind:member	line:93
+_append_code	../code_understanding/project_analysis.py	/^def _append_code(df, source):$/;"	kind:function	line:98
+_ast	../code_understanding/ast/reference_ast_node_visitor.py	/^import _ast$/;"	kind:namespace	line:6
+_ast	../code_understanding/project_analysis.py	/^import _ast$/;"	kind:namespace	line:5
+_complete_name	../code_understanding/ast/ast_utils.py	/^def _complete_name(node, node_to_parent_dict, base_name='', descendents=None):$/;"	kind:function	line:11
+_create_reference_and_assignment	../code_understanding/typing/type_inferencer.py	/^  def _create_reference_and_assignment(self, node):$/;"	kind:member	line:247
+_extract_fields	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _extract_fields(self, node):$/;"	kind:member	line:65
+_find_matching_name	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _find_matching_name(self, node):$/;"	kind:member	line:179
+_get_complete_attribute_path	../code_understanding/project_analysis.py	/^def _get_complete_attribute_path( node, suffix=''):$/;"	kind:function	line:49
+_handle_assign	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _handle_assign(self, node):$/;"	kind:member	line:196
+_handle_import	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _handle_import(self, node):$/;"	kind:member	line:209
+_handle_import_from	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _handle_import_from(self, node):$/;"	kind:member	line:216
+_is_public_func_or_class	../code_understanding/inspect/module_info.py	/^def _is_public_func_or_class(name, member):$/;"	kind:function	line:42
+_last_creation_string	../code_understanding/typing/fuzzy_value.py	/^  _last_creation_string = attr.ib('')$/;"	kind:variable	line:185
+_load_module	../code_understanding/typing/module_loader.py	/^def _load_module(path: str) -> Module:$/;"	kind:function	line:30
+_load_source	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _load_source(self):$/;"	kind:member	line:38
+_name_id_or_arg	../code_understanding/ast/ast_utils.py	/^def _name_id_or_arg(node):$/;"	kind:function	line:2
+_name_id_or_arg	../code_understanding/ast/draw_ast.py	/^from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg$/;"	kind:namespace	line:8
+_name_id_or_arg	../code_understanding/ast/reference_ast_node_visitor.py	/^from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg$/;"	kind:namespace	line:1
+_name_id_or_arg	../code_understanding/project_analysis.py	/^from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg$/;"	kind:namespace	line:1
+_new_loop	../debug/tcp_echo.py	/^def _new_loop():$/;"	kind:function	line:17
+_operator	../code_understanding/typing/fuzzy_value.py	/^  def _operator(self, other, operator):$/;"	kind:member	line:277
+_process_module	../code_understanding/ast/reference_ast_node_visitor.py	/^  def _process_module(self, module_name):$/;"	kind:member	line:232
+_shorten_paths_in_df	../code_understanding/project_analysis.py	/^def _shorten_paths_in_df(df):$/;"	kind:function	line:107
+_to_str	../code_understanding/typing/control_flow_graph_nodes.py	/^  def _to_str(self):$/;"	kind:member	line:122
+a	../code_understanding/typing/examples/basic.py	/^  a = 1$/;"	kind:variable	line:27
+a	../code_understanding/typing/examples/basic.py	/^a = AClass(1)$/;"	kind:variable	line:34
+a	../code_understanding/typing/examples/max_grammar.py	/^a = 0$/;"	kind:variable	line:54
+a	../code_understanding/typing/examples/max_grammar.py	/^a = 1 | 2 ^ (3 * 2 + 3**3) >> 2 & 1 # 3, apparently.$/;"	kind:variable	line:80
+a	../code_understanding/typing/examples/max_grammar.py	/^from a import a$/;"	kind:namespace	line:10
+a	../code_understanding/typing/examples/max_grammar.py	/^import a.b.c$/;"	kind:namespace	line:8
+a	../code_understanding/typing/examples/test_main_sample_code.py	/^  a = 1$/;"	kind:variable	line:8
+a	../code_understanding/typing/examples/test_main_sample_code.py	/^a = AClass(1)$/;"	kind:variable	line:15
+a_frame	../code_understanding/typing/main.py	/^    a_frame = control_flow_graph.run_graph(graph)/;"	kind:variable	line:13
+a_func	../code_understanding/fake/fake.py	/^from autocomplete.code_understanding.fake2 import a_func$/;"	kind:namespace	line:5
+a_func	../code_understanding/fake/fake2.py	/^def a_func(x=None):$/;"	kind:function	line:1
+abstractmethod	../code_understanding/typing/expressions.py	/^from abc import ABC, abstractmethod$/;"	kind:namespace	line:1
+add	../reverse_history/trie.py	/^  def add(self, line):$/;"	kind:member	line:139
+add_child	../reverse_history/trie.py	/^  def add_child(self, char, child):$/;"	kind:member	line:63
+add_return	../code_understanding/typing/frame.py	/^  def add_return(self, value):$/;"	kind:member	line:93
+add_source_to_trie_with_ast	../reverse_history/trie_builder.py	/^def add_source_to_trie_with_ast(filepath, trie):$/;"	kind:function	line:52
+add_source_tree_to_trie	../reverse_history/trie_builder.py	/^def add_source_tree_to_trie(path, trie):$/;"	kind:function	line:59
+another_func	../code_understanding/fake/fake3.py	/^def another_func():$/;"	kind:function	line:1
+append_func_to_tmp	../code_understanding/tmp.py	/^def append_func_to_tmp(func):$/;"	kind:function	line:5
+apply	../code_understanding/typing/fuzzy_value.py	/^  def apply(self, func):$/;"	kind:member	line:273
+argparse	../code_understanding/ast/draw_ast.py	/^import argparse$/;"	kind:namespace	line:10
+argparse	../code_understanding/simple_ml_prediction/train.py	/^import argparse$/;"	kind:namespace	line:1
+argparse	../code_understanding/typing/draw_parso.py	/^import argparse$/;"	kind:namespace	line:8
+argparse	../debug/tcp_echo_server.py	/^import argparse$/;"	kind:namespace	line:3
+argparse	../naive_suggestion_sort/count_names.py	/^import argparse$/;"	kind:namespace	line:7
+args	../code_understanding/ast/draw_ast.py	/^  args = parser.parse_args()$/;"	kind:variable	line:66
+args	../code_understanding/typing/draw_parso.py	/^  args = parser.parse_args()$/;"	kind:variable	line:82
+args	../code_understanding/typing/expressions.py	/^  args = attr.ib(factory=list)$/;"	kind:variable	line:37
+args	../debug/tcp_echo_server.py	/^  args = parser.parse_args()$/;"	kind:variable	line:27
+args	../naive_suggestion_sort/count_names.py	/^  args = parser.parse()$/;"	kind:variable	line:55
+args_and_kwargs_from_arglist	../code_understanding/typing/utils.py	/^def args_and_kwargs_from_arglist(node):$/;"	kind:function	line:226
+as_name	../code_understanding/typing/control_flow_graph_nodes.py	/^  as_name = attr.ib(None)$/;"	kind:variable	line:68
+as_name	../code_understanding/typing/control_flow_graph_nodes.py	/^  as_name = attr.ib(None)$/;"	kind:variable	line:81
+as_name	../code_understanding/typing/fuzzy_value.py	/^  as_name = attr.ib(kw_only=True)$/;"	kind:variable	line:327
+assert_valid	../reverse_history/trie.py	/^  def assert_valid(self):$/;"	kind:member	line:98
+ast	../code_understanding/ast/ast_field_explorer.py	/^import ast$/;"	kind:namespace	line:1
+ast	../code_understanding/ast/ast_search.py	/^import ast$/;"	kind:namespace	line:1
+ast	../code_understanding/ast/draw_ast.py	/^import ast$/;"	kind:namespace	line:6
+ast	../code_understanding/ast/reference_ast_node_visitor.py	/^import ast$/;"	kind:namespace	line:7
+ast	../code_understanding/project_analysis.py	/^import ast$/;"	kind:namespace	line:6
+ast	../reverse_history/trie_builder.py	/^import ast$/;"	kind:namespace	line:4
+ast_field_explorer.py	../code_understanding/ast/ast_field_explorer.py	1;"	kind:file	line:1
+ast_search.py	../code_understanding/ast/ast_search.py	1;"	kind:file	line:1
+ast_utils.py	../code_understanding/ast/ast_utils.py	1;"	kind:file	line:1
+astor	../reverse_history/trie_builder.py	/^import astor$/;"	kind:namespace	line:3
+async_func	../code_understanding/typing/examples/max_grammar.py	/^  async def async_func(self, kw_arg=1, *args, **kwargs):$/;"	kind:member	line:26
+asyncio	../debug/tcp_echo.py	/^import asyncio$/;"	kind:namespace	line:1
+asyncio	../debug/tcp_echo_server.py	/^import asyncio$/;"	kind:namespace	line:1
+atom_navigation_api.py	../atom_navigation_api.py	1;"	kind:file	line:1
+attr	../code_understanding/typing/control_flow_graph_nodes.py	/^import attr$/;"	kind:namespace	line:3
+attr	../code_understanding/typing/expressions.py	/^import attr$/;"	kind:namespace	line:3
+attr	../code_understanding/typing/frame.py	/^import attr$/;"	kind:namespace	line:4
+attr	../code_understanding/typing/fuzzy_value.py	/^import attr$/;"	kind:namespace	line:5
+attr	../code_understanding/typing/language_objects.py	/^import attr$/;"	kind:namespace	line:5
+attr	../code_understanding/typing/type_inferencer.py	/^import attr$/;"	kind:namespace	line:21
+attribute	../code_understanding/typing/expressions.py	/^  attribute = attr.ib()$/;"	kind:variable	line:53
+autocomplete	../code_understanding/fake/fake.py	/^import autocomplete.code_understanding.fake3 as fake3$/;"	kind:namespace	line:4
+b	../code_understanding/typing/control_flow_graph.py	/^    assert len(node.children) == 3, node_info(node)  # import a as b$/;"	kind:namespace	line:234
+b	../code_understanding/typing/examples/max_grammar.py	/^import a.b.c$/;"	kind:namespace	line:8
+b	../code_understanding/typing/examples/test_main_sample_code.py	/^b = a.get_b()$/;"	kind:variable	line:17
+bad_indent.py	../code_understanding/broken/bad_indent.py	1;"	kind:file	line:1
+bar	../code_understanding/broken/bad_indent.py	/^def bar(a):$/;"	kind:function	line:4
+bar	../code_understanding/broken/missing_parantheses.py	/^def bar(a):$/;"	kind:function	line:4
+bar	../code_understanding/fake/fake.py	/^  def bar(self):$/;"	kind:member	line:21
+bar	../code_understanding/fake/fake.py	/^def bar():$/;"	kind:function	line:33
+bar	../code_understanding/typing/examples/test_main_sample_code.py	/^def bar(a, b, c):$/;"	kind:function	line:1
+bar	../code_understanding/typing/sample.py	/^bar = Foo()$/;"	kind:variable	line:30
+base_expression	../code_understanding/typing/expressions.py	/^  base_expression = attr.ib()$/;"	kind:variable	line:52
+base_expression	../code_understanding/typing/expressions.py	/^  base_expression = attr.ib()$/;"	kind:variable	line:62
+basic.py	../code_understanding/typing/examples/basic.py	1;"	kind:file	line:1
+basic_node	../code_understanding/typing/main.py	/^    basic_node = parso.parse(basic_source)$/;"	kind:variable	line:10
+basic_source	../code_understanding/typing/main.py	/^    basic_source = ''.join(f.readlines())$/;"	kind:variable	line:9
+blob	../code_understanding/typing/examples/max_grammar.py	/^import glob.glob as blob$/;"	kind:namespace	line:1
+bound_frame	../code_understanding/typing/language_objects.py	/^  bound_frame = None$/;"	kind:variable	line:31
+builder	../code_understanding/typing/main.py	/^    builder = control_flow_graph.ControlFlowGraphBuilder()$/;"	kind:variable	line:11
+builtins	../code_understanding/ast/reference_ast_node_visitor.py	/^from autocomplete.code_understanding.builtins import builtins, module_members$/;"	kind:namespace	line:2
+c	../code_understanding/typing/examples/basic.py	/^c = 3$/;"	kind:variable	line:24
+c	../code_understanding/typing/examples/max_grammar.py	/^c = True$/;"	kind:variable	line:38
+c	../code_understanding/typing/examples/max_grammar.py	/^from a import b as c$/;"	kind:namespace	line:11
+c	../code_understanding/typing/examples/max_grammar.py	/^import a.b.c$/;"	kind:namespace	line:8
+c	../code_understanding/typing/examples/test_main_sample_code.py	/^c = 3$/;"	kind:variable	line:5
+c	../code_understanding/typing/examples/test_main_sample_code.py	/^c = b + 2$/;"	kind:variable	line:18
+call	../code_understanding/typing/language_objects.py	/^  def call(self, args, kwargs, curr_frame):$/;"	kind:member	line:106
+call	../code_understanding/typing/language_objects.py	/^  def call(self, args, kwargs, curr_frame):$/;"	kind:member	line:140
+call	../code_understanding/typing/language_objects.py	/^  def call(self, args, kwargs, curr_frame):$/;"	kind:member	line:38
+chain	../code_understanding/typing/fuzzy_value.py	/^from itertools import chain$/;"	kind:namespace	line:2
+children	../code_understanding/typing/control_flow_graph_nodes.py	/^  children = attr.ib()$/;"	kind:variable	line:178
+children_contains_operator	../code_understanding/typing/utils.py	/^def children_contains_operator(node, operator_str):$/;"	kind:function	line:319
+code_understanding	../code_understanding/fake/fake.py	/^import autocomplete.code_understanding.fake3 as fake3$/;"	kind:namespace	line:4
+condense_graph	../code_understanding/typing/control_flow_graph.py	/^def condense_graph(graph):$/;"	kind:function	line:49
+conditional_expression	../code_understanding/typing/expressions.py	/^  conditional_expression = attr.ib()$/;"	kind:variable	line:101
+conditional_expression	../code_understanding/typing/expressions.py	/^  conditional_expression = attr.ib()$/;"	kind:variable	line:81
+context_trie.py	../code_understanding/typing/context_trie.py	1;"	kind:file	line:1
+control_flow_graph	../code_understanding/typing/main.py	/^from autocomplete.code_understanding.typing import control_flow_graph$/;"	kind:namespace	line:3
+control_flow_graph	../code_understanding/typing/tests/test_main.py	/^from autocomplete.code_understanding.typing import control_flow_graph$/;"	kind:namespace	line:4
+control_flow_graph.py	../code_understanding/typing/control_flow_graph.py	1;"	kind:file	line:1
+control_flow_graph_nodes.py	../code_understanding/typing/control_flow_graph_nodes.py	1;"	kind:file	line:1
+cookoo	../code_understanding/fake/fake.py	/^cookoo = 'cookoo_str'$/;"	kind:variable	line:12
+copy	../code_understanding/typing/language_objects.py	/^from copy import copy$/;"	kind:namespace	line:2
+coro	../debug/tcp_echo_server.py	/^  coro = asyncio.start_server(handle_echo, args.address, 16262, loop=loop)$/;"	kind:variable	line:30
+could_be_true_or_false	../code_understanding/typing/fuzzy_value.py	/^  def could_be_true_or_false(self):$/;"	kind:member	line:221
+count_names	../naive_suggestion_sort/count_names.py	/^def count_names(path, verbose=True):$/;"	kind:function	line:11
+count_names.py	../naive_suggestion_sort/count_names.py	1;"	kind:file	line:1
+create_cfg_node	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node(self, node):$/;"	kind:member	line:70
+create_cfg_node_for_assert_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_assert_stmt(self, node):$/;"	kind:member	line:292
+create_cfg_node_for_async_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_async_stmt(self, node):$/;"	kind:member	line:300
+create_cfg_node_for_atom_expr	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_atom_expr(self, node):$/;"	kind:member	line:162
+create_cfg_node_for_break_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_break_stmt(self, node):$/;"	kind:member	line:175
+create_cfg_node_for_classdef	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_classdef(self, node):$/;"	kind:member	line:328
+create_cfg_node_for_compound_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_compound_stmt(self, node):$/;"	kind:member	line:296
+create_cfg_node_for_continue_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_continue_stmt(self, node):$/;"	kind:member	line:179
+create_cfg_node_for_decorated	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_decorated(self, node):$/;"	kind:member	line:132
+create_cfg_node_for_del_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_del_stmt(self, node):$/;"	kind:member	line:113
+create_cfg_node_for_endmarker	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_endmarker(self, node):$/;"	kind:member	line:126
+create_cfg_node_for_eval_input	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_eval_input(self, node):$/;"	kind:member	line:92
+create_cfg_node_for_except_clause	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_except_clause(self, node):$/;"	kind:member	line:316
+create_cfg_node_for_expr_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_expr_stmt(self, node):$/;"	kind:member	line:157
+create_cfg_node_for_file_input	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_file_input(self, node):$/;"	kind:member	line:88
+create_cfg_node_for_flow_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_flow_stmt(self, node):$/;"	kind:member	line:171
+create_cfg_node_for_for_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_for_stmt(self, node):$/;"	kind:member	line:308
+create_cfg_node_for_funcdef	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_funcdef(self, node):$/;"	kind:member	line:150
+create_cfg_node_for_global_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_global_stmt(self, node):$/;"	kind:member	line:284
+create_cfg_node_for_if_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_if_stmt(self, node):$/;"	kind:member	line:147
+create_cfg_node_for_import_from	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_import_from(self, node):$/;"	kind:member	line:237
+create_cfg_node_for_import_name	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_import_name(self, node):$/;"	kind:member	line:196
+create_cfg_node_for_import_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_import_stmt(self, node):$/;"	kind:member	line:191
+create_cfg_node_for_keyword	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_keyword(self, node):$/;"	kind:member	line:116
+create_cfg_node_for_name	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_name(self, node):$/;"	kind:member	line:129
+create_cfg_node_for_newline	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_newline(self, node):$/;"	kind:member	line:123
+create_cfg_node_for_nonlocal_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_nonlocal_stmt(self, node):$/;"	kind:member	line:288
+create_cfg_node_for_pass	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_pass(self, node):$/;"	kind:member	line:120
+create_cfg_node_for_raise_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_raise_stmt(self, node):$/;"	kind:member	line:187
+create_cfg_node_for_return_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_return_stmt(self, node):$/;"	kind:member	line:166
+create_cfg_node_for_simple_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_simple_stmt(self, node):$/;"	kind:member	line:100
+create_cfg_node_for_single_input	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_single_input(self, node):$/;"	kind:member	line:84
+create_cfg_node_for_small_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_small_stmt(self, node):$/;"	kind:member	line:104
+create_cfg_node_for_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_stmt(self, node):$/;"	kind:member	line:96
+create_cfg_node_for_suite	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_suite(self, node):$/;"	kind:member	line:108
+create_cfg_node_for_try_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_try_stmt(self, node):$/;"	kind:member	line:312
+create_cfg_node_for_while_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_while_stmt(self, node):$/;"	kind:member	line:304
+create_cfg_node_for_with_item	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_with_item(self, node):$/;"	kind:member	line:324
+create_cfg_node_for_with_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_with_stmt(self, node):$/;"	kind:member	line:320
+create_cfg_node_for_yield_stmt	../code_understanding/typing/control_flow_graph.py	/^  def create_cfg_node_for_yield_stmt(self, node):$/;"	kind:member	line:183
+create_dataframe_summary_of_modules	../code_understanding/inspect/module_info.py	/^def create_dataframe_summary_of_modules(modules):$/;"	kind:function	line:56
+create_expression_node_tuples_from_if_stmt	../code_understanding/typing/control_flow_graph.py	/^from autocomplete.code_understanding.typing.utils import (create_expression_node_tuples_from_if_stmt,$/;"	kind:namespace	line:33
+create_expression_node_tuples_from_if_stmt	../code_understanding/typing/utils.py	/^def create_expression_node_tuples_from_if_stmt($/;"	kind:function	line:48
+create_graph	../code_understanding/ast/draw_ast.py	/^  def create_graph(self, source, include_source=True):$/;"	kind:member	line:40
+create_graph	../code_understanding/typing/draw_parso.py	/^  def create_graph(self, source, include_source=True):$/;"	kind:member	line:42
+d	../code_understanding/typing/examples/max_grammar.py	/^d = 1 if not c else 2$/;"	kind:variable	line:46
+d	../code_understanding/typing/examples/max_grammar.py	/^from a import d$/;"	kind:namespace	line:12
+d	../code_understanding/typing/examples/test_main_sample_code.py	/^  d = 'boo'$/;"	kind:variable	line:23
+d	../code_understanding/typing/examples/test_main_sample_code.py	/^  d = 1$/;"	kind:variable	line:21
+debug	../code_understanding/typing/language_objects.py	/^from autocomplete.code_understanding.typing import debug$/;"	kind:namespace	line:7
+debug	../debug/tcp_echo_server.py	/^from jedi import debug$/;"	kind:namespace	line:2
+debug.py	../code_understanding/typing/debug.py	1;"	kind:file	line:1
+default	../code_understanding/typing/language_objects.py	/^  default = attr.ib(LiteralExpression(None))$/;"	kind:variable	line:204
+defaultdict	../naive_suggestion_sort/count_names.py	/^from collections import defaultdict, OrderedDict$/;"	kind:namespace	line:6
+dict_comprehension	../code_understanding/typing/examples/max_grammar.py	/^dict_comprehension = {i: i+1 for i in range(10)}$/;"	kind:variable	line:37
+display_df_in_browser	../code_understanding/utils.py	/^def display_df_in_browser(df):$/;"	kind:function	line:17
+dj	../code_understanding/typing/examples/max_grammar.py	/^import django as dj$/;"	kind:namespace	line:9
+draw_ast.py	../code_understanding/ast/draw_ast.py	1;"	kind:file	line:1
+draw_parso.py	../code_understanding/typing/draw_parso.py	1;"	kind:file	line:1
+drawer	../code_understanding/ast/draw_ast.py	/^  drawer = AstDrawer()$/;"	kind:variable	line:70
+drawer	../code_understanding/typing/draw_parso.py	/^  drawer = ParsoDrawer()$/;"	kind:variable	line:86
+echo	../debug/tcp_echo.py	/^def echo(color, msg, address='localhost', *args):$/;"	kind:function	line:22
+eval_type	../code_understanding/typing/type_inferencer.py	/^  def eval_type(self, node):$/;"	kind:member	line:312
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:104
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:114
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:14
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:165
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:200
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:22
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:30
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:40
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:55
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:65
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:74
+evaluate	../code_understanding/typing/expressions.py	/^  def evaluate(self, curr_frame) -> FuzzyValue:$/;"	kind:member	line:84
+example	../code_understanding/typing/examples/max_grammar.py	/^example = Example()$/;"	kind:variable	line:78
+exception_wrapper	../code_understanding/typing/control_flow_graph_nodes.py	/^def exception_wrapper(func, strict=True):$/;"	kind:function	line:20
+expression	../code_understanding/typing/control_flow_graph_nodes.py	/^  expression = attr.ib()$/;"	kind:variable	line:216
+expression	../code_understanding/typing/control_flow_graph_nodes.py	/^  expression = attr.ib()$/;"	kind:variable	line:57
+expression_from_arith_expr	../code_understanding/typing/type_inferencer.py	/^  def expression_from_arith_expr(self, node):$/;"	kind:member	line:213
+expression_from_atom	../code_understanding/typing/utils.py	/^def expression_from_atom(node):$/;"	kind:function	line:280
+expression_from_atom_expr	../code_understanding/typing/utils.py	/^def expression_from_atom_expr(node) -> Expression:$/;"	kind:function	line:175
+expression_from_comparison	../code_understanding/typing/utils.py	/^def expression_from_comparison(node):$/;"	kind:function	line:300
+expression_from_math_expr	../code_understanding/typing/utils.py	/^def expression_from_math_expr(node):$/;"	kind:function	line:312
+expression_from_node	../code_understanding/typing/type_inferencer.py	/^  def expression_from_node(self, node):$/;"	kind:member	line:198
+expression_from_node	../code_understanding/typing/utils.py	/^def expression_from_node(node):$/;"	kind:function	line:255
+expression_from_testlist_comp	../code_understanding/typing/utils.py	/^def expression_from_testlist_comp(node) -> TupleExpression:$/;"	kind:function	line:153
+expression_node_tuples	../code_understanding/typing/control_flow_graph_nodes.py	/^  expression_node_tuples = attr.ib()$/;"	kind:variable	line:133
+expressions	../code_understanding/typing/expressions.py	/^  expressions = attr.ib()$/;"	kind:variable	line:28
+expressions.py	../code_understanding/typing/expressions.py	1;"	kind:file	line:1
+expressions_from_subscriptlist	../code_understanding/typing/utils.py	/^def expressions_from_subscriptlist($/;"	kind:function	line:210
+expressions_from_testlist_comp	../code_understanding/typing/utils.py	/^def expressions_from_testlist_comp(node) -> List[Variable]:$/;"	kind:function	line:136
+extract_nodes_of_type	../code_understanding/typing/utils.py	/^def extract_nodes_of_type(node, type_, out=None):$/;"	kind:function	line:346
+extract_reference_from_atom_expr	../code_understanding/typing/type_inferencer.py	/^  def extract_reference_from_atom_expr(self, node):$/;"	kind:member	line:156
+extract_references_from_testlist_comp	../code_understanding/typing/type_inferencer.py	/^  def extract_references_from_testlist_comp(self, node):$/;"	kind:member	line:140
+fake.py	../code_understanding/fake/fake.py	1;"	kind:file	line:1
+fake2.py	../code_understanding/fake/fake2.py	1;"	kind:file	line:1
+fake3	../code_understanding/fake/fake.py	/^import autocomplete.code_understanding.fake3 as fake3$/;"	kind:namespace	line:4
+fake3.py	../code_understanding/fake/fake3.py	1;"	kind:file	line:1
+find_type	../code_understanding/ast/ast_search.py	/^  def find_type(self, ast_node, target_type):$/;"	kind:member	line:9
+foo	../code_understanding/broken/bad_indent.py	/^def foo():$/;"	kind:function	line:1
+foo	../code_understanding/broken/missing_parantheses.py	/^def foo():$/;"	kind:function	line:1
+foo	../code_understanding/typing/sample.py	/^foo = Foo()$/;"	kind:variable	line:27
+foofie	../code_understanding/typing/sample.py	/^  def foofie(self):$/;"	kind:member	line:12
+frame.py	../code_understanding/typing/frame.py	1;"	kind:file	line:1
+frame_from_source	../code_understanding/typing/tests/test_main.py	/^def frame_from_source(source):$/;"	kind:function	line:28
+from_import_name	../code_understanding/typing/control_flow_graph_nodes.py	/^  from_import_name = attr.ib()$/;"	kind:variable	line:79
+func	../code_understanding/typing/examples/max_grammar.py	/^def func(*args):$/;"	kind:function	line:71
+function_variable	../code_understanding/typing/expressions.py	/^  function_variable = attr.ib()$/;"	kind:variable	line:36
+fuzzy_types	../code_understanding/typing/fuzzy_value.py	/^def fuzzy_types(val):$/;"	kind:function	line:308
+fuzzy_value.py	../code_understanding/typing/fuzzy_value.py	1;"	kind:file	line:1
+gen	../code_understanding/typing/examples/max_grammar.py	/^def gen():$/;"	kind:function	line:56
+generate_test_from_actual	../code_understanding/typing/tests/test_main.py	/^def generate_test_from_actual(a_frame):$/;"	kind:function	line:39
+generator_expression	../code_understanding/typing/expressions.py	/^  generator_expression = attr.ib()$/;"	kind:variable	line:100
+generic_visit	../code_understanding/ast/ast_field_explorer.py	/^  def generic_visit(self, node):$/;"	kind:member	line:9
+generic_visit	../code_understanding/ast/ast_search.py	/^  def generic_visit(self, node):$/;"	kind:member	line:15
+generic_visit	../code_understanding/ast/draw_ast.py	/^  def generic_visit(self, node):$/;"	kind:member	line:21
+generic_visit	../code_understanding/ast/reference_ast_node_visitor.py	/^  def generic_visit(self, node):$/;"	kind:member	line:75
+get_all_py_files	../code_understanding/project_analysis.py	/^def get_all_py_files(path, recursive=True):$/;"	kind:function	line:15
+get_attribute	../code_understanding/typing/language_objects.py	/^  def get_attribute(self, name: str):$/;"	kind:member	line:119
+get_b	../code_understanding/typing/examples/basic.py	/^  def get_b(self):$/;"	kind:member	line:31
+get_b	../code_understanding/typing/examples/test_main_sample_code.py	/^  def get_b(self):$/;"	kind:member	line:12
+get_best	../reverse_history/trie.py	/^  def get_best(self, prefix):$/;"	kind:member	line:219
+get_bucketized_members	../code_understanding/inspect/inspect_utils.py	/^def get_bucketized_members(obj, out=None):$/;"	kind:function	line:11
+get_classes	../code_understanding/inspect/inspect_utils.py	/^def get_classes(module):$/;"	kind:function	line:3
+get_frequency	../reverse_history/trie.py	/^  def get_frequency(self, value):$/;"	kind:member	line:213
+get_max_count_at_or_beneath	../reverse_history/trie.py	/^  def get_max_count_at_or_beneath(self):$/;"	kind:member	line:22
+get_max_path	../reverse_history/trie.py	/^  def get_max_path(self):$/;"	kind:member	line:91
+get_module	../code_understanding/typing/module_loader.py	/^def get_module(path: str) -> Module:$/;"	kind:function	line:19
+get_module_infos_for_path	../code_understanding/inspect/module_info.py	/^def get_module_infos_for_path(path, filter_list=None):$/;"	kind:function	line:19
+get_module_name_from_filepath	../code_understanding/project_analysis.py	/^def get_module_name_from_filepath(path):$/;"	kind:function	line:21
+get_or_create_bound_frame	../code_understanding/typing/language_objects.py	/^  def get_or_create_bound_frame(self):$/;"	kind:member	line:33
+get_path_to	../reverse_history/trie.py	/^  def get_path_to(self, s):$/;"	kind:member	line:71
+get_possible_types	../code_understanding/typing/fuzzy_value.py	/^  def get_possible_types(self):$/;"	kind:member	line:205
+get_reference_assignments	../code_understanding/typing/type_inferencer.py	/^  def get_reference_assignments(self, node, first=True):$/;"	kind:member	line:274
+get_reference_counts	../code_understanding/ast/reference_ast_node_visitor.py	/^  def get_reference_counts(self):$/;"	kind:member	line:51
+get_references	../code_understanding/ast/reference_ast_node_visitor.py	/^  def get_references(self):$/;"	kind:member	line:43
+get_returns	../code_understanding/typing/frame.py	/^  def get_returns(self):$/;"	kind:member	line:96
+get_statistics_about_project	../code_understanding/project_analysis.py	/^def get_statistics_about_project(path):$/;"	kind:function	line:82
+get_statistics_about_python_source	../code_understanding/project_analysis.py	/^def get_statistics_about_python_source(path, source=None, shorten_path=True):$/;"	kind:function	line:59
+get_t	../code_understanding/typing/sample.py	/^  def get_t(self):$/;"	kind:member	line:16
+get_unexecuted_module_from_filepath	../code_understanding/project_analysis.py	/^def get_unexecuted_module_from_filepath(path):$/;"	kind:function	line:26
+get_variables	../code_understanding/typing/frame.py	/^  def get_variables(self):$/;"	kind:member	line:99
+get_visible_names	../code_understanding/namespace.py	/^  def get_visible_names(self):$/;"	kind:member	line:2
+getattribute	../code_understanding/typing/fuzzy_value.py	/^  def getattribute(self, name):$/;"	kind:member	line:235
+glob	../code_understanding/fake/fake.py	/^import glob$/;"	kind:namespace	line:2
+glob	../code_understanding/project_analysis.py	/^import glob$/;"	kind:namespace	line:7
+glob	../code_understanding/typing/examples/max_grammar.py	/^import glob.glob as blob$/;"	kind:namespace	line:1
+glob	../naive_suggestion_sort/count_names.py	/^from glob import glob$/;"	kind:namespace	line:3
+glob	../regex_autocompleter.py	/^import glob$/;"	kind:namespace	line:2
+glob	../reverse_history/trie_builder.py	/^from glob import glob$/;"	kind:namespace	line:2
+goto	../atom_navigation_api.py	/^def goto(filename, lineno):$/;"	kind:function	line:6
+goto_exception	../atom_navigation_api.py	/^def goto_exception(index=-1, tb=None):$/;"	kind:function	line:9
+grammar.py	../code_understanding/typing/grammar.py	1;"	kind:file	line:1
+graph	../code_understanding/typing/language_objects.py	/^  graph = attr.ib()$/;"	kind:variable	line:27
+graph	../code_understanding/typing/main.py	/^    graph = builder.create_cfg_node(basic_node)$/;"	kind:variable	line:12
+graphviz	../code_understanding/ast/draw_ast.py	/^import graphviz$/;"	kind:namespace	line:7
+graphviz	../code_understanding/project_analysis.py	/^import graphviz$/;"	kind:namespace	line:8
+graphviz	../code_understanding/typing/draw_parso.py	/^import graphviz$/;"	kind:namespace	line:7
+h	../code_understanding/typing/examples/max_grammar.py	/^from g import h, w$/;"	kind:namespace	line:14
+handle_child_increase	../reverse_history/trie.py	/^  def handle_child_increase(self, char):$/;"	kind:member	line:13
+handle_classdef	../code_understanding/typing/type_inferencer.py	/^  def handle_classdef(self, node):$/;"	kind:member	line:68
+handle_echo	../debug/tcp_echo_server.py	/^def handle_echo(reader, writer):$/;"	kind:function	line:6
+handle_error	../code_understanding/typing/control_flow_graph.py	/^def handle_error(e, node):$/;"	kind:function	line:61
+handle_for_stmt	../code_understanding/typing/type_inferencer.py	/^  def handle_for_stmt(self, node):$/;"	kind:member	line:220
+handle_funcdef	../code_understanding/typing/type_inferencer.py	/^  def handle_funcdef(self, node):$/;"	kind:member	line:76
+handle_parameters	../code_understanding/typing/type_inferencer.py	/^  def handle_parameters(self, node):$/;"	kind:member	line:85
+handle_simple_stmt	../code_understanding/typing/type_inferencer.py	/^  def handle_simple_stmt(self, node):$/;"	kind:member	line:105
+handle_suite	../code_understanding/typing/type_inferencer.py	/^  def handle_suite(self, node):$/;"	kind:member	line:100
+handle_try_stmt	../code_understanding/typing/type_inferencer.py	/^  def handle_try_stmt(self, node):$/;"	kind:member	line:230
+handle_while_stmt	../code_understanding/typing/type_inferencer.py	/^  def handle_while_stmt(self, node):$/;"	kind:member	line:226
+handle_with_stmt	../code_understanding/typing/type_inferencer.py	/^  def handle_with_stmt(self, node):$/;"	kind:member	line:234
+has_attribute	../code_understanding/typing/language_objects.py	/^  def has_attribute(self, name):$/;"	kind:member	line:125
+has_single_value	../code_understanding/typing/fuzzy_value.py	/^  def has_single_value(self):$/;"	kind:member	line:208
+hasattribute	../code_understanding/typing/fuzzy_value.py	/^  def hasattribute(self, name):$/;"	kind:member	line:226
+importlib	../code_understanding/ast/reference_ast_node_visitor.py	/^import importlib$/;"	kind:namespace	line:5
+importlib	../code_understanding/inspect/module_info.py	/^import importlib$/;"	kind:namespace	line:9
+importlib	../code_understanding/project_analysis.py	/^import importlib$/;"	kind:namespace	line:9
+increment_count	../reverse_history/trie.py	/^  def increment_count(self):$/;"	kind:member	line:10
+info	../code_understanding/typing/control_flow_graph.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:38
+info	../code_understanding/typing/control_flow_graph_nodes.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:16
+info	../code_understanding/typing/expressions.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:8
+info	../code_understanding/typing/frame.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:10
+info	../code_understanding/typing/fuzzy_value.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:7
+info	../code_understanding/typing/language_objects.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:13
+info	../code_understanding/typing/module_loader.py	/^from autocomplete.nsn_logging import info$/;"	kind:namespace	line:15
+info	../nsn_logging.py	/^def info(message, *args, log=True, **kwargs):$/;"	kind:function	line:14
+insert_name_types	../code_understanding/typing/type_inferencer.py	/^  def insert_name_types(self, node):$/;"	kind:member	line:256
+inspect	../code_understanding/inspect/inspect_utils.py	/^import inspect$/;"	kind:namespace	line:1
+inspect	../code_understanding/inspect/module_info.py	/^import inspect$/;"	kind:namespace	line:10
+inspect	../code_understanding/tmp.py	/^import inspect$/;"	kind:namespace	line:1
+inspect	../nsn_logging.py	/^import inspect$/;"	kind:namespace	line:10
+inspect_utils.py	../code_understanding/inspect/inspect_utils.py	1;"	kind:file	line:1
+instance_member	../code_understanding/typing/control_flow_graph_nodes.py	/^      def instance_member(f):$/;"	kind:function	line:168
+inter	../code_understanding/typing/sample.py	/^  def inter(self):$/;"	kind:member	line:19
+is_ambiguous_type	../code_understanding/typing/fuzzy_value.py	/^  def is_ambiguous_type(self):$/;"	kind:member	line:202
+is_completely_ambiguous	../code_understanding/typing/fuzzy_value.py	/^  def is_completely_ambiguous(self):$/;"	kind:member	line:211
+is_linear_collection	../code_understanding/typing/fuzzy_value.py	/^def is_linear_collection(type_str):$/;"	kind:function	line:330
+iterable_expression	../code_understanding/typing/expressions.py	/^  iterable_expression = attr.ib()$/;"	kind:variable	line:102
+itertools	../code_understanding/project_analysis.py	/^import itertools$/;"	kind:namespace	line:10
+join_names	../code_understanding/project_analysis.py	/^def join_names(a, b):$/;"	kind:function	line:39
+jupyter_notebook_to_code.py	../jupyter_notebook_to_code.py	1;"	kind:file	line:1
+keyword_eval	../code_understanding/typing/utils.py	/^def keyword_eval(keyword_str):$/;"	kind:function	line:366
+klass	../code_understanding/typing/language_objects.py	/^  klass = attr.ib()$/;"	kind:variable	line:173
+kwargs	../code_understanding/typing/expressions.py	/^  kwargs = attr.ib(factory=dict)$/;"	kind:variable	line:38
+language_objects.py	../code_understanding/typing/language_objects.py	1;"	kind:file	line:1
+left	../code_understanding/typing/expressions.py	/^  left = attr.ib()$/;"	kind:variable	line:110
+left	../code_understanding/typing/expressions.py	/^  left = attr.ib()$/;"	kind:variable	line:161
+left_variables	../code_understanding/typing/expressions.py	/^  left_variables = attr.ib()$/;"	kind:variable	line:196
+list_comprehension	../code_understanding/typing/examples/max_grammar.py	/^list_comprehension = [i for i in range(10)]$/;"	kind:variable	line:36
+literal	../code_understanding/typing/expressions.py	/^  literal = attr.ib()$/;"	kind:variable	line:20
+literal_to_fuzzy	../code_understanding/typing/fuzzy_value.py	/^def literal_to_fuzzy(value):$/;"	kind:function	line:304
+load_modules_from_module_infos	../code_understanding/inspect/module_info.py	/^def load_modules_from_module_infos(module_infos):$/;"	kind:function	line:48
+log	../nsn_logging.py	/^def log(level, message, *args, **kwargs):$/;"	kind:function	line:18
+log_freq	../nsn_logging.py	/^def log_freq(message, log=True):$/;"	kind:function	line:21
+logging	../nsn_logging.py	/^from absl import logging$/;"	kind:namespace	line:9
+loop	../debug/tcp_echo_server.py	/^  loop = asyncio.get_event_loop()$/;"	kind:variable	line:29
+main	../naive_suggestion_sort/count_names.py	/^def main(path, output_filename, **kwargs):$/;"	kind:function	line:44
+main.py	../code_understanding/typing/main.py	1;"	kind:file	line:1
+make_child	../code_understanding/typing/frame.py	/^  def make_child(self, type) -> 'Frame':$/;"	kind:member	line:34
+max_grammar.py	../code_understanding/typing/examples/max_grammar.py	1;"	kind:file	line:1
+members	../code_understanding/typing/language_objects.py	/^  members = attr.ib()$/;"	kind:variable	line:132
+members	../code_understanding/typing/language_objects.py	/^  members = attr.ib()$/;"	kind:variable	line:174
+members	../code_understanding/typing/language_objects.py	/^  members = attr.ib()$/;"	kind:variable	line:194
+merge	../code_understanding/typing/frame.py	/^  def merge(self, other_frame):$/;"	kind:member	line:29
+merge	../code_understanding/typing/fuzzy_value.py	/^  def merge(self, other: 'FuzzyValue'):$/;"	kind:member	line:199
+missing_parantheses.py	../code_understanding/broken/missing_parantheses.py	1;"	kind:file	line:1
+missing_quote.py	../code_understanding/broken/missing_quote.py	1;"	kind:file	line:1
+model.py	../code_understanding/simple_ml_prediction/model.py	1;"	kind:file	line:1
+module_info.py	../code_understanding/inspect/module_info.py	1;"	kind:file	line:1
+module_loader	../code_understanding/typing/control_flow_graph_nodes.py	/^from autocomplete.code_understanding.typing import module_loader$/;"	kind:namespace	line:5
+module_loader.py	../code_understanding/typing/module_loader.py	1;"	kind:file	line:1
+module_members	../code_understanding/ast/reference_ast_node_visitor.py	/^from autocomplete.code_understanding.builtins import builtins, module_members$/;"	kind:namespace	line:2
+module_path	../code_understanding/typing/control_flow_graph_nodes.py	/^  module_path = attr.ib()$/;"	kind:variable	line:66
+module_path	../code_understanding/typing/control_flow_graph_nodes.py	/^  module_path = attr.ib()$/;"	kind:variable	line:78
+name	../code_understanding/typing/control_flow_graph_nodes.py	/^  name = attr.ib()$/;"	kind:variable	line:153
+name	../code_understanding/typing/control_flow_graph_nodes.py	/^  name = attr.ib()$/;"	kind:variable	line:193
+name	../code_understanding/typing/expressions.py	/^  name = attr.ib()$/;"	kind:variable	line:72
+name	../code_understanding/typing/fuzzy_value.py	/^  name = attr.ib(kw_only=True)$/;"	kind:variable	line:326
+name	../code_understanding/typing/language_objects.py	/^  name = attr.ib()$/;"	kind:variable	line:131
+name	../code_understanding/typing/language_objects.py	/^  name = attr.ib()$/;"	kind:variable	line:202
+namedtuple	../code_understanding/inspect/module_info.py	/^from collections import namedtuple$/;"	kind:namespace	line:14
+namedtuple	../code_understanding/typing/sample.py	/^from collections import namedtuple$/;"	kind:namespace	line:1
+namespace.py	../code_understanding/namespace.py	1;"	kind:file	line:1
+nbformat	../jupyter_notebook_to_code.py	/^import nbformat$/;"	kind:namespace	line:2
+negative_expression	../code_understanding/typing/expressions.py	/^  negative_expression = attr.ib()$/;"	kind:variable	line:82
+new	../code_understanding/typing/language_objects.py	/^  def new(self, args, kwargs, curr_frame):$/;"	kind:member	line:143
+new_node	../reverse_history/trie.py	/^      new_node = Node()$/;"	kind:variable	line:208
+next_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  next_node = attr.ib(None)  # TODO: Delete?$/;"	kind:variable	line:109
+node_info	../code_understanding/typing/utils.py	/^def node_info(node):$/;"	kind:function	line:342
+node_to_reference_or_value	../code_understanding/typing/type_inferencer.py	/^  def node_to_reference_or_value(self, node):$/;"	kind:member	line:301
+nodes	../reverse_history/trie.py	/^        nodes = set()$/;"	kind:variable	line:42
+nonlocal_func	../code_understanding/typing/examples/max_grammar.py	/^    def nonlocal_func():$/;"	kind:function	line:30
+notebook_to_code	../jupyter_notebook_to_code.py	/^def notebook_to_code(notebook_path):$/;"	kind:function	line:4
+np	../code_understanding/broken/missing_quote.py	/^import numpy as np$/;"	kind:namespace	line:1
+np	../code_understanding/fake/fake.py	/^import numpy as np$/;"	kind:namespace	line:3
+nsn_logging.py	../nsn_logging.py	1;"	kind:file	line:1
+num	../code_understanding/typing/utils.py	/^def num(s):$/;"	kind:function	line:359
+numpy	../code_understanding/typing/examples/max_grammar.py	/^import numpy$/;"	kind:namespace	line:6
+operator	../code_understanding/typing/expressions.py	/^  operator = attr.ib()  # Generally equals, but possibly +=, etc.$/;"	kind:variable	line:197
+operator	../code_understanding/typing/expressions.py	/^  operator = attr.ib()$/;"	kind:variable	line:111
+operator	../code_understanding/typing/expressions.py	/^  operator = attr.ib()$/;"	kind:variable	line:162
+os	../atom_navigation_api.py	/^import os$/;"	kind:namespace	line:1
+os	../code_understanding/inspect/module_info.py	/^import os$/;"	kind:namespace	line:11
+os	../code_understanding/project_analysis.py	/^import os$/;"	kind:namespace	line:11
+os	../code_understanding/tmp.py	/^import os$/;"	kind:namespace	line:2
+os	../code_understanding/utils.py	/^import os$/;"	kind:namespace	line:1
+os	../naive_suggestion_sort/count_names.py	/^import os$/;"	kind:namespace	line:5
+os	../regex_autocompleter.py	/^import os$/;"	kind:namespace	line:5
+os	../reverse_history/trie_builder.py	/^import os$/;"	kind:namespace	line:1
+out	../code_understanding/typing/examples/test_main_sample_code.py	/^out = bar(1,c=3,b=2)$/;"	kind:variable	line:4
+parameters	../code_understanding/typing/control_flow_graph_nodes.py	/^  parameters = attr.ib()$/;"	kind:variable	line:194
+parameters	../code_understanding/typing/language_objects.py	/^  parameters = attr.ib()$/;"	kind:variable	line:102
+parameters	../code_understanding/typing/language_objects.py	/^  parameters = attr.ib()$/;"	kind:variable	line:26
+parameters_from_parameters	../code_understanding/typing/utils.py	/^def parameters_from_parameters(node) -> List[Parameter]:$/;"	kind:function	line:105
+parser	../code_understanding/ast/draw_ast.py	/^  parser = argparse.ArgumentParser()$/;"	kind:variable	line:64
+parser	../code_understanding/typing/draw_parso.py	/^  parser = argparse.ArgumentParser()$/;"	kind:variable	line:80
+parser	../debug/tcp_echo_server.py	/^  parser = argparse.ArgumentParser()$/;"	kind:variable	line:25
+parser	../naive_suggestion_sort/count_names.py	/^  parser = argparse.ArgumentParser()$/;"	kind:variable	line:52
+parso	../code_understanding/typing/draw_parso.py	/^import parso$/;"	kind:namespace	line:6
+parso	../code_understanding/typing/main.py	/^import parso$/;"	kind:namespace	line:1
+parso	../code_understanding/typing/tests/test_main.py	/^import parso$/;"	kind:namespace	line:2
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:108
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:134
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:155
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:179
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:196
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:217
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:58
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:67
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:80
+parso_node	../code_understanding/typing/control_flow_graph_nodes.py	/^  parso_node = attr.ib()$/;"	kind:variable	line:95
+partialmethod	../code_understanding/typing/fuzzy_value.py	/^from functools import partialmethod$/;"	kind:namespace	line:1
+path	../code_understanding/typing/examples/max_grammar.py	/^path = os.path.join('asdfasdfads', os.path.abspath(__file__))$/;"	kind:variable	line:60
+path	../code_understanding/typing/fuzzy_value.py	/^  path = attr.ib()$/;"	kind:variable	line:320
+path	../code_understanding/typing/fuzzy_value.py	/^  path = attr.ib(kw_only=True)$/;"	kind:variable	line:325
+path_and_name_from_dotted_as_name	../code_understanding/typing/control_flow_graph.py	/^  def path_and_name_from_dotted_as_name(self, node):$/;"	kind:member	line:224
+path_to_name	../code_understanding/typing/utils.py	/^def path_to_name(node, name):$/;"	kind:function	line:326
+pd	../code_understanding/inspect/module_info.py	/^import pandas as pd$/;"	kind:namespace	line:16
+pd	../code_understanding/project_analysis.py	/^import pandas as pd$/;"	kind:namespace	line:12
+pickle	../naive_suggestion_sort/count_names.py	/^import pickle$/;"	kind:namespace	line:8
+pkgutil	../code_understanding/inspect/module_info.py	/^import pkgutil$/;"	kind:namespace	line:12
+positive_expression	../code_understanding/typing/expressions.py	/^  positive_expression = attr.ib()$/;"	kind:variable	line:80
+prefix	../reverse_history/trie.py	/^      prefix = ''.join(x[0] for x in path)$/;"	kind:variable	line:201
+print_frame_in_function	../code_understanding/typing/debug.py	/^print_frame_in_function=True$/;"	kind:variable	line:3
+print_nice_error	../code_understanding/typing/control_flow_graph_nodes.py	/^  def print_nice_error(self, e):$/;"	kind:function	line:21
+print_tree	../code_understanding/typing/utils.py	/^def print_tree(node, indent='', file=sys.stdout):$/;"	kind:function	line:377
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:138
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:158
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:182
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:199
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:220
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:51
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:61
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:71
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:84
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame):$/;"	kind:member	line:98
+process	../code_understanding/typing/control_flow_graph_nodes.py	/^  def process(self, curr_frame, strict=False):$/;"	kind:member	line:112
+process_args	../code_understanding/typing/language_objects.py	/^  def process_args(self, args, kwargs, curr_frame):$/;"	kind:member	line:59
+project_analysis.py	../code_understanding/project_analysis.py	1;"	kind:file	line:1
+prune_infrequent_copy	../reverse_history/trie.py	/^  def prune_infrequent_copy(self, min_count):$/;"	kind:member	line:110
+prune_infrequent_copy	../reverse_history/trie.py	/^  def prune_infrequent_copy(self, min_count):$/;"	kind:member	line:25
+q	../code_understanding/typing/examples/max_grammar.py	/^from x.y.z import q$/;"	kind:namespace	line:15
+re	../regex_autocompleter.py	/^import re$/;"	kind:namespace	line:1
+read_saved_name_counts	../naive_suggestion_sort/count_names.py	/^def read_saved_name_counts(path):$/;"	kind:function	line:36
+reference_ast_node_visitor.py	../code_understanding/ast/reference_ast_node_visitor.py	1;"	kind:file	line:1
+references_from_node	../code_understanding/typing/type_inferencer.py	/^  def references_from_node(self, node):$/;"	kind:member	line:109
+regex_autocompleter.py	../regex_autocompleter.py	1;"	kind:file	line:1
+remainder	../reverse_history/trie.py	/^      remainder = ''.join([b] + list(line_iter))$/;"	kind:variable	line:202
+remaining_chars	../reverse_history/trie.py	/^      remaining_chars = ''.join(list(line_iter))$/;"	kind:variable	line:207
+returns	../code_understanding/typing/language_objects.py	/^  returns = attr.ib()$/;"	kind:variable	line:103
+reversed	../code_understanding/typing/examples/max_grammar.py	/^reversed = list_comprehension[::-1]$/;"	kind:variable	line:75
+right	../code_understanding/typing/expressions.py	/^  right = attr.ib()$/;"	kind:variable	line:112
+right	../code_understanding/typing/expressions.py	/^  right = attr.ib()$/;"	kind:variable	line:163
+right_expression	../code_understanding/typing/expressions.py	/^  right_expression = attr.ib()$/;"	kind:variable	line:198
+run_graph	../code_understanding/typing/control_flow_graph.py	/^def run_graph(graph, frame=None):$/;"	kind:function	line:41
+s	../code_understanding/typing/examples/max_grammar.py	/^from x.y.z import r as s$/;"	kind:namespace	line:16
+sample.py	../code_understanding/typing/sample.py	1;"	kind:file	line:1
+save_name_counts	../naive_suggestion_sort/count_names.py	/^def save_name_counts(name_counts, path):$/;"	kind:function	line:40
+scratch.py	../code_understanding/typing/scratch.py	1;"	kind:file	line:1
+search	../regex_autocompleter.py	/^  def search(self, s):$/;"	kind:member	line:21
+server	../debug/tcp_echo_server.py	/^  server = loop.run_until_complete(coro)$/;"	kind:variable	line:31
+set_attribute	../code_understanding/typing/fuzzy_value.py	/^  def set_attribute(self, name, value):$/;"	kind:member	line:251
+set_attribute	../code_understanding/typing/language_objects.py	/^  def set_attribute(self, name: str, value: FuzzyValue):$/;"	kind:member	line:122
+shorten_path	../code_understanding/utils.py	/^def shorten_path(path, splitters=(os.path.sep, '_'), preserve_last=True):$/;"	kind:function	line:4
+should_return_1	../code_understanding/typing/sample.py	/^def should_return_1(f):$/;"	kind:function	line:37
+split_node	../reverse_history/trie.py	/^    def split_node(node, split_point, additional_remainder):$/;"	kind:function	line:140
+statement	../code_understanding/typing/control_flow_graph_nodes.py	/^  statement = attr.ib()$/;"	kind:variable	line:107
+statement_from_expr_stmt	../code_understanding/typing/utils.py	/^def statement_from_expr_stmt(node):$/;"	kind:function	line:21
+subscript_list	../code_understanding/typing/expressions.py	/^  subscript_list = attr.ib()$/;"	kind:variable	line:63
+suggest	../suggest.py	/^def suggest(str):$/;"	kind:function	line:1
+suggest.py	../suggest.py	1;"	kind:file	line:1
+suite	../code_understanding/typing/control_flow_graph_nodes.py	/^  suite = attr.ib()$/;"	kind:variable	line:154
+suite	../code_understanding/typing/control_flow_graph_nodes.py	/^  suite = attr.ib()$/;"	kind:variable	line:195
+sys	../atom_navigation_api.py	/^import sys$/;"	kind:namespace	line:2
+sys	../code_understanding/inspect/module_info.py	/^import sys$/;"	kind:namespace	line:13
+sys	../code_understanding/typing/utils.py	/^import sys$/;"	kind:namespace	line:1
+t	../code_understanding/typing/sample.py	/^  t = T(y=2)$/;"	kind:variable	line:6
+tcp_echo.py	../debug/tcp_echo.py	1;"	kind:file	line:1
+tcp_echo_client	../debug/tcp_echo.py	/^def tcp_echo_client(color, msg, loop, address='localhost'):$/;"	kind:function	line:4
+tcp_echo_server.py	../debug/tcp_echo_server.py	1;"	kind:file	line:1
+test	../code_understanding/fake/fake.py	/^    def test(self):$/;"	kind:member	line:30
+test_imports	../code_understanding/typing/tests/test_main.py	/^def test_imports():$/;"	kind:function	line:16
+test_main.py	../code_understanding/typing/tests/test_main.py	1;"	kind:file	line:1
+test_main_sample	../code_understanding/typing/tests/test_main.py	/^def test_main_sample():$/;"	kind:function	line:34
+test_main_sample_code.py	../code_understanding/typing/examples/test_main_sample_code.py	1;"	kind:file	line:1
+test_simple_assignment	../code_understanding/typing/tests/test_main.py	/^def test_simple_assignment():$/;"	kind:function	line:11
+test_trie	../reverse_history/trie_test.py	/^def test_trie():$/;"	kind:function	line:4
+tf	../code_understanding/simple_ml_prediction/train.py	/^import tensorflow as tf$/;"	kind:namespace	line:2
+tf	../regex_autocompleter.py	/^import tensorflow as tf$/;"	kind:namespace	line:6
+time	../regex_autocompleter.py	/^from time import time$/;"	kind:namespace	line:4
+tmp	../code_understanding/fake/fake.py	/^tmp = 2$/;"	kind:variable	line:38
+tmp	../code_understanding/fake/fake.py	/^tmp = Foo()$/;"	kind:variable	line:36
+tmp.py	../code_understanding/tmp.py	1;"	kind:file	line:1
+tmp2	../code_understanding/fake/fake.py	/^tmp2 = Foo.Boo()$/;"	kind:variable	line:39
+to_str	../reverse_history/trie.py	/^  def to_str(self, indent=''):$/;"	kind:member	line:59
+tokenize	../naive_suggestion_sort/count_names.py	/^from tokenize import tokenize, NAME$/;"	kind:namespace	line:4
+traceback	../atom_navigation_api.py	/^import traceback$/;"	kind:namespace	line:3
+traceback	../code_understanding/typing/control_flow_graph.py	/^import traceback$/;"	kind:namespace	line:20
+train	../code_understanding/simple_ml_prediction/train.py	/^def train():$/;"	kind:function	line:5
+train.py	../code_understanding/simple_ml_prediction/train.py	1;"	kind:file	line:1
+traverse	../code_understanding/ast/reference_ast_node_visitor.py	/^  def traverse(self):$/;"	kind:member	line:60
+traverse	../code_understanding/typing/draw_parso.py	/^  def traverse(self, node):$/;"	kind:member	line:19
+traverse	../reverse_history/trie.py	/^  def traverse(self, array=False, nodes=None, path=''):$/;"	kind:member	line:35
+tree	../code_understanding/ast/draw_ast.py	/^  tree = ast.parse(source)$/;"	kind:variable	line:69
+tree	../code_understanding/typing/draw_parso.py	/^  tree = parso.parse(source)$/;"	kind:variable	line:85
+trie	../reverse_history/trie_test.py	/^from autocomplete.reverse_history import trie$/;"	kind:namespace	line:1
+trie.py	../reverse_history/trie.py	1;"	kind:file	line:1
+trie_builder.py	../reverse_history/trie_builder.py	1;"	kind:file	line:1
+trie_test.py	../reverse_history/trie_test.py	1;"	kind:file	line:1
+type	../code_understanding/typing/frame.py	/^  type = attr.ib(FrameType.NORMAL)$/;"	kind:variable	line:27
+type	../code_understanding/typing/language_objects.py	/^  type = attr.ib()$/;"	kind:variable	line:203
+type	../code_understanding/typing/language_objects.py	/^  type = attr.ib(FunctionType.FREE)$/;"	kind:variable	line:104
+type	../code_understanding/typing/language_objects.py	/^  type = attr.ib(FunctionType.FREE)$/;"	kind:variable	line:28
+type_inferencer.py	../code_understanding/typing/type_inferencer.py	1;"	kind:file	line:1
+type_name	../code_understanding/ast/ast_field_explorer.py	/^from autocomplete.code_understanding.utils import type_name$/;"	kind:namespace	line:2
+type_name	../code_understanding/ast/draw_ast.py	/^from autocomplete.code_understanding.utils import type_name$/;"	kind:namespace	line:9
+type_name	../code_understanding/utils.py	/^def type_name(obj):$/;"	kind:function	line:24
+typify_tree	../code_understanding/typing/type_inferencer.py	/^  def typify_tree(self, node):$/;"	kind:member	line:28
+typing	../code_understanding/typing/examples/max_grammar.py	/^from autocomplete.code_understanding.typing..code_understanding import typing$/;"	kind:namespace	line:13
+utils.py	../code_understanding/typing/utils.py	1;"	kind:file	line:1
+utils.py	../code_understanding/utils.py	1;"	kind:file	line:1
+value	../code_understanding/typing/fuzzy_value.py	/^  def value(self):$/;"	kind:member	line:214
+visit_Assign	../reverse_history/trie_builder.py	/^  def visit_Assign(self, node):$/;"	kind:member	line:11
+visit_Expr	../reverse_history/trie_builder.py	/^  def visit_Expr(self, node):$/;"	kind:member	line:16
+visit_For	../reverse_history/trie_builder.py	/^  def visit_For(self, node):$/;"	kind:member	line:31
+visit_FunctionDef	../reverse_history/trie_builder.py	/^  def visit_FunctionDef(self, node):$/;"	kind:member	line:37
+visit_Import	../reverse_history/trie_builder.py	/^  def visit_Import(self, node):$/;"	kind:member	line:21
+visit_ImportFrom	../reverse_history/trie_builder.py	/^  def visit_ImportFrom(self, node):$/;"	kind:member	line:26
+w	../code_understanding/typing/examples/max_grammar.py	/^from g import h, w$/;"	kind:namespace	line:14
+webbrowser	../code_understanding/ast/draw_ast.py	/^import webbrowser$/;"	kind:namespace	line:11
+webbrowser	../code_understanding/project_analysis.py	/^import webbrowser$/;"	kind:namespace	line:13
+webbrowser	../code_understanding/typing/draw_parso.py	/^import webbrowser$/;"	kind:namespace	line:9
+webbrowser	../code_understanding/utils.py	/^import webbrowser$/;"	kind:namespace	line:2
+whatever	../code_understanding/typing/examples/max_grammar.py	/^import os as whatever$/;"	kind:namespace	line:2
+wildcard_wrapper	../regex_autocompleter.py	/^def wildcard_wrapper(s):$/;"	kind:function	line:8
+wrapper	../code_understanding/typing/control_flow_graph_nodes.py	/^  def wrapper(self, *args, **kwargs):$/;"	kind:function	line:36
+wraps	../code_understanding/typing/control_flow_graph_nodes.py	/^from functools import wraps$/;"	kind:namespace	line:1
+wraps	../code_understanding/typing/examples/max_grammar.py	/^from functools import wraps$/;"	kind:namespace	line:3
+x	../code_understanding/fake/fake.py	/^x = np.arange(10)$/;"	kind:variable	line:10
+x	../code_understanding/typing/control_flow_graph.py	/^    if len(node.children) == 1:  # import x$/;"	kind:namespace	line:232
+x	../code_understanding/typing/sample.py	/^  x = 1$/;"	kind:variable	line:4
+x	../code_understanding/typing/sample.py	/^x = 'str'$/;"	kind:variable	line:25
+z	../code_understanding/typing/sample.py	/^z = should_return_1(foo)$/;"	kind:variable	line:40
+zoo	../code_understanding/fake/fake.py	/^zoo = 'module'$/;"	kind:variable	line:11

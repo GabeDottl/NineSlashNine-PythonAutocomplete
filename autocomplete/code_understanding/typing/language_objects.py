@@ -4,11 +4,12 @@ from enum import Enum
 
 import attr
 
-from autocomplete.code_understanding.typing.classes import (NONE_FUZZY_VALUE,
-                                                            FuzzyValue)
+from autocomplete.code_understanding.typing import debug
 from autocomplete.code_understanding.typing.expressions import (LiteralExpression,
                                                                 VariableExpression)
-from autocomplete.code_understanding.typing.frame import FrameType
+from autocomplete.code_understanding.typing.frame import Frame, FrameType
+from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,
+                                                                FuzzyValue)
 from autocomplete.nsn_logging import info
 
 
@@ -25,9 +26,21 @@ class Function:
   parameters = attr.ib()
   graph = attr.ib()
   type = attr.ib(FunctionType.FREE)
+  # We use a notion of a 'bound frame' to encapsulate values which are
+  # bound to this function - e.g. cls & self, nonlocals in a nested func.
+  bound_frame = None
+
+  def get_or_create_bound_frame(self):
+    if not self.bound_frame:
+      self.bound_frame = Frame()
+    return self.bound_frame
 
   def call(self, args, kwargs, curr_frame):
     new_frame = curr_frame.make_child(type=FrameType.FUNCTION)
+    if self.bound_frame:
+      new_frame.merge(self.bound_frame)
+    if debug.print_frame_in_function:
+      info(f'Function frame: {new_frame}')
     # TODO: Process args & kwargs, put on Frame.
     # info(f'curr_frame: {curr_frame.get_variables()}')
     self.process_args(args, kwargs, new_frame)
@@ -77,11 +90,11 @@ class Function:
           in_dict[key] = value
       curr_frame[kwargs_name] = FuzzyValue([in_dict])
 
-    def __str__(self):
-      return f'Func({tuple(self.parameters)})'
+  def __str__(self):
+    return f'Func({tuple(self.parameters)})'
 
-    def __repr__(self):
-      return str(self)
+  def __repr__(self):
+    return str(self)
 
 
 @attr.s(str=False, repr=False)
@@ -102,15 +115,23 @@ class StubFunction:
 
 
 class Attributable(ABC):
+  dynamic_creation_func = None
+  members = None
 
-  def getattribute(self, name: str):
+  def get_attribute(self, name: str):
+    if self.dynamic_creation_func and not self.has_attribute(name):
+      out = self.dynamic_creation_func()
+      self.members[name] = out
+      return out
     return self.members[name]
 
-  def setattribute(self, name: str, value: FuzzyValue):
+  def set_attribute(self, name: str, value: FuzzyValue):
     self.members[name] = value
 
-  def hasattribute(self, name):
+  def has_attribute(self, name):
     return name in self.members
+
+  
 
 
 @attr.s(str=False, repr=False)
@@ -131,20 +152,26 @@ class Klass(Attributable):
     # TODO: Handle params.
     # TODO: __init__
     instance_members = {}
+    instance = Instance(self, instance_members)
+    fv_instance = FuzzyValue([instance])
     for name, member in self.members.items():
       if member.has_single_value() and isinstance(
           member.value(), Function) and member.value(
           ).type == FunctionType.UNBOUND_INSTANCE_METHOD:
         new_func = copy(member.value())
+        bound_frame = new_func.get_or_create_bound_frame()
+        self_param = new_func.parameters.pop(0)
+        info(f'self_param: {self_param}')
+        bound_frame.locals[self_param.name] = fv_instance
         new_func.type = FunctionType.BOUND_INSTANCE_METHOD
         instance_members[name] = FuzzyValue([new_func])
       else:
         instance_members[name] = member
 
-    instance = Instance(self, instance_members)
-    if '__init__' in instance.members:
+
+    if '__init__' in instance_members:
       info('Calling method __init__')
-      instance.members['__init__'].value().call(args, kwargs, curr_frame)
+      instance_members['__init__'].value().call(args, kwargs, curr_frame)
 
     return instance
 
@@ -161,10 +188,24 @@ class Instance(Attributable):
     return str(self)
 
 
+class ModuleType(Enum):
+  SYSTEM = 0
+  PUBLIC = 1
+  LOCAL = 2
+  UNKNOWN = 3
+
 @attr.s(str=False, repr=False)
 class Module(Attributable):
-  name = attr.ib()
+  # name = attr.ib()  # Don't need name, because that's defined by any alias in Frame.
+  type: ModuleType = attr.ib()
+  path: str = attr.ib()
   members = attr.ib()
+
+  def __attrs_post_init__(self):
+    if self.type == ModuleType.UNKNOWN:
+      # def create_fv(): 
+      self.dynamic_creation_func = lambda: FuzzyValue([], dynamic_creation=True)
+
   # def __attrs_post_init__(self):
   #   self.members = copy(self.klass.members)
 

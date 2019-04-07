@@ -1,12 +1,20 @@
-from functools import wraps
-from a import a, b as c, d
-from g import (h,w)
-from x.y.z import q, r as s
-from typing import List
-from ...code_understanding import typing
-
+import glob.glob as blob
 import os as whatever
-import glob.glob as blob, django as dj, a.b.c, numpy
+from functools import wraps
+from typing import List
+
+import numpy
+
+import a.b.c
+import django as dj
+from a import a
+from a import b as c
+from a import d
+from autocomplete.code_understanding.typing..code_understanding import typing
+from g import h, w
+from x.y.z import q
+from x.y.z import r as s
+
 
 @wraps
 class Example(Object):

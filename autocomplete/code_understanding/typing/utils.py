@@ -1,10 +1,12 @@
-from typing import Dict, List, Tuple, Union
+import sys
+from typing import List, Tuple, Union
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import \
     CfgNode
 from autocomplete.code_understanding.typing.expressions import (AssignmentExpressionStatement,
                                                                 AttributeExpression,
                                                                 CallExpression,
+                                                                ComparisonExpression,
                                                                 Expression,
                                                                 LiteralExpression,
                                                                 MathExpression,
@@ -269,6 +271,8 @@ def expression_from_node(node):
     return expression_from_atom_expr(node)
   elif node.type == 'testlist_comp':
     return expression_from_testlist_comp(node)
+  elif node.type == 'comparison':
+    return expression_from_comparison(node)
   else:
     assert False, node_info(node)
 
@@ -292,6 +296,18 @@ def expression_from_atom(node):
   else:
     raise ValueError(node_info(node))
 
+
+def expression_from_comparison(node):
+  # comparison: expr (comp_op expr)*
+  # <> isn't actually a valid comparison operator in Python. It's here for the
+  # sake of a __future__ import described in PEP 401 (which really works :-)
+  # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
+  # TODO: Implement.
+  assert len(node.children) == 3, node_info(node)
+  left = expression_from_node(node.children[0])
+  right = expression_from_node(node.children[2])
+  return ComparisonExpression(
+      left=left, operator=node.children[1].value, right=right)
 
 def expression_from_math_expr(node):
   assert len(node.children) == 3, node_info(node)
@@ -357,3 +373,11 @@ def keyword_eval(keyword_str):
   elif keyword_str == 'Ellipsis' or keyword_str == '...':
     return Ellipsis
   assert False, keyword_str
+
+def print_tree(node, indent='', file=sys.stdout):
+  print(f'{indent}{node.type}', file=file)
+  try:
+      for c in node.children:
+          print_tree(c, indent+'  ', file=file)
+  except AttributeError:
+      pass

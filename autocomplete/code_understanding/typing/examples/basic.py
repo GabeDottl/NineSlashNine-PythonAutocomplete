@@ -1,24 +1,26 @@
-#
-#
-# a = 1
-# b = a + 2
-# if True:
-#   b = 'asdf'
-# else:
-#   a = 3
+# import glob.glob as blob
+# import os as whatever
+# from functools import wraps
+# from typing import List
 
-# def bar(b, a=1, *args, **kwargs):
-#   a = 2
-#   return 1 + a
-#
-# b = bar(3)
-#
-# bar()
+# import numpy
 
-def bar(a, b, c):
-  return a * (b - c)
+# import a.b.c
+# import django as dj
+# from a import a
+# from a import b as c
+# from a import d
+# from g import h, w
+# from x.y.z import q
+# from x.y.z import r as s
+#
+# from autocomplete.code_understanding.typing..code_understanding import typing
 
-out = bar(1,c=3,b=2)
+
+# def bar(a, b, c):
+#   return a * (b - c)
+#
+# out = bar(1,c=3,b=2)
 c = 3
 
 class AClass:
@@ -29,34 +31,12 @@ class AClass:
   def get_b(self):
     return self.b
 
-c = 3
-
 a = AClass(1)
-
-b = a.get_b()
 #
-# if __name__ == '__main__':
-#   a = 'str'
-#   print(a)
-
-
-
-
-# if bar():
-#   a = 'a'
-
-
-
+# b = a.get_b()
+# c = b + 2
+#
+# if b > 4:
+#   d = 1
 # else:
-#   b = True
-# #
-# def foo():
-#   global b
-#   b = 4
-# print(b)
-# foo()
-# print(b)
-# b = NotADirectoryError()
-# def format(filenames):
-#   for i, filename in enumerate(filenames):
-#     print(f'{i}: {filename}')
+#   d = 'boo'

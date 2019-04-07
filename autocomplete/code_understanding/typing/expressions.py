@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 
 import attr
 
-from autocomplete.code_understanding.typing.classes import (NONE_FUZZY_VALUE,
-                                                            FuzzyValue,
-                                                            literal_to_fuzzy)
+from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,
+                                                                FuzzyValue,
+                                                                literal_to_fuzzy)
 from autocomplete.nsn_logging import info
 
 
@@ -153,6 +153,41 @@ class MathExpression(Expression):
 
     if self.operator == '*':
       return l * r
+    assert False, f'Cannot handle {self.operator} yet.'
+
+
+@attr.s
+class ComparisonExpression(Expression):
+  left = attr.ib()
+  operator = attr.ib()
+  right = attr.ib()
+
+  def evaluate(self, curr_frame) -> FuzzyValue:
+    # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
+    l = self.left.evaluate(curr_frame)
+    r = self.right.evaluate(curr_frame)
+    if self.operator == '<':
+      return l < r
+    if self.operator == '>':
+      return l > r
+    if self.operator == '==':
+      return l == r
+    if self.operator == '>=':
+      return l >= r
+    if self.operator == '<=':
+      return l <= r
+    # if self.operator == '<>': return l <> r
+    if self.operator == '!=':
+      return l != r
+    if self.operator == 'in':
+      return l in r
+    if self.operator == 'not in':
+      return l not in r
+    if self.operator == 'is':
+      return l is r
+    if self.operator == 'is not':
+      return l is not r
+
     assert False, f'Cannot handle {self.operator} yet.'
 
 

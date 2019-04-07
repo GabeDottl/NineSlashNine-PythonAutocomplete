@@ -3,10 +3,10 @@ from typing import Dict, List
 
 import attr
 
-from autocomplete.code_understanding.typing.classes import FuzzyValue
 from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
                                                                 Variable,
                                                                 VariableExpression)
+from autocomplete.code_understanding.typing.fuzzy_value import FuzzyValue
 from autocomplete.nsn_logging import info
 
 
@@ -19,7 +19,6 @@ class FrameType(Enum):
 @attr.s(str=False, repr=False)
 class Frame:
   # __slots__ = 'globals', 'locals', 'builtins'
-  # def __init__(self, globals_=None, nonlocals_=None, locals_=None, type=FrameType.NORMAL):
   globals: Dict = attr.ib(factory=dict)
   nonlocals: Dict = attr.ib(factory=dict)
   locals: Dict = attr.ib(factory=dict)
@@ -27,18 +26,26 @@ class Frame:
   returns: List[FuzzyValue] = attr.ib(factory=list)
   type = attr.ib(FrameType.NORMAL)
 
+  def merge(self, other_frame):
+    self.globals.update(other_frame.globals)
+    self.nonlocals.update(other_frame.nonlocals)
+    self.locals.update(other_frame.locals)
+
   def make_child(self, type) -> 'Frame':
     info(f'Creating child {type}Frame from {self.type}Frame')
     if self.type == FrameType.NORMAL:
-      return Frame({**self.globals, **self.locals}, type=type)
+      new_frame = Frame({**self.globals, **self.locals}, type=type)
+      print(new_frame)
+      return new_frame
     # else: #  if self.type == FrameType.FUNCTION:
-      # TODO: Function Cell vars.
+    # TODO: Function Cell vars.
     return Frame(self.globals, type=type)  # , nonlocals=self.locals)
 
-
   def __setitem__(self, variable: Variable, value: FuzzyValue):
-    assert isinstance(
-        value, FuzzyValue), f'{id(type(value))} vs {id(FuzzyValue)}: {value}'
+    # assert isinstance(
+    #     value, FuzzyValue), f'{id(type(value))} vs {id(FuzzyValue)}: {value}'
+    if not isinstance(value, FuzzyValue):
+      value = FuzzyValue([value])  # Wrap everything in FuzzyValues.
     # assert isinstance(variable, Variable), variable
     if isinstance(variable, VariableExpression):
       self.locals[variable.name] = value
@@ -47,7 +54,7 @@ class Frame:
     else:
       assert isinstance(variable, AttributeExpression), variable
       fuzzy_value = variable.base_expression.evaluate(self)
-      fuzzy_value.setattribute(variable.attribute, value)
+      fuzzy_value.set_attribute(variable.attribute, value)
       # if len(variable.sequence) == 2:
       #   base = self.locals[variable.sequence[0].name]
       # else:
@@ -56,10 +63,11 @@ class Frame:
       # setattr(base, variable.sequence[1], value)
     # TODO: Handle nonlocal & global keyword states.
 
+
   def __getitem__(self, variable: Variable) -> FuzzyValue:
     if isinstance(variable, AttributeExpression):
       fuzzy_value = variable.base_expression.evaluate(self)
-      return fuzzy_value.getattribute(variable.attribute)
+      return fuzzy_value.get_attribute(variable.attribute)
 
     if isinstance(variable, str):
       name = variable
@@ -75,6 +83,12 @@ class Frame:
     # TODO: lineno, frame contents.
     raise ValueError(f'{variable} doesn\'t exist in current context!')
 
+  def __contains__(self, name):
+    for group in (self.locals, self.globals, self.builtins):
+    # Given a.b.c, Python will take the most-local definition of a and
+      # search from there.
+      if name in group:
+        return True
 
   def add_return(self, value):
     self.returns.append(value)
