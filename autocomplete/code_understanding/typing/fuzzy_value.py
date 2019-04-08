@@ -134,7 +134,7 @@ class FuzzyValue:
   """
 
   _values: List = attr.ib()  # Tuple of possible values
-  _source_node: 'CfgNode' = attr.ib()
+  _source_node: 'CfgNode' = attr.ib(None)
 
   def __attrs_post_init(self):
     new_values = []
@@ -142,18 +142,19 @@ class FuzzyValue:
       if not isinstance(val, AugmentedValue):
         new_values.append(AugmentedValue(val))
       else:
-        
+        new_values.append(val)
+    self._values = new_values
 
   # TODO: unexecuted_expressions?
 
   def __str__(self):
-    return f'FV({self._values}{self._types if self._types else ""}{self._last_creation_string})'
+    return f'FV({self._values}{self._source_node})'
 
   def __repr__(self):
     return str(self)
 
   def merge(self, other: 'FuzzyValue'):
-    dvs = list(filter(lambda x: x is not None, [self._dynamic_value, other._dynamic_value]))
+    # dvs = list(filter(lambda x: x is not None, [self._dynamic_value, other._dynamic_value]))
     return FuzzyValue(
         self._values + other._values)
 
@@ -181,15 +182,13 @@ class FuzzyValue:
     return (any(self._values) and not all(self._values) and
             len(self._values) > 0)
 
-  def has_attribute(self, name):
+  # def has_attribute(self, name):
     # TODO Check _values
-    for val in self._values:
-      if hasattr(val, 'has_attribute') and val.has_attribute(name):
-        return True
+    
 
-  def get_attribute(self, name):
-    return [val.get_attribute(name) for val in self._values]
-    results = []
+  def get_attribute(self, name) -> 'FuzzyValue':
+    return FuzzyValue([value.get_attribute(name) for value in self._values])
+    # results = []
     # for val in self._values:
     #     results.append(val.get_attribute(name))
         
@@ -210,31 +209,11 @@ class FuzzyValue:
     # )
     # return FuzzyValue([], dynamic_creation=True)
 
-  def set_attribute(self, name, value):
-    if not isinstance(value, FuzzyValue):
-      value = FuzzyValue([value])
-
-    if len(self._values) == 1:
-      self._values[0].set_attribute(name, value)
-      return
-
-    match = None
-    for val in self._values:
-      if hasattr(val, 'has_attribute') and val.has_attribute(name):
-        if match:
-          info('Ambiguous assignment for {name} on {self}')
-          self._extra_attributes[name] = value
-          return
-        else:
-          match = val
-
-    if not match and not self._dynamic_creation:
-      raise ValueError(f'No value with attribute for {name} on {self}')
-    elif match:
-      return  # Already set
-    else:
-      info(f'Dynamically adding {name} attribute with ')
-      self._extra_attributes[name] = value
+  def set_attribute(self, name: str, value):
+    if not isinstance(value, (FuzzyValue, AugmentedValue, UnknownValue)):
+      value = AugmentedValue(value)
+    for value in self._values:
+      value.set_attribute(name, value)
 
   def apply(self, func):
     for value in self._values:
@@ -252,8 +231,8 @@ class FuzzyValue:
             values.append(getattr(v1, operator)(v2))
         except TypeError:
           continue
-      for v in chain(self._values, other._values):
-        types.append(fuzzy_types(v))
+      # for v in chain(self._values, other._values):
+      #   types.append(fuzzy_types(v))
       return FuzzyValue(values, types)
 
   def __getitem__(self, index):
@@ -269,16 +248,8 @@ for operator_str in _OPERATORS:
   setattr(FuzzyValue, operator_str,
           partialmethod(FuzzyValue._operator, operator=operator_str))
 
-
 def literal_to_fuzzy(value):
   return FuzzyValue([value])
-
-
-def fuzzy_types(val):
-  if not isinstance(val, FuzzyValue):
-    return (type(val),)
-  return val.get_possible_types()
-
 
 NONE_FUZZY_VALUE = literal_to_fuzzy(None)
 # UNKNOWN_FUZZY_VALUE = FuzzyValue()

@@ -28,4 +28,4 @@ def get_module(path: str) -> Module:
 
 def _load_module(path: str) -> Module:
   info(f'Loading module: {path}')
-  return Module(type=ModuleType.UNKNOWN, path=path, members={})
+  return Module(module_type=ModuleType.UNKNOWN, path=path, members={})

@@ -9,6 +9,7 @@ from autocomplete.code_understanding.typing.expressions import (LiteralExpressio
                                                                 VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,
+                                                                UnknownValue,
                                                                 FuzzyValue)
 from autocomplete.nsn_logging import info
 
@@ -121,7 +122,7 @@ class Attributable(ABC):
 
   def get_attribute(self, name: str):
     if self.dynamic_creation_func and not self.has_attribute(name):
-      out = self.dynamic_creation_func()
+      out = self.dynamic_creation_func(name)
       self.members[name] = out
       return out
     return self.members[name]
@@ -198,14 +199,14 @@ class ModuleType(Enum):
 @attr.s(str=False, repr=False)
 class Module(Attributable):
   # name = attr.ib()  # Don't need name, because that's defined by any alias in Frame.
-  type: ModuleType = attr.ib()
+  module_type: ModuleType = attr.ib()
   path: str = attr.ib()
   members = attr.ib()
 
   def __attrs_post_init__(self):
-    if self.type == ModuleType.UNKNOWN:
+    if self.module_type == ModuleType.UNKNOWN:
       # def create_fv(): 
-      self.dynamic_creation_func = lambda: FuzzyValue([], dynamic_creation=True)
+      self.dynamic_creation_func = lambda name: UnknownValue(name='.'.join([self.path, name]))
 
   # def __attrs_post_init__(self):
   #   self.members = copy(self.klass.members)

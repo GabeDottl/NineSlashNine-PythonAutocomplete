@@ -40,6 +40,10 @@ class CallExpression(Expression):
     fuzzy_value = curr_frame[self.function_variable]
     function_assignment = fuzzy_value.value()
     return function_assignment.call(self.args, self.kwargs, curr_frame)
+    # return function_assignment.evaluate(curr_frame)
+    # function_assignment = self.function_name.assignments[-1]
+    # assert isinstance(function_assignment.value, Function), function_assignment
+    # return function_assignment.value.returns
 
 
 @attr.s

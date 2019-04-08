@@ -59,7 +59,7 @@ class FromImportCfgNode(CfgNode):
           f'from_import_name {self.from_import_name} not found in {self.module_path}'
       )
       curr_frame[
-          name] = FuzzyValue([UnknownValue(name='.'.join([self.module_path, name]))])  # TODO: Extra fuzzy value / unknown?
+          name] = FuzzyValue([UnknownValue(name='.'.join([self.module_path, name]))], self)  # TODO: Extra fuzzy value / unknown?
 
 
 @attr.s
@@ -72,20 +72,12 @@ class NoOpCfgNode(CfgNode):
 
 @attr.s
 class StmtCfgNode(CfgNode):
-  # TypeError: descriptor 'statement' for 'StmtCfgNode' objects doesn't apply to 'StmtCfgNode' object
-  # __slots__ = 'statement', 'next_node' # TODO Figure out why this is broken.
-
   statement = attr.ib()
   parso_node = attr.ib()
-  next_node = attr.ib(None)  # TODO: Delete?
 
   def process(self, curr_frame, strict=False):
-
     self.statement.evaluate(curr_frame)
-
-    if self.next_node:
-      self.next_node.process(curr_frame)
-
+  
   def __str__(self):
     return self._to_str()
 
@@ -93,8 +85,6 @@ class StmtCfgNode(CfgNode):
     out = []
     if self.parso_node.get_code():
       out.append(f'{self.__class__.__name__}: {self.parso_node.get_code()}')
-    if self.next_node:
-      out.append(str(self.next_node))
     return '\n'.join(out)
 
 
@@ -127,7 +117,7 @@ class KlassCfgNode(CfgNode):
   def process(self, curr_frame):
     klass_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
     klass = Klass(klass_name, members={})
-    curr_frame[self.name] = FuzzyValue([klass])
+    curr_frame[self.name] = FuzzyValue([klass], self)
     new_frame = curr_frame.make_child(type=FrameType.CLASS, name=self.name)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
@@ -173,7 +163,7 @@ class FuncCfgNode(CfgNode):
     # Include full name.
     func_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
     curr_frame[VariableExpression(self.name)] = FuzzyValue(
-        [Function(self.name, parameters=processed_params, graph=self.suite)])
+        [Function(func_name, parameters=processed_params, graph=self.suite)], self)
 
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'

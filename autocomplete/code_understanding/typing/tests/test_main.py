@@ -28,14 +28,14 @@ from x.y.z import (q, r as s)'''
   assert frame_['whatever'].value().path == 'os'
   assert 'blob' in frame_ and isinstance(frame_['blob'].value(), Module)
   assert frame_['blob'].value().path == 'hob.dob'
-  assert 'wraps' in frame_ and isinstance(frame_['wraps'].value(), Module)
+  assert 'wraps' in frame_
   assert frame_['wraps'].value().name == 'functools.wraps'
-  assert 'c' in frame_ and isinstance(frame_['c'].value(), Module)
-  assert frame_['c'].value().path == 'a.b'
-  assert 'q' in frame_ and isinstance(frame_['q'].value(), Module)
-  assert frame_['q'].value().path == 'x.y.z'
-  assert 's' in frame_ and isinstance(frame_['s'].value(), Module)
-  assert frame_['s'].value().path == 'x.y.z'
+  assert 'c' in frame_
+  assert frame_['c'].value().name == 'a.b.c'
+  assert 'q' in frame_
+  assert frame_['q'].value().name == 'x.y.z.q'
+  assert 's' in frame_
+  assert frame_['s'].value().name == 'x.y.z.r'
   
 
 
