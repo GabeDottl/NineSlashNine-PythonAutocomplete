@@ -272,7 +272,7 @@ class ControlFlowGraphBuilder:
       return FromImportCfgNode(path, next_node.value, parso_node=node)
 
     # Example: from x.y.z import r as s
-    if next_node.type == 'import_as_name': 
+    if next_node.type == 'import_as_name':
       assert len(next_node.children) == 3, node_info(next_node)
       return FromImportCfgNode(
                 path,

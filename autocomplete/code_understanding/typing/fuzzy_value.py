@@ -1,10 +1,8 @@
 from functools import partialmethod
-from itertools import chain
-from typing import Dict, List, Set
+from typing import List
 
 import attr
-
-from autocomplete.nsn_logging import info
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import CfgNode
 
 _OPERATORS = [
     # fv'__abs__',
@@ -93,13 +91,15 @@ class UnknownValue:
   def set_attribute(self, name, value):
     self._dynamic_value.set_attribute(name, value)
 
+
 @attr.s
 class AugmentedValue:
   value = attr.ib()
   _dynamic_value = attr.ib(factory=DynamicValue)
 
   def has_attribute(self, name):
-    return self.value.has_attribute(name) or self._dynamic_value.has_attribute(name)
+    return self.value.has_attribute(name) or self._dynamic_value.has_attribute(
+        name)
 
   def get_attribute(self, name):
     try:
@@ -155,8 +155,7 @@ class FuzzyValue:
 
   def merge(self, other: 'FuzzyValue'):
     # dvs = list(filter(lambda x: x is not None, [self._dynamic_value, other._dynamic_value]))
-    return FuzzyValue(
-        self._values + other._values)
+    return FuzzyValue(self._values + other._values)
 
   # def is_ambiguous_type(self):
   #   return (len(self._values) + len(self._types)) != 1
@@ -183,15 +182,14 @@ class FuzzyValue:
             len(self._values) > 0)
 
   # def has_attribute(self, name):
-    # TODO Check _values
-    
+  # TODO Check _values
 
   def get_attribute(self, name) -> 'FuzzyValue':
     return FuzzyValue([value.get_attribute(name) for value in self._values])
     # results = []
     # for val in self._values:
     #     results.append(val.get_attribute(name))
-        
+
     #   if hasattr(val, 'get_attribute') and val.has_attribute(name):
     #     results.append(val.get_attribute(name))
 
@@ -248,8 +246,10 @@ for operator_str in _OPERATORS:
   setattr(FuzzyValue, operator_str,
           partialmethod(FuzzyValue._operator, operator=operator_str))
 
+
 def literal_to_fuzzy(value):
   return FuzzyValue([value])
+
 
 NONE_FUZZY_VALUE = literal_to_fuzzy(None)
 # UNKNOWN_FUZZY_VALUE = FuzzyValue()

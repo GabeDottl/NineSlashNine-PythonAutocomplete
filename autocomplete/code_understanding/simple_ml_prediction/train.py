@@ -3,7 +3,7 @@ import tensorflow as tf
 
 
 def train():
-    
+
 
 
 if __name__ == '__main__':

@@ -77,7 +77,7 @@ class StmtCfgNode(CfgNode):
 
   def process(self, curr_frame, strict=False):
     self.statement.evaluate(curr_frame)
-  
+
   def __str__(self):
     return self._to_str()
 

@@ -133,7 +133,7 @@ class Attributable(ABC):
   def has_attribute(self, name):
     return name in self.members
 
-  
+
 
 
 @attr.s(str=False, repr=False)
@@ -205,7 +205,7 @@ class Module(Attributable):
 
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:
-      # def create_fv(): 
+      # def create_fv():
       self.dynamic_creation_func = lambda name: UnknownValue(name='.'.join([self.path, name]))
 
   # def __attrs_post_init__(self):

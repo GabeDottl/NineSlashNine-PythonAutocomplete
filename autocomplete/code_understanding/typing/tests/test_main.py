@@ -36,7 +36,7 @@ from x.y.z import (q, r as s)'''
   assert frame_['q'].value().name == 'x.y.z.q'
   assert 's' in frame_
   assert frame_['s'].value().name == 'x.y.z.r'
-  
+
 
 
 def frame_from_source(source):

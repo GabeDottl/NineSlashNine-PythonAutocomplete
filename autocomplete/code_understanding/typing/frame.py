@@ -3,9 +3,8 @@ from typing import Dict, List
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
-                                                                Variable,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (
+    AttributeExpression, Variable, VariableExpression)
 from autocomplete.code_understanding.typing.fuzzy_value import FuzzyValue
 from autocomplete.nsn_logging import info
 
@@ -64,7 +63,6 @@ class Frame:
       # setattr(base, variable.sequence[1], value)
     # TODO: Handle nonlocal & global keyword states.
 
-
   def __getitem__(self, variable: Variable) -> FuzzyValue:
     if isinstance(variable, AttributeExpression):
       fuzzy_value = variable.base_expression.evaluate(self)
@@ -86,7 +84,7 @@ class Frame:
 
   def __contains__(self, name):
     for group in (self._locals, self._globals, self.builtins):
-    # Given a.b.c, Python will take the most-local definition of a and
+      # Given a.b.c, Python will take the most-local definition of a and
       # search from there.
       if name in group:
         return True

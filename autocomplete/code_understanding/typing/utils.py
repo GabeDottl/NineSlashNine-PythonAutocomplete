@@ -3,19 +3,12 @@ from typing import List, Tuple, Union
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import \
     CfgNode
-from autocomplete.code_understanding.typing.expressions import (AssignmentExpressionStatement,
-                                                                AttributeExpression,
-                                                                CallExpression,
-                                                                ComparisonExpression,
-                                                                Expression,
-                                                                LiteralExpression,
-                                                                MathExpression,
-                                                                SubscriptExpression,
-                                                                TupleExpression,
-                                                                Variable,
-                                                                VariableExpression)
-from autocomplete.code_understanding.typing.language_objects import (Parameter,
-                                                                     ParameterType)
+from autocomplete.code_understanding.typing.expressions import (
+    AssignmentExpressionStatement, AttributeExpression, CallExpression,
+    ComparisonExpression, Expression, LiteralExpression, MathExpression,
+    SubscriptExpression, TupleExpression, Variable, VariableExpression)
+from autocomplete.code_understanding.typing.language_objects import (
+    Parameter, ParameterType)
 
 
 def statement_from_expr_stmt(node):
@@ -135,8 +128,7 @@ def parameters_from_parameters(node) -> List[Parameter]:
 
 def expressions_from_testlist_comp(node) -> List[Variable]:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
-  if len(node.children
-        ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
+  if len(node.children) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     assert False, ('Can\'t have comp_for references - only expressions.',
                    node_info(node))
     # return extract_references_from_comp_for(test, comp_for)
@@ -309,12 +301,13 @@ def expression_from_comparison(node):
   return ComparisonExpression(
       left=left, operator=node.children[1].value, right=right)
 
+
 def expression_from_math_expr(node):
   assert len(node.children) == 3, node_info(node)
   left = expression_from_node(node.children[0])
   right = expression_from_node(node.children[2])
-  return MathExpression(
-      left=left, operator=node.children[1].value, right=right)
+  return MathExpression(left=left, operator=node.children[1].value, right=right)
+
 
 def children_contains_operator(node, operator_str):
   for child in node.children:
@@ -374,10 +367,11 @@ def keyword_eval(keyword_str):
     return Ellipsis
   assert False, keyword_str
 
+
 def print_tree(node, indent='', file=sys.stdout):
   print(f'{indent}{node.type}', file=file)
   try:
-      for c in node.children:
-          print_tree(c, indent+'  ', file=file)
+    for c in node.children:
+      print_tree(c, indent + '  ', file=file)
   except AttributeError:
-      pass
+    pass

@@ -8,18 +8,20 @@ import graphviz
 import argparse
 import webbrowser
 
+
 class ParsoDrawer:
+
   def __init__(self, path='/tmp/parso'):
     self.parent = None
-    self.parent_lineno=0
+    self.parent_lineno = 0
     self.graph = graphviz.Digraph('Parso', filename=path)
     self.line_to_nodes = {}
-
 
   def traverse(self, node):
     # We start indexing at 0 while in the AST it starts at 1, so we shift
     # lineno immediately by 1.
-    lineno = node.get_start_pos_prefix()[0] if hasattr(node, 'get_start_pos_prefix') else None
+    lineno = node.get_start_pos_prefix()[0] if hasattr(
+        node, 'get_start_pos_prefix') else None
     lineno = lineno if lineno is not None else self.parent_lineno
     if lineno in self.line_to_nodes:
       arr = self.line_to_nodes[lineno]
@@ -62,9 +64,9 @@ class ParsoDrawer:
             parent_name = str(type(parent))
 
           type_name_ = child.type
-          for bad in ['@', '<', '>','[', ']', '(', ')', "'",'"', '\\']:
+          for bad in ['@', '<', '>', '[', ']', '(', ')', "'", '"', '\\']:
             child_name = child_name.replace(bad, '')
-            parent_name = parent_name.replace(bad,'')
+            parent_name = parent_name.replace(bad, '')
             type_name_ = type_name_.replace(bad, '')
           if child_name is not None:
             c.node(child_name, label=f'{child_name}: ({type_name_})')
@@ -74,7 +76,10 @@ class ParsoDrawer:
     if include_source:
       # We use '\l' instead of \n for left-justified lines:
       # http://www.graphviz.org/doc/info/attrs.html#k:escString
-      self.graph.node(name=''.join(f'{i}: {line}\l' for i,line in enumerate(lines)), shape='box')
+      self.graph.node(
+          name=''.join(f'{i}: ln{line}' for i, line in enumerate(lines)),
+          shape='box')
+
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
