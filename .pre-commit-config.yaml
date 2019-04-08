@@ -1,3 +1,9 @@
+# Endless repos: https://pre-commit.com/hooks.html
+
+# Note that these don't run our tests - execute the 'tox' command from this directory to do that.
+#
+# The simple reason is 'commits should be fast and running all tests is slow' - https://github.com/pre-commit/pre-commit-hooks/issues/291.
+
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v1.2.3

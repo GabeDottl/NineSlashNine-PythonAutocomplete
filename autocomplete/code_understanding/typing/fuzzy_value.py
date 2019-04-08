@@ -2,7 +2,6 @@ from functools import partialmethod
 from typing import List
 
 import attr
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import CfgNode
 
 _OPERATORS = [
     # fv'__abs__',
@@ -134,7 +133,7 @@ class FuzzyValue:
   """
 
   _values: List = attr.ib()  # Tuple of possible values
-  _source_node: 'CfgNode' = attr.ib(None)
+  _source_node = attr.ib(None)  # type is CfgNode - circular dep breaks lint.
 
   def __attrs_post_init(self):
     new_values = []

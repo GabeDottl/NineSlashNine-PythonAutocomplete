@@ -45,10 +45,10 @@ def frame_from_source(source):
   graph = builder.create_cfg_node(basic_node)
   return control_flow_graph.run_graph(graph)
 
-def test_main_sample():
-   with open('/Users/gabe/code/autocomplete/autocomplete/code_understanding/typing/examples/test_main_sample_code.py') as f:
-     basic_source = ''.join(f.readlines())
-   frame_ = frame_from_source(basic_source)
+# def test_main_sample():
+#    with open('/Users/gabe/code/autocomplete/autocomplete/code_understanding/typing/examples/test_main_sample_code.py') as f:
+#      basic_source = ''.join(f.readlines())
+#    frame_ = frame_from_source(basic_source)
 
 def generate_test_from_actual(a_frame):
   for name, val in a_frame.locals.items():
