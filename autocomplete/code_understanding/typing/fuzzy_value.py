@@ -6,162 +6,116 @@ import attr
 
 from autocomplete.nsn_logging import info
 
-#
-# @attr.s
-# class Function:
-#   params = attr.ib()
-#   returns = attr.ib()
-#   type = attr.ib(FunctionType.FREE)
+_OPERATORS = [
+    # fv'__abs__',
+    '__add__',
+    '__and__',
+    # '__bool__',
+    # '__invert__',
+    '__ge__',
+    '__gt__',
+    '__le__',
+    '__lt__',
+    '__lshift__',
+    '__mod__',
+    '__mul__',
+    '__ne__',
+    # '__neg__',
+    # '__new__',
+    '__or__',
+    # '__pos__',
+    '__pow__',
+    '__radd__',
+    '__rand__',
+    '__rdivmod__',
+    # '__reduce__',
+    # '__reduce_ex__',
+    # '__repr__',
+    '__rfloordiv__',
+    '__rlshift__',
+    '__rmod__',
+    '__rmul__',
+    # '__ror__',
+    # '__round__',
+    # '__rpow__',
+    # '__rrshift__',
+    # '__rshift__',
+    # '__rsub__',
+    # '__rtruediv__',
+    # '__rxor__',
+    '__sub__',
+    '__truediv__',
+    # '__trunc__',
+    '__xor__'
+]
+# # '__setattr__',
+# '__sizeof__',
+# '__str__',
+# '__subclasshook__',
 
-# @attr.s  #(frozen=True) # hashable
-# class Variable:
-#   # List of some combination of Names (str), CallExpression, and ArrayAccessExpression.
-#   # For example, a.b().c[0].d would roughly translate to:
-#   # Variable(ArrayAccessExpression(Variable(CallExpression(Variable(a.b), c), 0), d)
-#   # Variable([Name(a), Name(b), Call(c, *args), Index(d, *args)])
-#   # The magic for evaluating this is in the Frame class.
-#   sequence: List = attr.ib()
-#   # def __hash__(self):
-#   #   return tuple(self.sequence).__hash__()
-#
-#
-# @attr.s  #(frozen=True) # hashable
-# class VariableName:
-#   name = attr.ib()
-#   # def __hash__(self): return hash(tuple(self.name))
-#   # def __eq__(self, other): return self.name == other.name
-#
-#
-# @attr.s  # #(frozen=True) # hashable
-# class VariableCall:
-#   name = attr.ib()
-#   args = attr.ib(factory=tuple)
-#   kwargs = attr.ib(factory=dict)
-#   # def __hash__(self):
-#   #   return hash(self.name) + hash(tuple())
-#
-#
-# @attr.s  #(frozen=True) # hashable
-# class VariableArrayAccess:
-#   name = attr.ib()
-#   args = attr.ib(factory=tuple)
 
-# @attr.s
-# class Variable:
-#   name = attr.ib(kw_only=True)
-#   scope = attr.ib(kw_only=True)
-#   # unknown = attr.ib(False)
-#   temp = attr.ib(False, kw_only=True)
-#
-#   def __attrs_post_init__(self):
-#     # Need this here lest all variables share a single list
-#     self.assignments = []
-#
-#   def get_complete_name(self):
-#     out = []
-#     scope = self.scope
-#     while scope:
-#       out.insert(0, scope.name)
-#       scope = scope.scope
-#     out.append(self.name)
-#     return ''.join(out)
+@attr.s(str=False, repr=False)
+class DynamicValue:
+  attributes = attr.ib(factory=dict)
 
-# @attr.s
-# class IndexVariable:
-#   source_variable = attr.ib(kw_only=True)
-#   index = attr.ib(kw_only=True)
-#   assignments = []
+  def has_attribute(self, name):
+    return name in self.attributes
 
-#
-# @attr.s
-# class VariableAssignment:
-#   variable = attr.ib(kw_only=True)
-#   pos = attr.ib(kw_only=True)
-#   value = attr.ib(kw_only=True)
-#
+  def get_attribute(self, name):
+    try:
+      return self.attributes[name]
+    except KeyError:
+      fv = FuzzyValue()  # Hmm, DV? UV? Factory?
+      self.attributes[name] = fv
+      return fv
 
-# @attr.s
-# class Type:
-#   type_ = attr.ib()
-#   is_ambiguous = attr.ib(default=False)
-#   value = attr.ib(default=None)
-#
-# @attr.s
-# class TypeOf:
-#   expr = attr.ib()
+  def set_attribute(self, name, value):
+    self.attributes[name] = value
 
-# class ResultOf:
-#
-#   def __init__(self, call, *args, **kwargs):
-#     self.call = call
-#     self.args = args
-#     self.kwargs = kwargs
-# class UnknownType:
-#   """Types that are unknown."""
+  def __str__(self):
+    return f'DV{list(self.attributes.keys())}'
 
-# @attr.s
-# class ComplexType:
-#   """Class for types that are too complex to extrapolate."""
-#   code = attr.ib()
+  def __repr__(self):
+    return str(self)
 
-# @attr.s
-# class IndexOf:
-#   array = attr.ib()
-#   index = attr.ib()
-#
-# @attr.s
-# class DuckType:
-#   members = attr.ib()
-#   common_aliases = attr.ib(factory=list)  # e.g. 'node', 'child'
-#
 
-_OPERATORS= [
-# fv'__abs__',
- '__add__',
- '__and__',
- # '__bool__',
- # '__invert__',
- '__ge__',
- '__gt__',
- '__le__',
- '__lt__',
- '__lshift__',
+@attr.s(str=False, repr=False)
+class UnknownValue:
+  name = attr.ib()
+  _dynamic_value = attr.ib(factory=DynamicValue)
 
- '__mod__',
- '__mul__',
- '__ne__',
- # '__neg__',
- # '__new__',
- '__or__',
- # '__pos__',
- '__pow__',
- '__radd__',
- '__rand__',
- '__rdivmod__',
- # '__reduce__',
- # '__reduce_ex__',
- # '__repr__',
- '__rfloordiv__',
- '__rlshift__',
- '__rmod__',
- '__rmul__',
- # '__ror__',
- # '__round__',
- # '__rpow__',
- # '__rrshift__',
- # '__rshift__',
- # '__rsub__',
- # '__rtruediv__',
- # '__rxor__',
- '__sub__',
- '__truediv__',
- # '__trunc__',
- '__xor__'
- ]
-  # # '__setattr__',
-  # '__sizeof__',
-  # '__str__',
- # '__subclasshook__',
+  def has_attribute(self, name):
+    return self._dynamic_value.has_attribute(name)
+
+  def get_attribute(self, name):
+    return self._dynamic_value.get_attribute(name)
+
+  def set_attribute(self, name, value):
+    self._dynamic_value.set_attribute(name, value)
+
+@attr.s
+class AugmentedValue:
+  value = attr.ib()
+  _dynamic_value = attr.ib(factory=DynamicValue)
+
+  def has_attribute(self, name):
+    return self.value.has_attribute(name) or self._dynamic_value.has_attribute(name)
+
+  def get_attribute(self, name):
+    try:
+      return self.value.get_attribute(name)
+    except ValueError:
+      # TODO: Log
+      return self._dynamic_value.get_attribute(name)
+    # return self._dynamic_value.get_attribute(name)
+
+  def set_attribute(self, name, value):
+    # Can this get messy at all?
+    if self.value.has_attribute(name):
+      self.value.set_attribute(name)
+    else:
+      self._dynamic_value.set_attribute(name)
+
 
 @attr.s(str=False, repr=False)
 class FuzzyValue:
@@ -180,13 +134,15 @@ class FuzzyValue:
   """
 
   _values: List = attr.ib()  # Tuple of possible values
-  # is_ambiguous = attr.ib()
-  _types: Set = attr.ib(factory=set)  # Tuple of possible types
-  _last_creation_string = attr.ib('')
-  # Attributes that have been set on this value that match None of the current
-  # values. Otherwise, setting attributes will fit to whatever they can.
-  _extra_attributes: Dict = attr.ib(factory=dict)
-  _dynamic_creation = attr.ib(False)
+  _source_node: 'CfgNode' = attr.ib()
+
+  def __attrs_post_init(self):
+    new_values = []
+    for val in self._values:
+      if not isinstance(val, AugmentedValue):
+        new_values.append(AugmentedValue(val))
+      else:
+        
 
   # TODO: unexecuted_expressions?
 
@@ -196,15 +152,16 @@ class FuzzyValue:
   def __repr__(self):
     return str(self)
 
-
   def merge(self, other: 'FuzzyValue'):
-    return FuzzyValue(self._values + other._values, self._types + other._types)
+    dvs = list(filter(lambda x: x is not None, [self._dynamic_value, other._dynamic_value]))
+    return FuzzyValue(
+        self._values + other._values)
 
-  def is_ambiguous_type(self):
-    return (len(self._values) + len(self._types)) != 1
+  # def is_ambiguous_type(self):
+  #   return (len(self._values) + len(self._types)) != 1
 
-  def get_possible_types(self):
-    return self._types + tuple(type(x) for x in self._values)
+  # def get_possible_types(self):
+  #   return self._types + tuple(type(x) for x in self._values)
 
   def has_single_value(self):
     return len(self._values) == 1
@@ -224,33 +181,34 @@ class FuzzyValue:
     return (any(self._values) and not all(self._values) and
             len(self._values) > 0)
 
-  def hasattribute(self, name):
+  def has_attribute(self, name):
     # TODO Check _values
-    if name in self._extra_attributes:
-      return True
     for val in self._values:
-      if hasattr(val, 'hasattribute') and val.has_attribute(name):
+      if hasattr(val, 'has_attribute') and val.has_attribute(name):
         return True
 
+  def get_attribute(self, name):
+    return [val.get_attribute(name) for val in self._values]
+    results = []
+    # for val in self._values:
+    #     results.append(val.get_attribute(name))
+        
+    #   if hasattr(val, 'get_attribute') and val.has_attribute(name):
+    #     results.append(val.get_attribute(name))
 
-  def getattribute(self, name):
-    if name in self._extra_attributes:
-      return self._extra_attributes[name]
-    matches = []
-    
-    for val in self._values:
-      if hasattr(val, 'hasattribute') and val.has_attribute(name):
-        matches.append(val.get_attribute(name))
-    
-    if matches:
-      if len(matches) > 1:
-        return FuzzyValue(matches)
-      return matches[0]
-    
-    if not self._dynamic_creation:
-      raise ValueError(f'No value with attribute for {name} on {self}')
-    info(f'Failed to find attribute {name}; creating an empty FuzzyValue for it.')
-    return FuzzyValue([], dynamic_creation=True)
+    # if matches:
+    #   if len(matches) > 1:
+    #     return FuzzyValue(matches)
+    #   return matches[0]
+
+    # if self._
+    # self._dynamic_value.get_attribute(name)
+    # # if not self._dynamic_creation:
+    # #   raise ValueError(f'No value with attribute for {name} on {self}')
+    # info(
+    #     f'Failed to find attribute {name}; creating an empty FuzzyValue for it.'
+    # )
+    # return FuzzyValue([], dynamic_creation=True)
 
   def set_attribute(self, name, value):
     if not isinstance(value, FuzzyValue):
@@ -262,7 +220,7 @@ class FuzzyValue:
 
     match = None
     for val in self._values:
-      if hasattr(val, 'hasattribute') and val.has_attribute(name):
+      if hasattr(val, 'has_attribute') and val.has_attribute(name):
         if match:
           info('Ambiguous assignment for {name} on {self}')
           self._extra_attributes[name] = value
@@ -305,9 +263,12 @@ class FuzzyValue:
       return self
     raise NotImplementedError()
 
+
 # Add various operators too FuzzyValue class.
 for operator_str in _OPERATORS:
-  setattr(FuzzyValue, operator_str, partialmethod(FuzzyValue._operator, operator=operator_str))
+  setattr(FuzzyValue, operator_str,
+          partialmethod(FuzzyValue._operator, operator=operator_str))
+
 
 def literal_to_fuzzy(value):
   return FuzzyValue([value])
@@ -320,20 +281,4 @@ def fuzzy_types(val):
 
 
 NONE_FUZZY_VALUE = literal_to_fuzzy(None)
-UNKNOWN_FUZZY_VALUE = FuzzyValue(tuple())
-
-
-@attr.s
-class ImportOf:
-  path = attr.ib()
-
-
-@attr.s
-class ImportFrom:
-  path = attr.ib(kw_only=True)
-  name = attr.ib(kw_only=True)
-  as_name = attr.ib(kw_only=True)
-
-
-def is_linear_collection(type_str):
-  return type_str == 'file_input' or type_str == 'suite' or type_str == 'classdef' or type_str == 'with_stmt'
+# UNKNOWN_FUZZY_VALUE = FuzzyValue()

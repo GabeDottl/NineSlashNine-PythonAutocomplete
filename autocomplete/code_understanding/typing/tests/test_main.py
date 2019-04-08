@@ -29,7 +29,7 @@ from x.y.z import (q, r as s)'''
   assert 'blob' in frame_ and isinstance(frame_['blob'].value(), Module)
   assert frame_['blob'].value().path == 'hob.dob'
   assert 'wraps' in frame_ and isinstance(frame_['wraps'].value(), Module)
-  assert frame_['wraps'].value().path == 'functools'
+  assert frame_['wraps'].value().name == 'functools.wraps'
   assert 'c' in frame_ and isinstance(frame_['c'].value(), Module)
   assert frame_['c'].value().path == 'a.b'
   assert 'q' in frame_ and isinstance(frame_['q'].value(), Module)

@@ -23,6 +23,7 @@ class FunctionType(Enum):
 
 @attr.s(str=False, repr=False)
 class Function:
+  name = attr.ib()
   parameters = attr.ib()
   graph = attr.ib()
   type = attr.ib(FunctionType.FREE)
@@ -36,7 +37,7 @@ class Function:
     return self.bound_frame
 
   def call(self, args, kwargs, curr_frame):
-    new_frame = curr_frame.make_child(type=FrameType.FUNCTION)
+    new_frame = curr_frame.make_child(type=FrameType.FUNCTION, name=self.name)
     if self.bound_frame:
       new_frame.merge(self.bound_frame)
     if debug.print_frame_in_function:

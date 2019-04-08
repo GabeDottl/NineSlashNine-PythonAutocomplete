@@ -2,8 +2,7 @@ from abc import ABC, abstractmethod
 
 import attr
 
-from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,
-                                                                FuzzyValue,
+from autocomplete.code_understanding.typing.fuzzy_value import (FuzzyValue,
                                                                 literal_to_fuzzy)
 from autocomplete.nsn_logging import info
 
@@ -41,10 +40,6 @@ class CallExpression(Expression):
     fuzzy_value = curr_frame[self.function_variable]
     function_assignment = fuzzy_value.value()
     return function_assignment.call(self.args, self.kwargs, curr_frame)
-    # return function_assignment.evaluate(curr_frame)
-    # function_assignment = self.function_name.assignments[-1]
-    # assert isinstance(function_assignment.value, Function), function_assignment
-    # return function_assignment.value.returns
 
 
 @attr.s
@@ -54,7 +49,7 @@ class AttributeExpression(Expression):
 
   def evaluate(self, curr_frame) -> FuzzyValue:
     value: FuzzyValue = self.base_expression.evaluate(curr_frame)
-    return value.getattribute(self.attribute)
+    return value.get_attribute(self.attribute)
 
 
 @attr.s
