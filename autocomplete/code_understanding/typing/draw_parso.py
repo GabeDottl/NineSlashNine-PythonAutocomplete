@@ -92,4 +92,5 @@ if __name__ == '__main__':
   drawer.traverse(tree)
   drawer.create_graph(source)
   drawer.graph.render(drawer.graph.filename)
-  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename + '.pdf')
+  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename +
+                                        '.pdf')

@@ -37,7 +37,25 @@ from x.y.z import (q, r as s)'''
   assert 's' in frame_
   assert frame_['s'].value().name == 'x.y.z.r'
 
-
+def test_classes():
+  source = '''
+class X:
+  b = 1
+w = X()  # 0 at end
+x = w  # 0 at end
+y = X()  # 1 at end
+X.b = 2
+z = X()  # 2 at end
+x.b = 0
+'''
+  frame_ = frame_from_source(source)
+  assert 'X' in frame_ and isinstance(frame_['X'].value(), Klass)
+  assert 'X.b' in frame_
+  assert frame_['X.b'].value() == 2
+  assert frame_['w.b'].value() == 0
+  assert frame_['x.b'].value() == 0
+  assert frame_['y.b'].value() == 1
+  assert frame_['z.b'].value() == 2
 
 def frame_from_source(source):
   basic_node = parso.parse(source)
@@ -68,6 +86,7 @@ def generate_test_from_actual(a_frame):
       print(f'assert a_frame[\'{name}\'].value() == {val.value()}')
 
 if __name__ == '__main__':
-  test_simple_assignment()
-  test_imports()
+  # test_simple_assignment()
+  # test_imports()
+  test_classes()
   # test_main_sample()

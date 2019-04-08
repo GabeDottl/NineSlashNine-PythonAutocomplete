@@ -180,7 +180,9 @@ class FuzzyValue:
     return (any(self._values) and not all(self._values) and
             len(self._values) > 0)
 
-  # def has_attribute(self, name):
+  def has_attribute(self, name):
+    return all([value.has_attribute(name) for value in self._values])
+
   # TODO Check _values
 
   def get_attribute(self, name) -> 'FuzzyValue':
@@ -209,8 +211,8 @@ class FuzzyValue:
   def set_attribute(self, name: str, value):
     if not isinstance(value, (FuzzyValue, AugmentedValue, UnknownValue)):
       value = AugmentedValue(value)
-    for value in self._values:
-      value.set_attribute(name, value)
+    for val in self._values:
+      val.set_attribute(name, value)
 
   def apply(self, func):
     for value in self._values:

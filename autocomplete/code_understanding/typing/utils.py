@@ -128,7 +128,8 @@ def parameters_from_parameters(node) -> List[Parameter]:
 
 def expressions_from_testlist_comp(node) -> List[Variable]:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
-  if len(node.children) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
+  if len(node.children
+        ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     assert False, ('Can\'t have comp_for references - only expressions.',
                    node_info(node))
     # return extract_references_from_comp_for(test, comp_for)

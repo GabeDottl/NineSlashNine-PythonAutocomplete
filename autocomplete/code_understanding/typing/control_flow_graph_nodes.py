@@ -121,7 +121,7 @@ class KlassCfgNode(CfgNode):
     new_frame = curr_frame.make_child(type=FrameType.CLASS, name=self.name)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
-    klass.members = new_frame.locals
+    klass.members = new_frame._locals
     for name, member in klass.members.items():
 
       def instance_member(f):

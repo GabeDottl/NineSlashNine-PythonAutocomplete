@@ -17,7 +17,6 @@ class FrameType(Enum):
 
 @attr.s(str=False, repr=False)
 class Frame:
-  # __slots__ = 'globals', 'locals', 'builtins'
   _globals: Dict = attr.ib(factory=dict)
   _nonlocals: Dict = attr.ib(factory=dict)
   _locals: Dict = attr.ib(factory=dict)
@@ -63,7 +62,7 @@ class Frame:
       # setattr(base, variable.sequence[1], value)
     # TODO: Handle nonlocal & global keyword states.
 
-  def __getitem__(self, variable: Variable) -> FuzzyValue:
+  def __getitem__(self, variable: Variable, strict=False) -> FuzzyValue:
     if isinstance(variable, AttributeExpression):
       fuzzy_value = variable.base_expression.evaluate(self)
       return fuzzy_value.get_attribute(variable.attribute)
@@ -74,6 +73,16 @@ class Frame:
       assert isinstance(variable, VariableExpression), variable
       name = variable.name
 
+    # Complex case - X.b
+    if '.' in name:
+      index = name.find('.')
+      base = name[:index]
+      # May raise a ValueError - recursive call.
+      fuzzy_value = self[base]
+      if strict and not fuzzy_value.has_attribute(name[index + 1:]):
+        raise ValueError(f'{variable} doesn\'t exist in current context!')
+      return fuzzy_value.get_attribute(name[index + 1:])
+
     for group in (self._locals, self._globals, self.builtins):
       # Given a.b.c, Python will take the most-local definition of a and
       # search from there.
@@ -82,12 +91,25 @@ class Frame:
     # TODO: lineno, frame contents.
     raise ValueError(f'{variable} doesn\'t exist in current context!')
 
-  def __contains__(self, name):
-    for group in (self._locals, self._globals, self.builtins):
-      # Given a.b.c, Python will take the most-local definition of a and
-      # search from there.
-      if name in group:
-        return True
+  def __contains__(self, variable):
+    try:
+      self[variable]
+      return True
+    except ValueError:
+      return False
+    # if isinstance(variable, str):
+    #   name = variable
+    # elif isinstance(variable, VariableExpression):
+    #   name = variable.name
+    # else:
+    #   assert False # isinstance(variable, AttributeExpression), variable
+
+    # # Simple case - single name.
+    # for group in (self._locals, self._globals, self.builtins):
+    #   # Given a.b.c, Python will take the most-local definition of a and
+    #   # search from there.
+    #   if name in group:
+    #     return True
 
   def add_return(self, value):
     self.returns.append(value)
