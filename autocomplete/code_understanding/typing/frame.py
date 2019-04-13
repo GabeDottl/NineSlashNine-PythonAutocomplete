@@ -31,10 +31,10 @@ class Frame:
     self._locals.update(other_frame._locals)
 
   def make_child(self, type, name) -> 'Frame':
-    info(f'Creating child {type}Frame from {self.type}Frame')
+    # info(f'Creating child {type}Frame from {self.type}Frame')
     if self.type == FrameType.NORMAL:
       new_frame = Frame({**self._globals, **self._locals}, type=type)
-      print(new_frame)
+      # info(new_frame)
       return new_frame
     # else: #  if self.type == FrameType.FUNCTION:
     # TODO: Function Cell vars.

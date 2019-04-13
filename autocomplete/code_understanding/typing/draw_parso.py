@@ -50,7 +50,7 @@ class ParsoDrawer:
         c.attr(label=subgraph_name)
         # c.node_attr.update(style='filled', color='white')
         c.attr(color='blue')
-        # print(f'subgraph_name: {subgraph_name}')
+        # info(f'subgraph_name: {subgraph_name}')
         for parent, child in parent_child_pairs:
 
           try:

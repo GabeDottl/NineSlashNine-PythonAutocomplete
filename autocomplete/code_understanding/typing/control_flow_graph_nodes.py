@@ -51,7 +51,7 @@ class FromImportCfgNode(CfgNode):
   def process(self, curr_frame):
     name = self.as_name if self.as_name else self.from_import_name
     module = module_loader.get_module(self.module_path)
-    info(f'{name} from {module.path}')
+    # info(f'{name} from {module.path}')
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
     except KeyError:
@@ -126,7 +126,7 @@ class KlassCfgNode(CfgNode):
 
       def instance_member(f):
         if isinstance(f, Function):
-          info(f'Func {name} now unbound')
+          # info(f'Func {name} now unbound')
           f.type = FunctionType.UNBOUND_INSTANCE_METHOD
 
       member.apply(instance_member)

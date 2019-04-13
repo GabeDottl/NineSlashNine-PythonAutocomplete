@@ -18,4 +18,4 @@ if __name__ == '__main__':
   with open(args.source) as f:
     source = ''.join(f.readlines())
     frame_ = frame_from_source(source)
-    print(frame_)
+    # info(frame_)

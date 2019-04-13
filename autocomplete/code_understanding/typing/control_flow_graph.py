@@ -60,7 +60,7 @@ def condense_graph(graph):
 
 def handle_error(e, node):
   # traceback.print_tb(e.tb)
-  print(f'Caught while creating: {node.get_code()}')
+  info(f'Caught while creating: {node.get_code()}')
   raise e
 
 
@@ -242,7 +242,7 @@ class ControlFlowGraphBuilder:
     #              'import' ('*' | '(' import_as_names ')' | import_as_names))
     # import_as_name: NAME ['as' NAME]
     # from is first child
-    print(node.get_code())
+    info(node.get_code())
     node_index = 1
     # First node after import might be '.' or '...' operators.
 

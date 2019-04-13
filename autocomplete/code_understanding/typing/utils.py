@@ -415,7 +415,7 @@ def keyword_eval(keyword_str):
 
 
 def print_tree(node, indent='', file=sys.stdout):
-  print(f'{indent}{node.type}', file=file)
+  info(f'{indent}{node.type}', file=file)
   try:
     for c in node.children:
       print_tree(c, indent + '  ', file=file)
