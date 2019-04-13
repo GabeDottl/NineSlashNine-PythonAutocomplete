@@ -4,11 +4,13 @@ from typing import List, Tuple, Union
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import \
     CfgNode
 from autocomplete.code_understanding.typing.expressions import (
-    AssignmentExpressionStatement, AttributeExpression, CallExpression,
-    ComparisonExpression, Expression, LiteralExpression, MathExpression,
-    SubscriptExpression, TupleExpression, Variable, VariableExpression)
+    AssignmentExpressionStatement, AttributeExpression, CallExpression, UnknownExpression,
+    ComparisonExpression, Expression, LiteralExpression, MathExpression,FactorExpression,
+    NotExpression, SubscriptExpression, TupleExpression, ListExpression,
+    Variable, VariableExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Parameter, ParameterType)
+from autocomplete.nsn_logging import info
 
 
 def statement_from_expr_stmt(node):
@@ -20,7 +22,7 @@ def statement_from_expr_stmt(node):
   child = node.children[0]
 
   if child.type == 'testlist_star_expr':
-    variables = expressions_from_testlist_comp(node)
+    variables = expressions_from_testlist_comp(child)
   else:
     variables = [expression_from_node(child)]
   if len(node.children) == 2:  # a += b - augmented assignment.
@@ -112,11 +114,20 @@ def parameters_from_parameters(node) -> List[Parameter]:
         else:  # **
           out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
     elif len(param.children) == 3:  # len(3)
-      assert param.children[0].type == 'operator'
-      if param.children[0].value == '*':
-        out.append(Parameter(param.children[1].value, ParameterType.ARGS))
-      else:  # **
-        out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
+      if param.children[0].type == 'operator':
+        if param.children[0].value == '*':
+          out.append(Parameter(param.children[1].value, ParameterType.ARGS))
+        else:  # **
+          out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
+      elif param.children[0].type == 'name':
+        out.append(
+            Parameter(
+                param.children[0].value,
+                ParameterType.SINGLE,
+                default=expression_from_node(param.children[2])))
+      else:
+        assert False
+
     else:  # if len(param.children) == 4:  # name, =, expr, ','
       assert len(param.children) == 4, node_info(param)
       out.append(
@@ -147,10 +158,28 @@ def expression_from_testlist_comp(node) -> TupleExpression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
+    info(f'Processing comp_for - throwing in unknown.')
+    return TupleExpression([UnknownExpression()])
+    # return ForComprehensionExpression(
+    #     names=node.children[1], source=expression_from_node(node.children[-1]))
+
+  if len(node.children
+        ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     assert False, ('Don\'t support comp_for references - only expressions.',
                    node_info(node))
+
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,
+    out = []
+    for child in node.children:
+      if child.type == 'operator':
+        assert child.value == ','
+        continue
+      out.append(expression_from_node(child))
+    return TupleExpression(out)
+
+
+def expression_from_testlist(node) -> TupleExpression:
     out = []
     for child in node.children:
       if child.type == 'operator':
@@ -167,7 +196,7 @@ def expression_from_testlist_comp(node) -> TupleExpression:
 
 def expression_from_atom_expr(node) -> Expression:
   # atom_expr: ['await'] atom trailer*
-  # atom: ('(' [yield_expr|testlist_comp] ')' |
+  # atom: ('(' [yield_expr|testlist_comp] ')' |j
   #       '[' [testlist_comp] ']' |
   #       '{' [dictorsetmaker] '}' |
   #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
@@ -206,11 +235,11 @@ def expressions_from_subscriptlist(
   # subscript: test | [test] ':' [test] [sliceop]
   # sliceop: ':' [test]
   if node.type != 'subscriptlist' and node.type != 'subscript':
-    return expression_from_node(node)
+    return expression_from_node(node),  # Tuple
   elif node.type == 'subscriptlist':
     return tuple(
-        expressions_from_subscriptlist(node) for node in
-        filter(lambda x: x.type != 'operator' or x.value != ',', node.children))
+        expressions_from_subscriptlist(node) for node in filter(
+            lambda x: x.type != 'operator' or x.value != ',', node.children))
   else:  # subscript
     # num op num [sliceop]
     raise NotImplementedError()  # TODO
@@ -256,7 +285,9 @@ def expression_from_node(node):
     return LiteralExpression(keyword_eval(node.value))
   elif node.type == 'name':
     return VariableExpression(node.value)
-  elif node.type == 'arith_expr' or node.type == 'term' or node.type == 'factor':
+  elif node.type == 'factor':
+    return FactorExpression(node.children[0].value, expression_from_node(node.children[1]))
+  elif node.type == 'arith_expr' or node.type == 'term':
     return expression_from_math_expr(node)
   elif node.type == 'atom':
     return expression_from_atom(node)
@@ -264,16 +295,28 @@ def expression_from_node(node):
     return expression_from_atom_expr(node)
   elif node.type == 'testlist_comp':
     return expression_from_testlist_comp(node)
+  elif node.type == 'testlist':
+    return expression_from_testlist(node)
   elif node.type == 'comparison':
     return expression_from_comparison(node)
+  elif node.type == 'not_test':
+    return NotExpression(expression_from_node(node.children[1]))
+  elif node.type == 'lambdef':
+    info(f'Failed to process lambdef - unknown.')
+    return UnknownExpression() 
+  elif node.type == 'fstring':
+    info(f'Failed to process fstring_expr - string.')
+    return LiteralExpression(node.children[1].value)  # fstring_string type.
+    # return UnknownExpression() 
+  
   else:
-    assert False, node_info(node)
+    raise NotImplementedError(node_info(node))
+    # assert False, node_info(node)
 
 
 def expression_from_atom(node):
   # atom: ('(' [yield_expr|testlist_comp] ')' |
   #       '[' [testlist_comp] ']' |
-  #       '{' [dictorsetmaker] '}' |
   #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
   if node.children[0].value == '(':
     # yield_expr|testlist_comp
@@ -283,7 +326,9 @@ def expression_from_atom(node):
       assert len(node.children) == 3, node_info(node)
       return expression_from_node(node.children[1])
   elif node.children[0].value == '[':
-    raise NotImplementedError('Not yet handling testlist_comp')
+    if len(node.children) == 3:
+      return ListExpression(expression_from_node(node.children[1]).expressions)
+    return ListExpression([])
   elif node.children[0].value == '{':
     raise NotImplementedError('Not yet handling dictorsetmaker')
   else:

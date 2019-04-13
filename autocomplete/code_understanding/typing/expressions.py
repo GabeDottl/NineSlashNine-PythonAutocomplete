@@ -2,15 +2,15 @@ from abc import ABC, abstractmethod
 
 import attr
 
-from autocomplete.code_understanding.typing.fuzzy_value import (FuzzyValue,
-                                                                literal_to_fuzzy)
+from autocomplete.code_understanding.typing.pobjects import (
+    FuzzyObject, UnknownObject, AugmentedObject, literal_to_fuzzy)
 from autocomplete.nsn_logging import info
 
 
 class Expression(ABC):
 
   @abstractmethod
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     raise NotImplementedError()  # abstract
 
 
@@ -18,16 +18,50 @@ class Expression(ABC):
 class LiteralExpression(Expression):
   literal = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     return literal_to_fuzzy(self.literal)
+
+
+class UnknownExpression(Expression):
+
+  def evaluate(self, curr_frame):
+    return UnknownObject('')
+
+
+# @attr.s
+# class ForComprehensionExpression(Expression):
+#   names = attr.ib()
+#   source = attr.ib()
+
+#   def evaluate(self, curr_frame) -> FuzzyObject:
+#     pobject = self.expression.evaluate(curr_frame)
+#     return AugmentedObject(pobject.bool_value().invert())
+
+
+@attr.s
+class NotExpression(Expression):
+  expression = attr.ib()
+
+  def evaluate(self, curr_frame) -> FuzzyObject:
+    pobject = self.expression.evaluate(curr_frame)
+    return AugmentedObject(pobject.bool_value().invert())
 
 
 @attr.s
 class TupleExpression(Expression):
   expressions = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
-    return FuzzyValue([tuple(e.evaluate(curr_frame) for e in self.expressions)])
+  def evaluate(self, curr_frame) -> FuzzyObject:
+    return FuzzyObject(
+        [tuple(e.evaluate(curr_frame) for e in self.expressions)])
+
+
+@attr.s
+class ListExpression(Expression):
+  expressions = attr.ib()
+
+  def evaluate(self, curr_frame) -> FuzzyObject:
+    return FuzzyObject([list(e.evaluate(curr_frame) for e in self.expressions)])
 
 
 @attr.s
@@ -36,14 +70,10 @@ class CallExpression(Expression):
   args = attr.ib(factory=list)
   kwargs = attr.ib(factory=dict)
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
-    fuzzy_value = curr_frame[self.function_variable]
-    function_assignment = fuzzy_value.value()
+  def evaluate(self, curr_frame) -> FuzzyObject:
+    pobject = curr_frame[self.function_variable]
+    function_assignment = pobject.value()
     return function_assignment.call(self.args, self.kwargs, curr_frame)
-    # return function_assignment.evaluate(curr_frame)
-    # function_assignment = self.function_name.assignments[-1]
-    # assert isinstance(function_assignment.value, Function), function_assignment
-    # return function_assignment.value.returns
 
 
 @attr.s
@@ -51,8 +81,8 @@ class AttributeExpression(Expression):
   base_expression = attr.ib()
   attribute = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
-    value: FuzzyValue = self.base_expression.evaluate(curr_frame)
+  def evaluate(self, curr_frame) -> FuzzyObject:
+    value: FuzzyObject = self.base_expression.evaluate(curr_frame)
     return value.get_attribute(self.attribute)
 
 
@@ -61,16 +91,16 @@ class SubscriptExpression(Expression):
   base_expression = attr.ib()
   subscript_list = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     value = self.base_expression.evaluate(curr_frame)
-    return value[tuple(e.evaluate() for e in self.subscript_list)]
+    return value[tuple(e.evaluate(curr_frame) for e in self.subscript_list)]
 
 
 @attr.s
 class VariableExpression(Expression):
   name = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     return curr_frame[self]
 
 
@@ -80,12 +110,12 @@ class IfExpression(Expression):
   conditional_expression = attr.ib()
   negative_expression = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     conditional = self.conditional_expression.evaluate(curr_frame)
     if not conditional:
       return self.negative_expression.evaluate(curr_frame)
     if conditional.is_ambiguous():
-      out = FuzzyValue()
+      out = FuzzyObject()
       out._values = [
           self.positive_expression.evaluate(curr_frame),
           self.negative_expression.evaluate(curr_frame)
@@ -100,9 +130,21 @@ class ForExpression(Expression):
   conditional_expression = attr.ib()
   iterable_expression = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     return self.generator_expression.evaluate(curr_frame)
 
+@attr.s
+class FactorExpression(Expression):
+  operator = attr.ib()
+  expression = attr.ib()
+
+  def evaluate(self, curr_frame):
+    if self.operator == '+': return self.expression.evaluate(curr_frame)
+    if self.operator == '-': return MathExpression(LiteralExpression(-1), '*', self.expression).evaluate(curr_frame)
+    if self.operator == '~': 
+      info(f'Skipping inversion and just returning expression')
+      return self.expression.evaluate(curr_frame)
+    
 
 @attr.s
 class MathExpression(Expression):
@@ -110,7 +152,7 @@ class MathExpression(Expression):
   operator = attr.ib()
   right = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     # expr: xor_expr ('|' xor_expr)*
     # xor_expr: and_expr ('^' and_expr)*
     # and_expr: shift_expr ('&' shift_expr)*
@@ -161,7 +203,7 @@ class ComparisonExpression(Expression):
   operator = attr.ib()
   right = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
     l = self.left.evaluate(curr_frame)
     r = self.right.evaluate(curr_frame)
@@ -196,7 +238,7 @@ class AssignmentExpressionStatement:  # Looks like an Expression, but not techni
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression = attr.ib()
 
-  def evaluate(self, curr_frame) -> FuzzyValue:
+  def evaluate(self, curr_frame) -> FuzzyObject:
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
     # info(f'result: {result}')

@@ -71,15 +71,18 @@ class ControlFlowGraphBuilder:
     '''Create handles all nodes which should create their own CfgNode - i.e.
     nodes that contain a complete statement/definition or control flow.'''
     try:
-      return getattr(self, f'create_cfg_node_for_{node.type}')(node)
-    except AttributeError as e:
+      if hasattr(self, f'create_cfg_node_for_{node.type}'):
+        return getattr(self, f'create_cfg_node_for_{node.type}')(node)
+      info(f'Unhandled type: {node.type}')
+    except Exception as e:  # (AttributeError, ValueError, NotImplementedError, 
       handle_error(e, node)
-    except ValueError as e:
-      handle_error(e, node)
-    except NotImplementedError as e:
-      handle_error(e, node)
-    except Exception as e:
-      handle_error(e, node)
+    # except NotImplementedError as e:
+    #   handle_error(e, node)
+
+
+  def create_cfg_node_for_error_node(self, node):
+    info(f'Error node when processing: {node.get_code()}')
+    return NoOpCfgNode()
 
   def create_cfg_node_for_single_input(self, node):
     return GroupCfgNode(
@@ -145,7 +148,7 @@ class ControlFlowGraphBuilder:
   # def create_cfg_node_for_augassign(self, node): info(f'Skipping {node.type}')
 
   def create_cfg_node_for_if_stmt(self, node):
-    return IfCfgNode(create_expression_node_tuples_from_if_stmt(self, node))
+    return IfCfgNode(create_expression_node_tuples_from_if_stmt(self, node), node)
 
   def create_cfg_node_for_funcdef(self, node):
     # Children are: def name params : suite

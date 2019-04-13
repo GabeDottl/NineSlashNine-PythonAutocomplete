@@ -57,11 +57,50 @@ x.b = 0
   assert frame_['y.b'].value() == 1
   assert frame_['z.b'].value() == 2
 
-def frame_from_source(source):
-  basic_node = parso.parse(source)
-  builder = control_flow_graph.ControlFlowGraphBuilder()
-  graph = builder.create_cfg_node(basic_node)
-  return control_flow_graph.run_graph(graph)
+
+def test_stubs():
+  source = '''
+class X:
+  b: int = ...
+  def foo(a:str, other: 'x') -> int: ...
+
+x = X()
+a = x.foo(0, None)
+'''
+  frame_ = frame_from_source(source)
+  assert 'X' in frame_ and isinstance(frame_['X'].value(), Klass)
+  assert 'X.b' in frame_
+  assert frame_['X.b'].value_type() == int
+  assert frame_['w.b'].value() == 0
+  assert frame_['x.b'].value() == 0
+  assert frame_['y.b'].value() == 1
+  assert frame_['z.b'].value() == 2
+
+def test_arrays():
+  source = '''
+a = [0,1,2]
+b  = a[0]
+c = a[23]
+d = c[0]
+class X: pass
+x = X()
+y = x[0]
+a2 = 'test'
+b2 = a2[0]
+'''
+  # TODO: a = a[0]
+  frame_ = frame_from_source(source)
+  assert 'a' in frame_ and isinstance(frame_['a'].value(), list)
+  assert 'b' in frame_
+  assert frame_['b'].value() == 0
+  # assert frame_['w.b'].value() == 0
+  # assert frame_['x.b'].value() == 0
+  # assert frame_['y.b'].value() == 1
+  # assert frame_['z.b'].value() == 2
+
+
+
+
 
 # def test_main_sample():
 #    with open('/Users/gabe/code/autocomplete/autocomplete/code_understanding/typing/examples/test_main_sample_code.py') as f:
@@ -86,7 +125,8 @@ def generate_test_from_actual(a_frame):
       print(f'assert a_frame[\'{name}\'].value() == {val.value()}')
 
 if __name__ == '__main__':
-  # test_simple_assignment()
-  # test_imports()
+  test_simple_assignment()
+  test_imports()
   test_classes()
+  test_arrays()
   # test_main_sample()

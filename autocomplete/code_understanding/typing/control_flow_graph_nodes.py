@@ -6,8 +6,8 @@ from autocomplete.code_understanding.typing import module_loader
 from autocomplete.code_understanding.typing.expressions import \
     VariableExpression
 from autocomplete.code_understanding.typing.frame import FrameType
-from autocomplete.code_understanding.typing.fuzzy_value import (
-    UnknownValue, FuzzyValue)
+from autocomplete.code_understanding.typing.pobjects import (
+    UnknownObject, FuzzyObject)
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionType, Klass, Module, Parameter)
 from autocomplete.nsn_logging import info
@@ -59,7 +59,7 @@ class FromImportCfgNode(CfgNode):
           f'from_import_name {self.from_import_name} not found in {self.module_path}'
       )
       curr_frame[
-          name] = FuzzyValue([UnknownValue(name='.'.join([self.module_path, name]))], self)  # TODO: Extra fuzzy value / unknown?
+          name] = FuzzyObject([UnknownObject(name='.'.join([self.module_path, name]))], self)  # TODO: Extra fuzzy value / unknown?
 
 
 @attr.s
@@ -117,7 +117,7 @@ class KlassCfgNode(CfgNode):
   def process(self, curr_frame):
     klass_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
     klass = Klass(klass_name, members={})
-    curr_frame[self.name] = FuzzyValue([klass], self)
+    curr_frame[self.name] = FuzzyObject([klass], self)
     new_frame = curr_frame.make_child(type=FrameType.CLASS, name=self.name)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
@@ -162,7 +162,7 @@ class FuncCfgNode(CfgNode):
         processed_params.append(Parameter(param.name, param.type, default))
     # Include full name.
     func_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
-    curr_frame[VariableExpression(self.name)] = FuzzyValue(
+    curr_frame[VariableExpression(self.name)] = FuzzyObject(
         [Function(func_name, parameters=processed_params, graph=self.suite)], self)
 
   def __str__(self):

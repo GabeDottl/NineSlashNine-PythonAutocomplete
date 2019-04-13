@@ -8,9 +8,9 @@ from autocomplete.code_understanding.typing import debug
 from autocomplete.code_understanding.typing.expressions import (LiteralExpression,
                                                                 VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.fuzzy_value import (NONE_FUZZY_VALUE,
-                                                                UnknownValue,
-                                                                FuzzyValue)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
+                                                                UnknownObject,
+                                                                FuzzyObject)
 from autocomplete.nsn_logging import info
 
 
@@ -52,7 +52,7 @@ class Function:
 
     returns = new_frame.get_returns()
     if not returns:
-      return NONE_FUZZY_VALUE
+      return NONE_POBJECT
     out = returns[0]
     for ret in returns[1:]:
       out = out.merge(ret)
@@ -82,7 +82,7 @@ class Function:
         kwargs_name = param.name
       else:
         # Use default. If there's no assignment and no explicit default, this
-        # will be NONE_FUZZY_VALUE.
+        # will be NONE_POBJECT.
         curr_frame[VariableExpression(param.name)] = param.default
 
     if kwargs_name:  # Add remaining keywords to kwargs if there is one.
@@ -90,7 +90,7 @@ class Function:
       for key, value in kwargs:
         if key not in curr_frame:
           in_dict[key] = value
-      curr_frame[kwargs_name] = FuzzyValue([in_dict])
+      curr_frame[kwargs_name] = FuzzyObject([in_dict])
 
   def __str__(self):
     return f'Func({tuple(self.parameters)})'
@@ -127,7 +127,7 @@ class Attributable(ABC):
       return out
     return self.members[name]
 
-  def set_attribute(self, name: str, value: FuzzyValue):
+  def set_attribute(self, name: str, value: FuzzyObject):
     self.members[name] = value
 
   def has_attribute(self, name):
@@ -148,14 +148,14 @@ class Klass(Attributable):
     return str(self)
 
   def call(self, args, kwargs, curr_frame):
-    return FuzzyValue([self.new(args, kwargs, curr_frame)])
+    return FuzzyObject([self.new(args, kwargs, curr_frame)])
 
   def new(self, args, kwargs, curr_frame):
     # TODO: Handle params.
     # TODO: __init__
     instance_members = {}
     instance = Instance(self, instance_members)
-    fv_instance = FuzzyValue([instance])
+    fv_instance = FuzzyObject([instance])
     for name, member in self.members.items():
       if member.has_single_value() and isinstance(
           member.value(), Function) and member.value(
@@ -166,7 +166,7 @@ class Klass(Attributable):
         info(f'self_param: {self_param}')
         bound_frame.locals[self_param.name] = fv_instance
         new_func.type = FunctionType.BOUND_INSTANCE_METHOD
-        instance_members[name] = FuzzyValue([new_func])
+        instance_members[name] = FuzzyObject([new_func])
       else:
         instance_members[name] = member
 
@@ -206,7 +206,7 @@ class Module(Attributable):
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:
       # def create_fv():
-      self.dynamic_creation_func = lambda name: UnknownValue(name='.'.join([self.path, name]))
+      self.dynamic_creation_func = lambda name: UnknownObject(name='.'.join([self.path, name]))
 
   # def __attrs_post_init__(self):
   #   self.members = copy(self.klass.members)

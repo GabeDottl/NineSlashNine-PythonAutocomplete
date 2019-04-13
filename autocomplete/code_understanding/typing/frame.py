@@ -5,7 +5,7 @@ import attr
 
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.fuzzy_value import FuzzyValue
+from autocomplete.code_understanding.typing.pobjects import FuzzyObject
 from autocomplete.nsn_logging import info
 
 
@@ -21,7 +21,7 @@ class Frame:
   _nonlocals: Dict = attr.ib(factory=dict)
   _locals: Dict = attr.ib(factory=dict)
   builtins: Dict = attr.ib(factory=dict)  # TODO
-  returns: List[FuzzyValue] = attr.ib(factory=list)
+  returns: List[FuzzyObject] = attr.ib(factory=list)
   _current_context: str = attr.ib('')
   type = attr.ib(FrameType.NORMAL)
 
@@ -40,11 +40,11 @@ class Frame:
     # TODO: Function Cell vars.
     return Frame(self._globals, type=type)  # , nonlocals=self._locals)
 
-  def __setitem__(self, variable: Variable, value: FuzzyValue):
+  def __setitem__(self, variable: Variable, value: FuzzyObject):
     # assert isinstance(
-    #     value, FuzzyValue), f'{id(type(value))} vs {id(FuzzyValue)}: {value}'
-    if not isinstance(value, FuzzyValue):
-      value = FuzzyValue([value])  # Wrap everything in FuzzyValues.
+    #     value, FuzzyObject), f'{id(type(value))} vs {id(FuzzyObject)}: {value}'
+    if not isinstance(value, FuzzyObject):
+      value = FuzzyObject([value])  # Wrap everything in FuzzyObjects.
     # assert isinstance(variable, Variable), variable
     if isinstance(variable, VariableExpression):
       self._locals[variable.name] = value
@@ -52,8 +52,8 @@ class Frame:
       self._locals[variable] = value
     else:
       assert isinstance(variable, AttributeExpression), variable
-      fuzzy_value = variable.base_expression.evaluate(self)
-      fuzzy_value.set_attribute(variable.attribute, value)
+      pobject = variable.base_expression.evaluate(self)
+      pobject.set_attribute(variable.attribute, value)
       # if len(variable.sequence) == 2:
       #   base = self._locals[variable.sequence[0].name]
       # else:
@@ -62,10 +62,10 @@ class Frame:
       # setattr(base, variable.sequence[1], value)
     # TODO: Handle nonlocal & global keyword states.
 
-  def __getitem__(self, variable: Variable, strict=False) -> FuzzyValue:
+  def __getitem__(self, variable: Variable, strict=False) -> FuzzyObject:
     if isinstance(variable, AttributeExpression):
-      fuzzy_value = variable.base_expression.evaluate(self)
-      return fuzzy_value.get_attribute(variable.attribute)
+      pobject = variable.base_expression.evaluate(self)
+      return pobject.get_attribute(variable.attribute)
 
     if isinstance(variable, str):
       name = variable
@@ -78,10 +78,10 @@ class Frame:
       index = name.find('.')
       base = name[:index]
       # May raise a ValueError - recursive call.
-      fuzzy_value = self[base]
-      if strict and not fuzzy_value.has_attribute(name[index + 1:]):
+      pobject = self[base]
+      if strict and not pobject.has_attribute(name[index + 1:]):
         raise ValueError(f'{variable} doesn\'t exist in current context!')
-      return fuzzy_value.get_attribute(name[index + 1:])
+      return pobject.get_attribute(name[index + 1:])
 
     for group in (self._locals, self._globals, self.builtins):
       # Given a.b.c, Python will take the most-local definition of a and
