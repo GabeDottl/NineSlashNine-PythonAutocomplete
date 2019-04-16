@@ -2,18 +2,18 @@ import sys
 from typing import List, Tuple, Union
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import \
-    CfgNode
+    CfgNode, AssignmentStmtCfgNode
 from autocomplete.code_understanding.typing.expressions import (
-    AssignmentExpressionStatement, AttributeExpression, CallExpression, UnknownExpression,
-    ComparisonExpression, Expression, LiteralExpression, MathExpression,FactorExpression,
-    NotExpression, SubscriptExpression, TupleExpression, ListExpression,
-    Variable, VariableExpression)
+    AttributeExpression, CallExpression, UnknownExpression,
+    ComparisonExpression, Expression, LiteralExpression, MathExpression,
+    FactorExpression, NotExpression, SubscriptExpression, TupleExpression,
+    ListExpression, Variable, VariableExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Parameter, ParameterType)
 from autocomplete.nsn_logging import info
 
 
-def statement_from_expr_stmt(node):
+def statement_node_from_expr_stmt(node):
   # Essentially, these are assignment expressions and can take a few forms:
   # a = b, a: List[type] = [...]
   # a,b = 1,2 or a,b = foo()
@@ -36,8 +36,13 @@ def statement_from_expr_stmt(node):
     operator = node.children[1]
     value_node = node.children[-1]
   result_expression = expression_from_node(value_node)
-  return AssignmentExpressionStatement(variables, operator.value,
-                                       result_expression)
+
+  return AssignmentStmtCfgNode(
+      variables,
+      operator.value,
+      result_expression,
+      value_node=value_node,
+      parso_node=node)
 
 
 def create_expression_node_tuples_from_if_stmt(
@@ -180,13 +185,13 @@ def expression_from_testlist_comp(node) -> TupleExpression:
 
 
 def expression_from_testlist(node) -> TupleExpression:
-    out = []
-    for child in node.children:
-      if child.type == 'operator':
-        assert child.value == ','
-        continue
-      out.append(expression_from_node(child))
-    return TupleExpression(out)
+  out = []
+  for child in node.children:
+    if child.type == 'operator':
+      assert child.value == ','
+      continue
+    out.append(expression_from_node(child))
+  return TupleExpression(out)
 
 
 # def reference_from_atom_expr(node):
@@ -286,7 +291,8 @@ def expression_from_node(node):
   elif node.type == 'name':
     return VariableExpression(node.value)
   elif node.type == 'factor':
-    return FactorExpression(node.children[0].value, expression_from_node(node.children[1]))
+    return FactorExpression(node.children[0].value,
+                            expression_from_node(node.children[1]))
   elif node.type == 'arith_expr' or node.type == 'term':
     return expression_from_math_expr(node)
   elif node.type == 'atom':
@@ -303,12 +309,12 @@ def expression_from_node(node):
     return NotExpression(expression_from_node(node.children[1]))
   elif node.type == 'lambdef':
     info(f'Failed to process lambdef - unknown.')
-    return UnknownExpression() 
+    return UnknownExpression()
   elif node.type == 'fstring':
     info(f'Failed to process fstring_expr - string.')
     return LiteralExpression(node.children[1].value)  # fstring_string type.
-    # return UnknownExpression() 
-  
+    # return UnknownExpression()
+
   else:
     raise NotImplementedError(node_info(node))
     # assert False, node_info(node)

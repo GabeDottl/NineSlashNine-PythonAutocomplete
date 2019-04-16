@@ -72,9 +72,53 @@ class CallExpression(Expression):
 
   def evaluate(self, curr_frame) -> FuzzyObject:
     pobject = curr_frame[self.function_variable]
-    function_assignment = pobject.value()
+    new_frame = curr_frame.make_child(type=FrameType.FUNCTION, name=self.name)
+    _process_args(args, kwargs, new_frame)
+    self.graph.process(new_frame)
+
+    returns = new_frame.get_returns()
+    if not returns:
+      return NONE_POBJECT
+    out = returns[0]
+    for ret in returns[1:]:
+      out = out.merge(ret)
+    
+    pobject.call(curr_frame)
+
     return function_assignment.call(self.args, self.kwargs, curr_frame)
 
+def _process_args(self, args, kwargs, curr_frame):
+    param_iter = iter(self.parameters)
+    arg_iter = iter(args)
+    for arg, param in zip(arg_iter, param_iter):
+      if param.type == ParameterType.SINGLE:
+        curr_frame[param.name] = arg.evaluate(curr_frame)
+      elif param.type == ParameterType.ARGS:
+        curr_frame[param.name] = [arg.evaluate(curr_frame)
+                                 ] + [a.evaluate(curr_frame) for a in arg_iter]
+      else:  # KWARGS
+        raise ValueError(
+            f'Invalid number of positionals. {arg}: {args} fitting {self.parameters}'
+        )
+
+    kwargs_name = None
+    for param in param_iter:
+      if param.name in kwargs:
+        curr_frame[VariableExpression(
+            param.name)] = kwargs[param.name].evaluate(curr_frame)
+      elif param.type == ParameterType.KWARGS:
+        kwargs_name = param.name
+      else:
+        # Use default. If there's no assignment and no explicit default, this
+        # will be NONE_POBJECT.
+        curr_frame[VariableExpression(param.name)] = param.default
+
+    if kwargs_name:  # Add remaining keywords to kwargs if there is one.
+      in_dict = {}
+      for key, value in kwargs:
+        if key not in curr_frame:
+          in_dict[key] = value
+      curr_frame[kwargs_name] = FuzzyObject([in_dict])
 
 @attr.s
 class AttributeExpression(Expression):
@@ -231,29 +275,6 @@ class ComparisonExpression(Expression):
 
     assert False, f'Cannot handle {self.operator} yet.'
 
-
-@attr.s
-class AssignmentExpressionStatement:  # Looks like an Expression, but not technically one.
-  left_variables = attr.ib()
-  operator = attr.ib()  # Generally equals, but possibly +=, etc.
-  right_expression = attr.ib()
-
-  def evaluate(self, curr_frame) -> FuzzyObject:
-    # TODO: Handle operator.
-    result = self.right_expression.evaluate(curr_frame)
-    # info(f'result: {result}')
-    # info(f'self.right_expression: {self.right_expression}')
-    if len(self.left_variables) == 1:
-      info(self.left_variables[0])
-      curr_frame[self.left_variables[0]] = result
-      info(f'result: {result}')
-      # info(
-      #     f'curr_frame[self.left_variables[0]]: {curr_frame[self.left_variables[0]]}'
-      # )
-    else:
-      for i, variable in enumerate(self.left_variables):
-        # TODO: Handle this properly...
-        curr_frame[variable] = result[i]
 
 
 Variable = Expression

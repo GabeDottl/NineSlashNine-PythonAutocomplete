@@ -27,12 +27,27 @@ class Collector:
   # imported_modules = attr.ib(factory=list)
   modules_to_aliases = attr.ib(factory=partial(defaultdict, list))
   module_members = attr.ib(factory=list)
+  class_defs = attr.ib(factory=list)
+  function_defs = attr.ib(factory=list)
+  variable_assignments = attr.ib(factory=list)
+  functions = attr.ib(factory=list)
 
   def add_module_import(self, module, alias):
     self.modules_to_aliases[module].append(alias)  # defaultdict.
 
   def add_from_import(self, module, member, alias):
     self.module_members.append(ModuleMember(module, member, alias))
+
+  def add_variable_assignment(self, variable_name, code):
+    self.variable_assignments.append((variable_name, code))  # TODO: Wrap.
+
+  def add_function_node(self, function_node):
+    self.functions.append(function_node)
+  # def add_class_def(self, class_name, member, alias):
+  #   self.module_members.append(ModuleMember(module, member, alias))
+
+  # def add_from_import(self, module, member, alias):
+  #   self.module_members.append(ModuleMember(module, member, alias))
 
   def __str__(self):
     module_aliases_table = PrettyTable(['Module', 'Aliases'])
@@ -41,7 +56,11 @@ class Collector:
     module_members_table = PrettyTable(['Module', 'Member', 'Alias'])
     for module_member in self.module_members:
       module_members_table.add_row([module_member.module, module_member.member, module_member.alias])
-    return f'Imports:\n{module_aliases_table}\nMembers:\n{module_members_table}'
+    assignments_table = PrettyTable(['Name', 'Code'])
+    for name, code in self.variable_assignments:
+      assignments_table.add_row([name, code])
+
+    return f'Imports:\n{module_aliases_table}\nMembers:\n{module_members_table}\nVariables:\n{assignments_table}'
   # def process(self, cfg_node, curr_frame):
   #   if isinstance(cfg_node, ImportCfgNode):
   #     self.imported_modules.append(cfg_node.module_path)

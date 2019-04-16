@@ -1,32 +1,38 @@
+from abc import ABC, abstractmethod
 from functools import wraps
 
 import attr
 
 from autocomplete.code_understanding.typing import module_loader
 from autocomplete.code_understanding.typing.expressions import \
-    VariableExpression
+    VariableExpression, Expression
 from autocomplete.code_understanding.typing.frame import FrameType
-from autocomplete.code_understanding.typing.pobjects import (
-    UnknownObject, FuzzyObject)
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, FunctionType, Klass, Module, Parameter)
+from autocomplete.code_understanding.typing.language_objects import (Function,
+                                                                     FunctionType,
+                                                                     Klass,
+                                                                     Module,
+                                                                     Parameter)
+from autocomplete.code_understanding.typing.pobjects import (FuzzyObject,FuzzyBoolean,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import info
-from abc import ABC, abstractmethod
+
+# from autocomplete.code_understanding.typing.collector import Collector
 
 
 class CfgNode(ABC):
-  collector = None
+  collector: 'Collector' = None
 
   def process(self, curr_frame):
     self._process_impl(curr_frame)
 
   @abstractmethod
-  def _process_impl(self, curr_frame): ...
+  def _process_impl(self, curr_frame):
+    ...
 
 
 @attr.s
 class ExpressionCfgNode(CfgNode):
-  expression = attr.ib()
+  expression: Expression = attr.ib()
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):
@@ -44,7 +50,7 @@ class ImportCfgNode(CfgNode):
     module = module_loader.get_module(self.module_path)
     info(f'{name} in {module.path()}')
     if self.collector:
-      self.collector.add_module_import(module.path(), name)
+      self.collector.add_module_import(module.path(), self.as_name)
     curr_frame[name] = module
 
 
@@ -59,7 +65,8 @@ class FromImportCfgNode(CfgNode):
     name = self.as_name if self.as_name else self.from_import_name
     module = module_loader.get_module(self.module_path)
     if self.collector:
-      self.collector.add_from_import(module.path(), self.from_import_name, name)
+      self.collector.add_from_import(module.path(), self.from_import_name,
+                                     self.as_name)
     # info(f'{name} from {module.path}')
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
@@ -67,8 +74,9 @@ class FromImportCfgNode(CfgNode):
       info(
           f'from_import_name {self.from_import_name} not found in {self.module_path}'
       )
-      curr_frame[
-          name] = FuzzyObject([UnknownObject(name='.'.join([self.module_path, name]))], self)  # TODO: Extra fuzzy value / unknown?
+      curr_frame[name] = FuzzyObject(
+          [UnknownObject(name='.'.join([self.module_path, name]))],
+          self)  # TODO: Extra fuzzy value / unknown?
 
 
 @attr.s
@@ -80,12 +88,38 @@ class NoOpCfgNode(CfgNode):
 
 
 @attr.s
-class StmtCfgNode(CfgNode):
-  statement = attr.ib()
+class AssignmentStmtCfgNode(CfgNode):
+  # https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
+  left_variables = attr.ib()
+  operator = attr.ib()  # Generally equals, but possibly +=, etc.
+  right_expression = attr.ib()
+  value_node = attr.ib()
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame, strict=False):
-    self.statement.evaluate(curr_frame)
+    assert False
+    # TODO: Handle operator.
+    result = self.right_expression.evaluate(curr_frame)
+    # info(f'result: {result}')
+    # info(f'self.right_expression: {self.right_expression}')
+    if len(self.left_variables) == 1:
+      if self.collector:
+        self.collector.add_variable_assignment(
+            self.left_variables[0],
+            self.value_node.get_code().strip())
+      info(self.left_variables[0])
+      curr_frame[self.left_variables[0]] = result
+      # info(f'result: {result}')
+      # info(
+      #     f'curr_frame[self.left_variables[0]]: {curr_frame[self.left_variables[0]]}'
+      # )
+    else:
+      for i, variable in enumerate(self.left_variables):
+        if self.collector:
+          self.collector.add_variable_assignment(
+              variable, f'({self.value_node.get_code().strip()})[{i}]')
+        # TODO: Handle this properly...
+        curr_frame[variable] = result[i]
 
   def __str__(self):
     return self._to_str()
@@ -106,14 +140,15 @@ class IfCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     for expression, node in self.expression_node_tuples:
       result = expression.evaluate(curr_frame)
-      if result.has_single_value() and result.value():
+      if result.bool_value() == FuzzyBoolean.TRUE:
         # Expression is definitely true - evaluate and stop here.
         node.process(curr_frame)
         break
-      elif result.has_single_value() and not result.value():
+      elif result.bool_value() == FuzzyBoolean.FALSE:
         # Expression is definitely false - skip.
+        # TODO: Process for collector.
         continue
-      else:  # Completely ambiguous.
+      else:  # Completely ambiguous / MAYBE.
         node.process(curr_frame)
 
 
@@ -124,7 +159,8 @@ class KlassCfgNode(CfgNode):
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):
-    klass_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
+    klass_name = ''.join([curr_frame._current_context, self.name
+                         ]) if curr_frame._current_context else self.name
     klass = Klass(klass_name, members={})
     curr_frame[self.name] = FuzzyObject([klass], self)
     new_frame = curr_frame.make_child(type=FrameType.CLASS, name=self.name)
@@ -170,9 +206,12 @@ class FuncCfgNode(CfgNode):
         default = param.default.evaluate(curr_frame)
         processed_params.append(Parameter(param.name, param.type, default))
     # Include full name.
-    func_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
-    curr_frame[VariableExpression(self.name)] = FuzzyObject(
-        [Function(func_name, parameters=processed_params, graph=self.suite)], self)
+    func_name = ''.join([curr_frame._current_context, self.name
+                        ]) if curr_frame._current_context else self.name
+    func = Function(func_name, parameters=processed_params, graph=self.suite)
+    if self.collector:
+      self.collector.add_function_node(func)
+    curr_frame[VariableExpression(self.name)] = FuzzyObject([func], self)
 
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'

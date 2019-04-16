@@ -27,14 +27,13 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (Exp
                                                                              ImportCfgNode,
                                                                              KlassCfgNode,
                                                                              NoOpCfgNode,
-                                                                             ReturnCfgNode,
-                                                                             StmtCfgNode)
+                                                                             ReturnCfgNode)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.utils import (create_expression_node_tuples_from_if_stmt,
                                                           expression_from_node,
                                                           node_info,
                                                           parameters_from_parameters,
-                                                          statement_from_expr_stmt)
+                                                          statement_node_from_expr_stmt)
 from autocomplete.nsn_logging import info
 
 
@@ -53,10 +52,10 @@ def condense_graph(graph):
   children = [condense_graph(child) for child in graph.children]
   children = list(filter(lambda x: not isinstance(x, NoOpCfgNode), children))
   if children:
-    return NoOpCfgNode(node)
+    return NoOpCfgNode(graph.parso_node)
   elif len(children) == 1:
     return children[0]
-  return GroupCfgNode(children, parso_node=node)
+  return GroupCfgNode(children, parso_node=graph.parso_node)
 
 def handle_error(e, node):
   # traceback.print_tb(e.tb)
@@ -158,9 +157,9 @@ class ControlFlowGraphBuilder:
     return FuncCfgNode(name, parameters, suite, parso_node=node)
 
   def create_cfg_node_for_expr_stmt(self, node):
-    statement = statement_from_expr_stmt(node)
-    # info(f'Creating StmtCfgNode for {node}')
-    return StmtCfgNode(statement, node)
+    return statement_node_from_expr_stmt(node)
+    # info(f'Creating AssignmentStmtCfgNode for {node}')
+    # return AssignmentStmtCfgNode(statement, node)
 
   def create_cfg_node_for_atom_expr(self, node):
     expression = expression_from_node(node)

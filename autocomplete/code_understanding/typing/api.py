@@ -5,6 +5,7 @@ import parso
 from autocomplete.code_understanding.typing import control_flow_graph
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import CfgNode
 from autocomplete.code_understanding.typing.collector import Collector
+from autocomplete.nsn_logging import info
 
 def graph_from_source(source):
   basic_node = parso.parse(source)
@@ -20,6 +21,11 @@ def collector_from_source(source):
   graph = graph_from_source(source)
   a_frame = frame.Frame()
   graph.process(a_frame)
+  info(f'len(collector.functions): {len(collector.functions)}')
+  for func in collector.functions:
+    info(f'Calling {func.name}')
+    func.call([],{}, a_frame)
+    
   CfgNode.collector = None  # Cleanup.
   return collector
 
