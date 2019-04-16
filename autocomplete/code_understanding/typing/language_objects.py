@@ -198,18 +198,22 @@ class ModuleType(Enum):
 
 @attr.s(str=False, repr=False)
 class Module(Attributable):
-  # name = attr.ib()  # Don't need name, because that's defined by any alias in Frame.
   module_type: ModuleType = attr.ib()
-  path: str = attr.ib()
+  name: str = attr.ib()
   members = attr.ib()
+  containing_package = attr.ib(None)
 
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:
-      # def create_fv():
-      self.dynamic_creation_func = lambda name: UnknownObject(name='.'.join([self.path, name]))
+      self.dynamic_creation_func = lambda name: UnknownObject(name='.'.join([self.path(), name]))
 
-  # def __attrs_post_init__(self):
-  #   self.members = copy(self.klass.members)
+  def path(self):
+    return f'{self.containing_package.path()}.{self.name}' if self.containing_package else self.name
+
+  def root(self):
+    if self.containing_package:
+      return self.containing_package.root()
+    return self
 
 
 @attr.s(str=False, repr=False)

@@ -11,20 +11,25 @@ from autocomplete.code_understanding.typing.pobjects import (
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionType, Klass, Module, Parameter)
 from autocomplete.nsn_logging import info
+from abc import ABC, abstractmethod
 
 
-class CfgNode:
+class CfgNode(ABC):
+  collector = None
 
   def process(self, curr_frame):
-    raise NotImplementedError()  # abstract
+    self._process_impl(curr_frame)
+
+  @abstractmethod
+  def _process_impl(self, curr_frame): ...
 
 
 @attr.s
-class ExpressionCfgNode:
+class ExpressionCfgNode(CfgNode):
   expression = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     self.expression.evaluate(curr_frame)
 
 
@@ -34,10 +39,12 @@ class ImportCfgNode(CfgNode):
   parso_node = attr.ib()
   as_name = attr.ib(None)
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
     module = module_loader.get_module(self.module_path)
-    info(f'{name} in {module.path}')
+    info(f'{name} in {module.path()}')
+    if self.collector:
+      self.collector.add_module_import(module.path(), name)
     curr_frame[name] = module
 
 
@@ -48,9 +55,11 @@ class FromImportCfgNode(CfgNode):
   parso_node = attr.ib()
   as_name = attr.ib(None)
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.from_import_name
     module = module_loader.get_module(self.module_path)
+    if self.collector:
+      self.collector.add_from_import(module.path(), self.from_import_name, name)
     # info(f'{name} from {module.path}')
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
@@ -66,7 +75,7 @@ class FromImportCfgNode(CfgNode):
 class NoOpCfgNode(CfgNode):
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     pass
 
 
@@ -75,7 +84,7 @@ class StmtCfgNode(CfgNode):
   statement = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame, strict=False):
+  def _process_impl(self, curr_frame, strict=False):
     self.statement.evaluate(curr_frame)
 
   def __str__(self):
@@ -94,7 +103,7 @@ class IfCfgNode(CfgNode):
   expression_node_tuples = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     for expression, node in self.expression_node_tuples:
       result = expression.evaluate(curr_frame)
       if result.has_single_value() and result.value():
@@ -114,7 +123,7 @@ class KlassCfgNode(CfgNode):
   suite = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     klass_name = ''.join([curr_frame._current_context,self.name]) if curr_frame._current_context else self.name
     klass = Klass(klass_name, members={})
     curr_frame[self.name] = FuzzyObject([klass], self)
@@ -137,7 +146,7 @@ class GroupCfgNode(CfgNode):
   children = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     for child in self.children:
       child.process(curr_frame)
 
@@ -152,7 +161,7 @@ class FuncCfgNode(CfgNode):
   suite = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     processed_params = []
     for param in self.parameters:
       if param.default is None:
@@ -174,5 +183,5 @@ class ReturnCfgNode(CfgNode):
   expression = attr.ib()
   parso_node = attr.ib()
 
-  def process(self, curr_frame):
+  def _process_impl(self, curr_frame):
     curr_frame.add_return(self.expression.evaluate(curr_frame))

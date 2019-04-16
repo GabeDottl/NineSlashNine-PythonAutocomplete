@@ -16,6 +16,7 @@ from autocomplete.nsn_logging import info
 
 __module_dict = None
 
+
 def get_module(path: str) -> Module:
   global __module_dict
   if not __module_dict:
@@ -26,6 +27,15 @@ def get_module(path: str) -> Module:
   __module_dict[path] = module
   return module
 
+
 def _load_module(path: str) -> Module:
   info(f'Loading module: {path}')
-  return Module(module_type=ModuleType.UNKNOWN, path=path, members={})
+  parts = path.split('.')
+  containing_package = None
+  for part in parts:
+    containing_package = Module(
+        module_type=ModuleType.UNKNOWN,
+        name=part,
+        members={},
+        containing_package=containing_package)
+  return containing_package

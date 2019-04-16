@@ -6,6 +6,7 @@ from autocomplete.code_understanding.typing.language_objects import (Function,
                                                                      Instance,
                                                                      Klass,
                                                                      Module)
+from autocomplete.code_understanding.typing.api import frame_from_source
 
 
 def test_simple_assignment():
