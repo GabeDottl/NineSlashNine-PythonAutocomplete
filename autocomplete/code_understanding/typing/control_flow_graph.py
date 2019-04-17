@@ -18,15 +18,17 @@
 # DFS down tree to node to determine values
 # - Memoize where possible + shortcut
 import traceback
+import sys
+import parso
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     ExpressionCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
     ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode)
 from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing.utils import (
+from autocomplete.code_understanding.typing.utils import (ParsingError, assert_unexpected_parso,
     create_expression_node_tuples_from_if_stmt, expression_from_node, node_info,
     parameters_from_parameters, statement_node_from_expr_stmt)
-from autocomplete.nsn_logging import info
+from autocomplete.nsn_logging import info, warning, error
 
 
 def run_graph(graph, frame=None):
@@ -50,10 +52,9 @@ def condense_graph(graph):
   return GroupCfgNode(children, parso_node=graph.parso_node)
 
 
-def handle_error(e, node):
+# def handle_error(e, node):
   # traceback.print_tb(e.tb)
-  info(f'Caught while creating: {node.get_code()}')
-  raise e
+  # raise e
 
 
 class ControlFlowGraphBuilder:
@@ -64,9 +65,15 @@ class ControlFlowGraphBuilder:
     try:
       if hasattr(self, f'create_cfg_node_for_{node.type}'):
         return getattr(self, f'create_cfg_node_for_{node.type}')(node)
-      info(f'Unhandled type: {node.type}')
-    except Exception as e:  # (AttributeError, ValueError, NotImplementedError,
-      handle_error(e, node)
+      warning(f'Unhandled type: {node.type}')
+    except (AttributeError, ValueError, NotImplementedError, ParsingError) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
+      # handle_error(e, node)
+      error(f'Caught while creating: {node.get_code()}')
+    # except Exception as e:  # 
+    #   handle_error(e, node)
+    # except:
+    #   pass
+    return NoOpCfgNode(node)
     # except NotImplementedError as e:
     #   handle_error(e, node)
 
@@ -114,7 +121,7 @@ class ControlFlowGraphBuilder:
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_keyword(self, node):
-    assert node.value == 'pass', node_info
+    assert_unexpected_parso(node.value == 'pass', node_info)
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_pass(self, node):
@@ -131,7 +138,7 @@ class ControlFlowGraphBuilder:
 
   def create_cfg_node_for_decorated(self, node):
     # TODO: Handle first child decorator or decorators.
-    assert len(node.children) == 1, node_info(node)
+    assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return self.create_cfg_node(node.children[1])
 
   # def create_cfg_node_for_decorator(self, node): info(f'Skipping {node.type}')
@@ -166,7 +173,7 @@ class ControlFlowGraphBuilder:
 
   def create_cfg_node_for_return_stmt(self, node):
     # First child is 'return', second is result.
-    assert len(node.children) == 2, node_info(node)
+    assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return ReturnCfgNode(
         expression_from_node(node.children[1]), parso_node=node)
 
@@ -191,7 +198,7 @@ class ControlFlowGraphBuilder:
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_import_stmt(self, node):
-    assert False, "Not used."
+    assert_unexpected_parso(False, "Not used.")
     info(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
@@ -207,7 +214,7 @@ class ControlFlowGraphBuilder:
       path, as_name = self.path_and_name_from_dotted_as_name(child)
       return ImportCfgNode(path, as_name=as_name, parso_node=node)
 
-    assert child.type == 'dotted_as_names', node_info(child)
+    assert_unexpected_parso(child.type == 'dotted_as_names', node_info(child))
     # Some combination of things.
     import_nodes = []
     out = GroupCfgNode(import_nodes, parso_node=node)
@@ -217,25 +224,28 @@ class ControlFlowGraphBuilder:
         import_nodes.append(
             ImportCfgNode(child.value, as_name=None, parso_node=node))
       elif child.type == 'operator':
-        assert child.value == ',', node_info(child)
+        assert_unexpected_parso(child.value == ',', node_info(child))
       else:
-        assert child.type == 'dotted_as_name', node_info(child)
+        assert_unexpected_parso(child.type == 'dotted_as_name',
+                                node_info(child))
         path, as_name = self.path_and_name_from_dotted_as_name(child)
         import_nodes.append(
             ImportCfgNode(path, as_name=as_name, parso_node=node))
     return out
 
   def path_and_name_from_dotted_as_name(self, node):
-    assert node.type == 'dotted_as_name', node_info(node)
+    assert_unexpected_parso(node.type == 'dotted_as_name', node_info(node))
     if node.children[0].type == 'name':
       path = node.children[0].value
     else:
       dotted_name = node.children[0]
-      assert dotted_name.type == 'dotted_name', node_info(dotted_name)
+      assert_unexpected_parso(dotted_name.type == 'dotted_name',
+                              node_info(dotted_name))
       path = ''.join([child.value for child in dotted_name.children])
     if len(node.children) == 1:  # import x
       return path, None
-    assert len(node.children) == 3, node_info(node)  # import a as b
+    # import a as b
+    assert_unexpected_parso(len(node.children) == 3, node_info(node))
     return path, node.children[-1].value
 
   def create_cfg_node_for_import_from(self, node):
@@ -261,16 +271,24 @@ class ControlFlowGraphBuilder:
       path += ''.join([child.value for child in path_node.children])
       node_index += 2
     else:  # Example from . import y
-      assert path_node.type == 'keyword' and path_node.value == 'import', node_info(
-          node)
+      assert_unexpected_parso(
+          path_node.type == 'keyword' and path_node.value == 'import',
+          node_info(node))
       node_index += 1
 
     # import is next node, so we do +2 instead of +1.
     next_node = node.children[node_index]
 
     # Example: import os as whatever
-    if next_node.type == 'operator':  # from x import (y)
+    if next_node.type == 'operator' and next_node.value == '(':  # from x import (y)
       next_node = node.children[node_index + 1]
+    # Example: from a import *
+    if next_node.type == 'operator' and next_node.value == '*':
+      return FromImportCfgNode(
+          path,
+          from_import_name='*',
+          as_name=next_node.children[-1].value,
+          parso_node=node)
 
     # Example: from a.b import c
     if next_node.type == 'name':
@@ -278,7 +296,8 @@ class ControlFlowGraphBuilder:
 
     # Example: from x.y.z import r as s
     if next_node.type == 'import_as_name':
-      assert len(next_node.children) == 3, node_info(next_node)
+      assert_unexpected_parso(
+          len(next_node.children) == 3, node_info(next_node))
       return FromImportCfgNode(
           path,
           from_import_name=next_node.children[0].value,
@@ -286,7 +305,8 @@ class ControlFlowGraphBuilder:
           parso_node=node)
 
     # Example: from a import b, c as d
-    assert next_node.type == 'import_as_names', node_info(next_node)
+    assert_unexpected_parso(next_node.type == 'import_as_names',
+                            node_info(next_node))
     from_import_nodes = []
     out = GroupCfgNode(from_import_nodes, parso_node=node)
     for child in next_node.children:
@@ -295,10 +315,11 @@ class ControlFlowGraphBuilder:
             FromImportCfgNode(
                 path, from_import_name=child.value, parso_node=node))
       elif child.type == 'operator':
-        assert child.value == ',', node_info(node)
+        assert_unexpected_parso(child.value == ',', node_info(node))
       else:
-        assert child.type == 'import_as_name', node_info(child)
-        assert len(child.children) == 3, node_info(child)
+        assert_unexpected_parso(child.type == 'import_as_name',
+                                node_info(child))
+        assert_unexpected_parso(len(child.children) == 3, node_info(child))
         from_import_nodes.append(
             FromImportCfgNode(
                 path,
@@ -407,3 +428,7 @@ class ControlFlowGraphBuilder:
   # def process_encoding_decl(self, node): info(f'Skipping {node.type}')
   # def process_yield_expr(self, node): info(f'Skipping {node.type}')
   # def process_yield_arg(self, node): info(f'Skipping {node.type}')
+
+if __name__ == '__main__':
+  basic_node = parso.parse('a=1')
+  ControlFlowGraphBuilder().create_cfg_node(basic_node)

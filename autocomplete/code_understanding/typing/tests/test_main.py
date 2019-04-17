@@ -134,7 +134,12 @@ def test_processing_all_typing_dir():
   filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
   for filename in filenames:
     info(f'filename: {filename}')
-    frame_from_source(filename)
+    if os.path.basename(filename) == 'grammar.py':
+      info(f'Skipping {filename}')
+      continue
+    with open(filename) as f:
+      source = ''.join(f.readlines())
+      frame_from_source(source)
 
 
 if __name__ == '__main__':

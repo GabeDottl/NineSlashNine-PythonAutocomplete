@@ -1,17 +1,23 @@
 from abc import ABC, abstractmethod
+from builtins import NotImplementedError
 from functools import wraps
 
 import attr
 
 from autocomplete.code_understanding.typing import module_loader
-from autocomplete.code_understanding.typing.expressions import (
-    Expression, VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (Expression,
+                                                                SubscriptExpression,
+                                                                VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, FunctionType, Klass, Module, Parameter)
-from autocomplete.code_understanding.typing.pobjects import (
-    FuzzyBoolean, FuzzyObject, UnknownObject)
-from autocomplete.nsn_logging import info
+from autocomplete.code_understanding.typing.language_objects import (Function,
+                                                                     FunctionType,
+                                                                     Klass,
+                                                                     Module,
+                                                                     Parameter)
+from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             UnknownObject)
+from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
 
@@ -45,7 +51,7 @@ class ImportCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
     module = module_loader.get_module(self.module_path)
-    info(f'{name} in {module.path()}')
+    # info(f'Importing {module.path()} as {name}')  # Logs *constantly*
     if self.collector:
       self.collector.add_module_import(module.path(), self.as_name)
     curr_frame[name] = module
@@ -64,11 +70,13 @@ class FromImportCfgNode(CfgNode):
     if self.collector:
       self.collector.add_from_import(module.path(), self.from_import_name,
                                      self.as_name)
-    # info(f'{name} from {module.path}')
+    # info(f'{name} from {module.path}')  # Logs *constantly*
+    if self.from_import_name == '*':
+      raise NotImplementedError(f'Failing to handle: from {self.module_path} import * | importing nothing.')
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
     except AttributeError:
-      info(
+      warning(
           f'from_import_name {self.from_import_name} not found in {self.module_path}'
       )
       curr_frame[name] = UnknownObject(name='.'.join(
@@ -96,26 +104,26 @@ class AssignmentStmtCfgNode(CfgNode):
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
-    # info(f'result: {result}')
-    # info(f'self.right_expression: {self.right_expression}')
     if len(self.left_variables) == 1:
+      variable = self.left_variables[0]
       if self.collector:
         self.collector.add_variable_assignment(
-            self.left_variables[0],
+            variable,
             self.value_node.get_code().strip())
-      info(self.left_variables[0])
-      curr_frame[self.left_variables[0]] = result
-      # info(f'result: {result}')
-      # info(
-      #     f'curr_frame[self.left_variables[0]]: {curr_frame[self.left_variables[0]]}'
-      # )
+      if isinstance(variable, SubscriptExpression):
+          variable.set(curr_frame,result)
+      else:
+        curr_frame[variable] = result
     else:
       for i, variable in enumerate(self.left_variables):
         if self.collector:
           self.collector.add_variable_assignment(
               variable, f'({self.value_node.get_code().strip()})[{i}]')
-        # TODO: Handle this properly...
-        curr_frame[variable] = result[i]
+        if isinstance(variable, SubscriptExpression):
+          variable.set(curr_frame,result._get_item_processed(i))
+        else:
+          # TODO: Handle this properly...
+          curr_frame[variable] = result._get_item_processed(i)
 
   def __str__(self):
     return self._to_str()
@@ -167,7 +175,6 @@ class KlassCfgNode(CfgNode):
 
       def instance_member(f):
         if isinstance(f, Function):
-          # info(f'Func {name} now unbound')
           f.type = FunctionType.UNBOUND_INSTANCE_METHOD
 
       member.apply_to_values(instance_member)

@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
+from wsgiref.validate import validator
 
 import attr
-
-from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
+                                                             FuzzyObject,
+                                                             FuzzyBoolean,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import info
 
 
@@ -21,11 +24,12 @@ class LiteralExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return AugmentedObject(self.literal)
 
-
+@attr.s
 class UnknownExpression(Expression):
+  parso_node = attr.ib()
 
   def evaluate(self, curr_frame):
-    return UnknownObject('')
+    return UnknownObject(self.parso_node.get_code())
 
 
 # @attr.s
@@ -58,7 +62,7 @@ class TupleExpression(Expression):
 
 @attr.s
 class ListExpression(Expression):
-  expressions = attr.ib()
+  expressions = attr.ib(validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
     return FuzzyObject([
@@ -68,12 +72,12 @@ class ListExpression(Expression):
 
 @attr.s
 class CallExpression(Expression):
-  function_variable = attr.ib()
+  function_expression = attr.ib(validator=[attr.validators.instance_of(Expression)])
   args = attr.ib(factory=list)
   kwargs = attr.ib(factory=dict)
 
   def evaluate(self, curr_frame) -> PObject:
-    pobject = curr_frame[self.function_variable]
+    pobject = self.function_expression.evaluate(curr_frame)
     return pobject.call(self.args, self.kwargs, curr_frame)
 
 
@@ -93,10 +97,16 @@ class SubscriptExpression(Expression):
   subscript_list = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    value = self.base_expression.evaluate(curr_frame)
-    return value.get_item(
+    return self.get(curr_frame)
+  def get(self, curr_frame):
+    pobject = self.base_expression.evaluate(curr_frame)
+    return pobject.get_item(
         tuple(e.evaluate(curr_frame) for e in self.subscript_list))
 
+  def set(self, curr_frame, value):
+      pobject = self.base_expression.evaluate(curr_frame)
+      return pobject.set_item(
+          tuple(e.evaluate(curr_frame) for e in self.subscript_list), value)
 
 @attr.s
 class VariableExpression(Expression):
@@ -107,23 +117,22 @@ class VariableExpression(Expression):
 
 
 @attr.s
-class IfExpression(Expression):
-  positive_expression = attr.ib()
-  conditional_expression = attr.ib()
-  negative_expression = attr.ib()
+class IfElseExpression(Expression):
+  true_result: Expression = attr.ib()
+  conditional_expression: Expression = attr.ib()
+  false_result: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     conditional = self.conditional_expression.evaluate(curr_frame)
-    if not conditional:
-      return self.negative_expression.evaluate(curr_frame)
-    if conditional.is_ambiguous():
-      out = FuzzyObject([
-          self.positive_expression.evaluate(curr_frame),
-          self.negative_expression.evaluate(curr_frame)
+    fuzzy_bool = conditional.bool_value()
+    if fuzzy_bool == FuzzyBoolean.TRUE:
+      return self.false_result.evaluate(curr_frame)
+    if fuzzy_bool == FuzzyBoolean.MAYBE:
+      return FuzzyObject([
+          self.true_result.evaluate(curr_frame),
+          self.false_result.evaluate(curr_frame)
       ])
-      return out
-    return self.positive_expression.evaluate(curr_frame)
-
+    return self.true_result.evaluate(curr_frame)
 
 @attr.s
 class ForExpression(Expression):
@@ -156,6 +165,7 @@ class MathExpression(Expression):
   left = attr.ib()
   operator = attr.ib()
   right = attr.ib()
+  parso_node = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     # expr: xor_expr ('|' xor_expr)*
@@ -169,37 +179,40 @@ class MathExpression(Expression):
     # TODO: handle options...
     l = self.left.evaluate(curr_frame)
     r = self.right.evaluate(curr_frame)
-    if self.operator == '|':
-      return l | r
-    if self.operator == '^':
-      return l ^ r
-    if self.operator == '&':
-      return l & r
-    if self.operator == '<<':
-      return l << r
-    if self.operator == '>>':
-      return l >> r
-    if self.operator == '+':
-      return l + r
-    if self.operator == '-':
-      return l - r
-    if self.operator == '*':
-      return l * r
-    if self.operator == '@':
-      return l @ r
-    if self.operator == '/':
-      return l / r
-    if self.operator == '%':
-      return l % r
-    if self.operator == '//':
-      return l // r
-    # if self.operator == '~': return l ~ r  # Invalid syntax?
-    if self.operator == '**':
-      return l**r
+    try:
+      if self.operator == '|':
+        return l | r
+      if self.operator == '^':
+        return l ^ r
+      if self.operator == '&':
+        return l & r
+      if self.operator == '<<':
+        return l << r
+      if self.operator == '>>':
+        return l >> r
+      if self.operator == '+':
+        return l + r
+      if self.operator == '-':
+        return l - r
+      if self.operator == '*':
+        return l * r
+      if self.operator == '@':
+        return l @ r
+      if self.operator == '/':
+        return l / r
+      if self.operator == '%':
+        return l % r
+      if self.operator == '//':
+        return l // r
+      # if self.operator == '~': return l ~ r  # Invalid syntax?
+      if self.operator == '**':
+        return l**r
 
-    if self.operator == '*':
-      return l * r
-    assert False, f'Cannot handle {self.operator} yet.'
+      if self.operator == '*':
+        return l * r
+    except TypeError: ...
+    warning(f'MathExpression failed: {l}{self.operator}{r}')
+    return UnknownExpression(self.parso_node)
 
 
 @attr.s
@@ -212,6 +225,9 @@ class ComparisonExpression(Expression):
     # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
     l = self.left.evaluate(curr_frame)
     r = self.right.evaluate(curr_frame)
+    # TODO
+    return UnknownObject(f'{l}{self.operator}{r}')
+
     if self.operator == '<':
       return l < r
     if self.operator == '>':

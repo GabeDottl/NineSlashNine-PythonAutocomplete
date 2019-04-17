@@ -12,20 +12,35 @@ from absl import logging
 
 logging.set_verbosity('info')
 
-
 def info(message, *args, log=True, **kwargs):
   if log:
     logging.info(message, *args, **kwargs)
 
 
+def info(message, *args, log=True, **kwargs):
+  if log:
+    logging.info(message, *args, **kwargs)
+
+def debug(message, *args, log=True, **kwargs):
+  if log:
+    logging.info(message, *args, **kwargs)
+
+def warning(message, *args, log=True, **kwargs):
+  if log:
+    logging.warning(message, *args, **kwargs)
+
+def error(message, *args, log=True, **kwargs):
+  if log:
+    logging.error(message, *args, **kwargs)
+
 def log(level, message, *args, **kwargs):
   logging.log(level, message, *args, **kwargs)
 
 
-def log_freq(message, log=True):
+def log_freq(level, message, log=True, n_seconds=5):
   if log:
     logging.log_every_n_seconds(
-        logging.INFO, 'clamped_log: %s' % message, n_seconds=5)
+        level, 'clamped_log: %s' % message, n_seconds=n_seconds)
 
 
 # Make the Abseil logging module ignore the functions in this module when

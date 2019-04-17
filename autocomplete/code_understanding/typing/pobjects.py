@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
+from builtins import NotImplementedError
 from enum import Enum
 from functools import partialmethod
 from typing import List
 
 import attr
 
-from autocomplete.nsn_logging import info
+from autocomplete.nsn_logging import info, warning
 
 _OPERATORS = [
     '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__',
@@ -88,6 +89,13 @@ class PObject(ABC):
   @abstractmethod
   def get_item(self, args):
     ...
+  
+  @abstractmethod
+  def set_item(self, index, value):
+    ...
+
+  def __bool__(self):
+    raise ValueError('Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.')
 
 
 @attr.s(str=False, repr=False)
@@ -151,7 +159,10 @@ class UnknownObject(PObject):
     return UnknownObject('get_item?')
 
   def get_item(self, args):
+    # TODO
     return UnknownObject('get_item?')
+
+  def set_item(self, index, value): ...
 
   def __str__(self):
     return f'UO[{self._dynamic_container}]'
@@ -201,7 +212,10 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     return self._object
 
   def bool_value(self) -> FuzzyBoolean:
-    return FuzzyBoolean.TRUE if self._object else FuzzyBoolean.FALSE
+    value = self.value()
+    if isinstance(value, FuzzyBoolean):
+      return value
+    return FuzzyBoolean.TRUE if value else FuzzyBoolean.FALSE
 
   def call(self, args, kwargs, curr_frame):
     if hasattr(self._object, 'call'):
@@ -221,6 +235,9 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     if hasattr(self._object, 'get_item'):
       return self._object.get_item(args)
     return self._get_item_processed(_process_indicies(args))
+
+  def set_item(self, index, value): 
+    raise NotImplementedError(f'Skipping setting {self._object}[{index}] = {value}')
 
   def __str__(self):
     return f'AV({self._object}):[{self._dynamic_container}]'
@@ -340,7 +357,7 @@ class FuzzyObject(PObject):
     return FuzzyBoolean.FALSE
 
   def bool_value(self) -> FuzzyBoolean:
-    truths = [bool(value) for value in self._values]
+    truths = [value.bool_value() == FuzzyBoolean.TRUE for value in self._values]
     if all(truth for truth in truths):
       return FuzzyBoolean.TRUE
     elif any(truth for truth in truths):
@@ -369,7 +386,7 @@ class FuzzyObject(PObject):
         out.append(value._get_item_processed(
             indicies))  # TODO: Add API get_item_processed_args
       except IndexError as e:
-        info(e)
+        warning(e)
         out.append(UnknownObject(f'{value}[{indicies}]'))
     if len(out) > 1:
       return FuzzyObject(out)
@@ -380,6 +397,9 @@ class FuzzyObject(PObject):
   def get_item(self, args):
     indicies = _process_indicies(args)
     return self._get_item_processed(indicies)
+
+  def set_item(self, index, value):
+    info(f'Skipping setting {self._object}[{index}] = {value}')
 
   def _operator(self, other, operator):
     try:

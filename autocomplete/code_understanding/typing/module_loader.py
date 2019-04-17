@@ -29,7 +29,7 @@ def get_module(path: str) -> Module:
 
 
 def _load_module(path: str) -> Module:
-  info(f'Loading module: {path}')
+  # info(f'Loading module: {path}')
   parts = path.split('.')
   containing_package = None
   for part in parts:

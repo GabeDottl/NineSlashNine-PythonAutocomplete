@@ -113,9 +113,9 @@ class Klass(Namespace):
     return str(self)
 
   def call(self, args, kwargs, curr_frame):
-    return AugmentedObject(self.new(curr_frame))
+    return AugmentedObject(self.new(args, kwargs,curr_frame))
 
-  def new(self, curr_frame):
+  def new(self, args, kwargs, curr_frame):
     # TODO: Handle params.
     # TODO: __init__
     instance = Instance(self)
@@ -128,17 +128,21 @@ class Klass(Namespace):
         )  # TODO: This can raise an exception for FuzzyObjects
         new_func = copy(value)
         bound_frame = new_func.get_or_create_bound_frame()
-        self_param = new_func.parameters.pop(0)
-        info(f'self_param: {self_param}')
-        bound_frame.locals[self_param.name] = pobject
+        try:
+          self_param = new_func.parameters.pop(0)
+          # info(f'self_param: {self_param}')
+          bound_frame._locals[self_param.name] = pobject
+        except IndexError:
+          ...
+          # info(f'No self param in {new_func}')
         new_func.type = FunctionType.BOUND_INSTANCE_METHOD
         instance[name] = AugmentedObject(new_func)
       else:
         instance[name] = member
 
     if '__init__' in instance:
-      info('Calling method __init__')
-      instance['__init__'].value().call(curr_frame)
+      # info('Calling method __init__')
+      instance['__init__'].value().call(args, kwargs, curr_frame)
 
     return instance
 
@@ -185,22 +189,16 @@ class Function(Namespace):
     return self.bound_frame
 
   def call(self, args, kwargs, curr_frame):
-    curr_frame = curr_frame.make_child(
+    new_frame = curr_frame.make_child(
         frame_type=FrameType.FUNCTION, namespace=self)
     if self.bound_frame:
-      curr_frame.merge(self.bound_frame)
+      new_frame.merge(self.bound_frame)
     if debug.print_frame_in_function:
-      info(f'Function frame: {curr_frame}')
-    self._process_args(args, kwargs, curr_frame)
-    self.graph.process(curr_frame)
+      info(f'Function frame: {new_frame}')
+    self._process_args(args, kwargs, new_frame)
+    self.graph.process(new_frame)
 
-    returns = curr_frame.get_returns()
-    if not returns:
-      return NONE_POBJECT
-    out = returns[0]
-    for ret in returns[1:]:
-      out = out.merge(ret)
-    return out
+    return new_frame.get_returns()
 
   def _process_args(self, args, kwargs, curr_frame):
     param_iter = iter(self.parameters)

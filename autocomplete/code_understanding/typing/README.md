@@ -67,7 +67,8 @@ Assume no one's going to do something like:
 
     np.x = min
 
-Redfining public APIs is just downright obnoxious. Doing this with your own modules and objects also just makes things confusing. We essentially assume that all atr
+Redfining public APIs is just downright obnoxious. Doing this with your own modules and objects also
+just makes things confusing. We essentially assume that all atr
 
 # Tricks
 To infer more types than we can strongly, we rely on a few tricks.
@@ -79,10 +80,37 @@ use that as a hint that it is the same type in all other locations.
 
 ## When there's ambiguity, prefer local definitions
 Similar to common path resolution rules, we prefer inferring local types. For the `node` example, 
-there are of course many sorts of types this could correspond to many things (`CfgNode`, `parso.Node`, `ast.Node`, etc.), but in the absence of other hints, we'd prefer whatever's been imported in this module followed by whatever's defined nearby, followed by whatever's most likely based on the current context (ideally - more practically, popularity?)
+there are of course many sorts of types this could correspond to many things (`CfgNode`,
+`parso.Node`, `ast.Node`, etc.), but in the absence of other hints, we'd prefer whatever's been
+imported in this module followed by whatever's defined nearby, followed by whatever's most likely
+based on the current context (ideally - more practically, popularity?)
 
 ## Usage of names provides evidence
-If I have a parameter `x` and we invoke attributes on it `foo` and `bar`, then the type of `x` is likely to have these attributes. Alternatively, if we're doing `isinstance` checks, that's also strong evidence (and a guarantee generally).
+If I have a parameter `x` and we invoke attributes on it `foo` and `bar`, then the type of `x` is
+likely to have these attributes. Alternatively, if we're doing `isinstance` checks, that's also
+strong evidence (and a guarantee generally).
+
+# Implementation notes
+## Functionality
+In general, this library handles a superset of the minimum required Python language features needed
+to do useful things.
+
+What this means is that we try to handle common use cases well to facilitate analysis, but when some
+unimplemented features of Pyython are encountered, the library fails gracefully with
+UnknownObject/UnknownExpressions or NoOpCfgNodes depending on where in the pipeline things fail.
+
+## Errors
+Following common wisdom, this library explicity tries to handle specific errors *as close to where
+they occurred as possible.*
+
+This allow the library to work 'OK' even in the face of ubiquitous issues. For example, given code
+like the following:
+
+    a = foo(bar()))
+
+We'd endeavor to minimally put 'a' on the frame still, albeit with either an UnknownObject
+assignment (TODO: BrokenObject?) or the result of `foo` rather than assigning it to nothing or
+breaking the containing block(s).
 
 # Core Philosophy
 ## Break Gracefully
@@ -97,4 +125,5 @@ TODO: Manifest this as one or more question marks (?,??,???) next to a type name
 Where possible, we strive to use the same terminology used by Python and the same sort of
 concepts - e.g. Expressions, Statments, Frames, globals, locals, etc. Further, we try to vaguely
 follow the same logic flow and match Python proper wherever possible.
-'
+
+
