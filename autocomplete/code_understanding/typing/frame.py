@@ -35,6 +35,11 @@ class Frame:
   ... import * binds all names defined in the imported module, except those beginning with
   an underscore. This form may only be used at the module level.`
   '''
+  # https://github.com/alecthomas/importmagic/blob/master/importmagic/symbols.py
+  # GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
+  # PYTHON3_BUILTINS = ['PermissionError']
+  # ALL_BUILTINS = set(dir(__builtin__)) | set(GLOBALS) | set(PYTHON3_BUILTINS)
+
 
   # Symbol tables.
   # _globals: Dict = attr.ib(factory=dict)  # Instead of 'globals' we use _root.locals. Falls apart with imports?

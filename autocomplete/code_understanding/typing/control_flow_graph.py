@@ -72,7 +72,7 @@ class ControlFlowGraphBuilder:
 
   def create_cfg_node_for_error_node(self, node):
     info(f'Error node when processing: {node.get_code()}')
-    return NoOpCfgNode()
+    return NoOpCfgNode(node)
 
   def create_cfg_node_for_single_input(self, node):
     return GroupCfgNode(
