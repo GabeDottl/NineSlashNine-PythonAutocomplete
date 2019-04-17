@@ -23,19 +23,19 @@ from a.b import c
 from x.y.z import (q, r as s)'''
   frame_ = frame_from_source(source)
   assert 'numpy' in frame_ and isinstance(frame_['numpy'].value(), Module)
-  assert frame_['numpy'].value().path == 'numpy'
+  assert frame_['numpy'].value().path() == 'numpy'
   assert 'whatever' in frame_ and isinstance(frame_['whatever'].value(), Module)
-  assert frame_['whatever'].value().path == 'os'
+  assert frame_['whatever'].value().path() == 'os'
   assert 'blob' in frame_ and isinstance(frame_['blob'].value(), Module)
-  assert frame_['blob'].value().path == 'hob.dob'
+  assert frame_['blob'].value().path() == 'hob.dob'
   assert 'wraps' in frame_
-  assert frame_['wraps'].value().name == 'functools.wraps'
+  assert frame_['wraps'].name == 'functools.wraps'
   assert 'c' in frame_
-  assert frame_['c'].value().name == 'a.b.c'
+  assert frame_['c'].name == 'a.b.c'
   assert 'q' in frame_
-  assert frame_['q'].value().name == 'x.y.z.q'
+  assert frame_['q'].name == 'x.y.z.q'
   assert 's' in frame_
-  assert frame_['s'].value().name == 'x.y.z.r'
+  assert frame_['s'].name == 'x.y.z.r'
 
 
 def test_classes():

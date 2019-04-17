@@ -7,7 +7,7 @@ from typing import Dict, List
 import attr
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import FuzzyObject, UnknownObject, PObject
+from autocomplete.code_understanding.typing.pobjects import FuzzyObject, UnknownObject, PObject, AugmentedObject, NONE_POBJECT
 from autocomplete.nsn_logging import info
 
 
@@ -41,8 +41,9 @@ class Frame:
   _locals: Dict = attr.ib(factory=dict)
   _builtins: Dict = attr.ib(factory=dict)  # TODO
   # _nonlocals: Dict = attr.ib(factory=dict)
-  returns: List[FuzzyObject] = attr.ib(factory=list)
+  _returns: List[PObject] = attr.ib(factory=list)
   _frame_type: FrameType = attr.ib(FrameType.NORMAL)
+  _namespace = attr.ib(None)
   _back: 'Frame' = attr.ib(None)
   _root: 'Frame' = attr.ib(None)
 
@@ -55,17 +56,17 @@ class Frame:
     # self._nonlocals.update(other_frame._nonlocals)
     self._locals.update(other_frame._locals)
 
-  def make_child(self, frame_type) -> 'Frame':
+  def make_child(self, namespace, frame_type) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     return Frame(frame_type=frame_type, back=self, root=self._root)
 
   def to_module(self) -> 'Module':
     raise NotImplementedError()
 
-  def __setitem__(self, variable: Variable, value: FuzzyObject):
+  def __setitem__(self, variable: Variable, value: PObject):
     # https://stackoverflow.com/questions/38937721/global-frame-vs-stack-frame
-    if not isinstance(value, FuzzyObject):
-      value = FuzzyObject([value])  # Wrap everything in FuzzyObjects.
+    if not isinstance(value, PObject):
+      value = AugmentedObject(value)  # Wrap everything in FuzzyObjects.
     # TODO: Handle nonlocal & global keyword states and cells.
 
     if isinstance(variable, VariableExpression):
@@ -93,13 +94,15 @@ class Frame:
 
     # Complex case - X.b
     if '.' in name:
-      index = name.find('.')
-      base = name[:index]
+      path = name.split('.')
+      assert len(path) >= 2
       # May raise a ValueError - recursive call.
-      pobject = self[base]
-      if raise_error_if_missing and not pobject.has_attribute(name[index + 1:]):
-        raise ValueError(f'{variable} doesn\'t exist in current context!')
-      return pobject.get_attribute(name[index + 1:])
+      pobject = self[path[0]]
+      for attribute_name in path[1:]:
+        if raise_error_if_missing and not pobject.has_attribute(attribute_name):
+          raise ValueError(f'{variable} doesn\'t exist in current context!')
+        pobject = pobject.get_attribute(attribute_name)
+      return pobject
 
     # Given a.b.c, Python will take the most-local definition of a and
     # search from there.
@@ -126,10 +129,12 @@ class Frame:
       return False
 
   def add_return(self, value):
-    self.returns.append(value)
+    if not isinstance(value, PObject):
+      value = AugmentedObject(value)
+    self._returns.append(value)
 
   def get_returns(self):
-    return self.returns
+    return FuzzyObject(self._returns) if self._returns else NONE_POBJECT
 
   def get_variables(self):
     out = []
@@ -139,7 +144,7 @@ class Frame:
     return out
 
   def __str__(self):
-    return f'{[self._locals, self._globals, self._builtins]}\n'
+    return f'{[self._locals, self._builtins]} + {self._root}\n'
 
   def __repr__(self):
     return str(self)

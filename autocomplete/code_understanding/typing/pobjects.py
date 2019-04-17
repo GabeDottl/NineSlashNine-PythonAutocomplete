@@ -27,6 +27,9 @@ class FuzzyBoolean(Enum):
       return FuzzyBoolean.FALSE
     return FuzzyBoolean.MAYBE
 
+  def __bool__(self):
+    raise ValueError('FuzzyBoolean\s shouldn\'t be converted to regular bools')
+
 
 class PObject(ABC):
   '''PObjects wrap or substitute actual objects and encapsulate unexpected or ambiguous behavior.
@@ -79,7 +82,11 @@ class PObject(ABC):
     ...
 
   @abstractmethod
-  def get_item(self, args, curr_frame):
+  def _get_item_processed(self, indicies):
+    ...
+
+  @abstractmethod
+  def get_item(self, args):
     ...
 
 
@@ -94,7 +101,7 @@ class DynamicContainer:
     try:
       return self.attributes[name]
     except KeyError:
-      fv = UnknownObject()  # Hmm, DV? UV? Factory?
+      fv = UnknownObject(f'DV({name})')  # Hmm, DV? UV? Factory?
       self.attributes[name] = fv
       return fv
 
@@ -132,19 +139,22 @@ class UnknownObject(PObject):
     return FuzzyBoolean.MAYBE
 
   def value(self) -> object:
-    None
+    return None
 
   def bool_value(self) -> FuzzyBoolean:
-    FuzzyBoolean.MAYBE
+    return FuzzyBoolean.MAYBE
 
   def call(self, args, kwargs, curr_frame):
     return UnknownObject('Call?')
 
-  def get_item(self, args, curr_frame):
+  def _get_item_processed(self, indicies):
+    return UnknownObject('get_item?')
+
+  def get_item(self, args):
     return UnknownObject('get_item?')
 
   def __str__(self):
-    return f'UO{self._dynamic_container}'
+    return f'UO[{self._dynamic_container}]'
 
   def __repr__(self):
     return str(self)
@@ -152,57 +162,68 @@ class UnknownObject(PObject):
 
 @attr.s(str=False, repr=False)
 class AugmentedObject(PObject):  # TODO: CallableInterface
-  value = attr.ib()
+  _object = attr.ib()
   _dynamic_container = attr.ib(factory=DynamicContainer)
 
   def has_attribute(self, name):
-    return self.value.has_attribute(
+    return self._object.has_attribute(
         name) or self._dynamic_container.has_attribute(name)
 
   def get_attribute(self, name):
     try:
-      return self.value.get_attribute(name)
-    except ValueError:
+      return self._object.get_attribute(name)
+    except AttributeError:
       # TODO: Log
       return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):
     # Can this get messy at all?
-    if self.value.has_attribute(name):
-      self.value.set_attribute(name)
-    else:
-      self._dynamic_container.set_attribute(name)
+    # if self._object.has_attribute(name):
+    self._object.set_attribute(name, value)
+    # else:
+    #   self._dynamic_container.set_attribute(name, value)
 
   def apply_to_values(self, func):
-    func(self.value)
+    func(self._object)
 
   def value_equals(self, other) -> FuzzyBoolean:
     if isinstance(other, PObject):
-      return other.value_equals(self.value)
-    return FuzzyBoolean.TRUE if self.value == other else FuzzyBoolean.FALSE
+      return other.value_equals(self._object)
+    return FuzzyBoolean.TRUE if self._object == other else FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
-    return FuzzyBoolean.TRUE if isinstance(self.value,
+    return FuzzyBoolean.TRUE if isinstance(self._object,
                                            type_) else FuzzyBoolean.FALSE
 
   def value(self) -> object:
-    return self.value
+    if isinstance(self._object, PObject):
+      return self._object.value()
+    return self._object
 
   def bool_value(self) -> FuzzyBoolean:
-    return FuzzyBoolean.TRUE if self.value else FuzzyBoolean.FALSE
+    return FuzzyBoolean.TRUE if self._object else FuzzyBoolean.FALSE
 
   def call(self, args, kwargs, curr_frame):
-    if hasattr(self.value, 'call'):
-      return self.value.call(args, kwargs, curr_frame)
+    if hasattr(self._object, 'call'):
+      return self._object.call(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
-  def get_item(self, args, curr_frame):
-    if hasattr(self.value, 'get_item'):
-      return self.value.get_item(args, curr_frame)
-    return UnknownObject('get_item?')
+  def _get_item_processed(self, indicies):
+    if hasattr(self._object, '_get_item_processed'):
+      return self._object._get_item_processed(indicies)
+    elif hasattr(self._object, '__getitem__'):
+      try:
+        return AugmentedObject(self._object.__getitem__(indicies))
+      except KeyError:
+        return UnknownObject(f'{self._object}[{indicies}]')
+
+  def get_item(self, args):
+    if hasattr(self._object, 'get_item'):
+      return self._object.get_item(args)
+    return self._get_item_processed(_process_indicies(args))
 
   def __str__(self):
-    return f'AV{self.value}:{self._dynamic_container}'
+    return f'AV({self._object}):[{self._dynamic_container}]'
 
   def __repr__(self):
     return str(self)
@@ -332,53 +353,33 @@ class FuzzyObject(PObject):
 
   def call(self, args, kwargs, curr_frame):
     out = []
-    indicies = _process_indicies(args, curr_frame)
-    for value in self.values:
+    for value in self._values:
       # Try both - may contain a PObject, LangObject, or [list, tuple, dict].
-      for attr_name in ('getitem', '__getitem__', None):
-        if not attr_name:
-          out.append(UnknownObject(f'{value}[{indicies}]'))
-          break
-        if hasattr(value, attr_name):
-          try:
-            val = getattr(value, attr_name)(args)
-            if not isinstance(val, PObject):
-              val = AugmentedObject(val)
-            out.append(val)  # TODO: Add API get_item_processed_args
-          except IndexError as e:
-            info(e)
-            out.append(UnknownObject(f'{value}[{indicies}]'))
-          break
+      out.append(value.call(args, kwargs, curr_frame))
+    if len(out) > 1:
+      return FuzzyObject(out)
+    elif out:  # len(out) == 1
+      return out[0]
+    return UnknownObject(f'FV({args}, {kwargs})')
+
+  def _get_item_processed(self, indicies):
+    out = []
+    for value in self._values:
+      try:
+        out.append(value._get_item_processed(
+            indicies))  # TODO: Add API get_item_processed_args
+      except IndexError as e:
+        info(e)
+        out.append(UnknownObject(f'{value}[{indicies}]'))
     if len(out) > 1:
       return FuzzyObject(out)
     elif out:  # len(out) == 1
       return out[0]
     return UnknownObject(f'FV[{indicies}]')
 
-  def get_item(self, args, curr_frame):
-    out = []
-    indicies = _process_indicies(args, curr_frame)
-    for value in self.values:
-      # Try both - may contain a PObject, LangObject, or [list, tuple, dict].
-      for attr_name in ('getitem', '__getitem__', None):
-        if not attr_name:
-          out.append(UnknownObject(f'{value}[{indicies}]'))
-          break
-        if hasattr(value, attr_name):
-          try:
-            val = getattr(value, attr_name)(args)
-            if not isinstance(val, PObject):
-              val = AugmentedObject(val)
-            out.append(val)  # TODO: Add API get_item_processed_args
-          except IndexError as e:
-            info(e)
-            out.append(UnknownObject(f'{value}[{indicies}]'))
-          break
-    if len(out) > 1:
-      return FuzzyObject(out)
-    elif out:  # len(out) == 1
-      return out[0]
-    return UnknownObject(f'FV[{indicies}]')
+  def get_item(self, args):
+    indicies = _process_indicies(args)
+    return self._get_item_processed(indicies)
 
   def _operator(self, other, operator):
     try:
@@ -403,13 +404,11 @@ class FuzzyObject(PObject):
 #           partialmethod(FuzzyObject._operator, operator=operator_str))
 
 
-def _process_indicies(args, curr_frame):
+def _process_indicies(args):
+  if not args:
+    return tuple()
   return tuple(x.value() for x in args) if len(args) > 1 else args[0].value()
 
 
-def literal_to_fuzzy(value):
-  return FuzzyObject([value])
-
-
-NONE_POBJECT = literal_to_fuzzy(None)
+NONE_POBJECT = AugmentedObject(None)
 # UNKNOWN_POBJECT = FuzzyObject()

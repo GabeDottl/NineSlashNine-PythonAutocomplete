@@ -40,5 +40,3 @@ if __name__ == '__main__':
   with open(args.source) as f:
     source = ''.join(f.readlines())
     print(collector_from_source(source))
-
-    # info(frame_)````

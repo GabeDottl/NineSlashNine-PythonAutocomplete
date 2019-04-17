@@ -67,13 +67,13 @@ class FromImportCfgNode(CfgNode):
     # info(f'{name} from {module.path}')
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
-    except KeyError:
+    except AttributeError:
       info(
           f'from_import_name {self.from_import_name} not found in {self.module_path}'
       )
-      curr_frame[name] = FuzzyObject(
-          [UnknownObject(name='.'.join([self.module_path, name]))],
-          self)  # TODO: Extra fuzzy value / unknown?
+      curr_frame[name] = UnknownObject(name='.'.join(
+          [self.module_path,
+           self.from_import_name]))  # TODO: Extra fuzzy value / unknown?
 
 
 @attr.s
@@ -94,7 +94,6 @@ class AssignmentStmtCfgNode(CfgNode):
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame, strict=False):
-    assert False
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
     # info(f'result: {result}')
@@ -156,22 +155,22 @@ class KlassCfgNode(CfgNode):
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):
-    klass_name = ''.join([curr_frame._current_context, self.name
-                         ]) if curr_frame._current_context else self.name
-    klass = Klass(klass_name, members={})
-    curr_frame[self.name] = FuzzyObject([klass], self)
-    new_frame = curr_frame.make_child(type=FrameType.CLASS, name=self.name)
+    klass_name = f'{curr_frame._namespace.name}.{self.name}' if curr_frame._namespace else self.name
+    klass = Klass(klass_name)
+    curr_frame[self.name] = klass
+    new_frame = curr_frame.make_child(
+        frame_type=FrameType.KLASS, namespace=klass)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
-    klass.members = new_frame._locals
-    for name, member in klass.members.items():
+    klass._d = new_frame._locals
+    for name, member in klass.items():
 
       def instance_member(f):
         if isinstance(f, Function):
           # info(f'Func {name} now unbound')
           f.type = FunctionType.UNBOUND_INSTANCE_METHOD
 
-      member.apply(instance_member)
+      member.apply_to_values(instance_member)
 
 
 @attr.s
@@ -203,12 +202,12 @@ class FuncCfgNode(CfgNode):
         default = param.default.evaluate(curr_frame)
         processed_params.append(Parameter(param.name, param.type, default))
     # Include full name.
-    func_name = ''.join([curr_frame._current_context, self.name
-                        ]) if curr_frame._current_context else self.name
+    func_name = ''.join([curr_frame._namespace.name, self.name
+                        ]) if curr_frame._namespace else self.name
     func = Function(func_name, parameters=processed_params, graph=self.suite)
     if self.collector:
       self.collector.add_function_node(func)
-    curr_frame[VariableExpression(self.name)] = FuzzyObject([func], self)
+    curr_frame[VariableExpression(self.name)] = func
 
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'
