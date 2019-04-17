@@ -6,14 +6,16 @@ from autocomplete.code_understanding.fake2 import a_func
 
 print(f'executed {__file__}')
 
-
 x = np.arange(10)
 zoo = 'module'
 cookoo = 'cookoo_str'
+
+
 class Foo:
   '''Multiline
 
   Foo docstring.'''
+
   def __init__(self):
     self.monster = None
     pass
@@ -26,12 +28,15 @@ class Foo:
     print(zoo)
     print(cookoo)
 
-  class Boo: # inner class
+  class Boo:  # inner class
+
     def test(self):
       pass
 
+
 def bar():
   pass
+
 
 tmp = Foo()
 tmp.bar()

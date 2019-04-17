@@ -1,8 +1,12 @@
 from autocomplete.reverse_history import trie
 from collections import Counter
 
+
 def test_trie():
-  examples = ['abcde', 'abcde', 'abcdf', 'abc', 'abcdfg', 'qres', 'abcde', 'abc', 'abd', 'abd', 'abde']
+  examples = [
+      'abcde', 'abcde', 'abcdf', 'abc', 'abcdfg', 'qres', 'abcde', 'abc', 'abd',
+      'abd', 'abde'
+  ]
   counter = Counter(examples)
   counts = dict(zip(counter.keys(), counter.values()))
   t = trie.AutocompleteTrie()
@@ -21,6 +25,7 @@ def test_trie():
   assert t.get_frequency(value) == counts[value]
 
   t.prune_infrequent_copy(2)
+
 
 if __name__ == '__main__':
   test_trie()

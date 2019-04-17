@@ -8,6 +8,7 @@ import argparse
 import pickle
 from autocomplete.nsn_logging import *
 
+
 def count_names(path, verbose=True):
   filenames = glob(os.path.join(path, '**', '*.py'), recursive=True)
   name_counts = defaultdict(int)
@@ -20,7 +21,7 @@ def count_names(path, verbose=True):
     try:
       if log_period > 0 and i % log_period == 0:
         info(f'Prcocessed {percentage}% of files.', log=verbose)
-        percentage +=10
+        percentage += 10
       with open(filename, 'rb') as f:
         tokens = tokenize(f.readline)
         for type_, string, start, end, line in tokens:
@@ -33,19 +34,21 @@ def count_names(path, verbose=True):
   info(f'Prcocessed 100% of files.')
   return name_counts
 
+
 def read_saved_name_counts(path):
   with open(path, 'rb') as f:
     return pickle.load(f)
+
 
 def save_name_counts(name_counts, path):
   with open(path, 'wb+') as f:
     pickle.dump(name_counts, f)
 
+
 def main(path, output_filename, **kwargs):
   name_counts = count_names(path)
   name_counts = OrderedDict(sorted(name_counts.items(), key=lambda kv: -kv[1]))
   save_name_counts(name_counts, output_filename)
-
 
 
 if __name__ == '__main__':

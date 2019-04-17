@@ -11,16 +11,21 @@ import inspect
 
 logging.set_verbosity('info')
 
+
 def info(message, *args, log=True, **kwargs):
   if log:
     logging.info(message, *args, **kwargs)
 
+
 def log(level, message, *args, **kwargs):
   logging.log(level, message, *args, **kwargs)
 
+
 def log_freq(message, log=True):
   if log:
-    logging.log_every_n_seconds(logging.INFO, 'clamped_log: %s' % message, n_seconds=5)
+    logging.log_every_n_seconds(
+        logging.INFO, 'clamped_log: %s' % message, n_seconds=5)
+
 
 # Make the Abseil logging module ignore the functions in this module when
 # logging line numbers and functions.

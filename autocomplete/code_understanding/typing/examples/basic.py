@@ -16,20 +16,22 @@
 #
 # from autocomplete.code_understanding.typing..code_understanding import typing
 
-
 # def bar(a, b, c):
 #   return a * (b - c)
 #
 # out = bar(1,c=3,b=2)
 c = 3
 
+
 class AClass:
   a = 1
+
   def __init__(self, b):
     self.b = c
 
   def get_b(self):
     return self.b
+
 
 a = AClass(1)
 #

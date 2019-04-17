@@ -5,10 +5,13 @@ from time import time
 import os
 import tensorflow as tf
 
+
 def wildcard_wrapper(s):
-  return '.*' + '.*'.join(list(s)) +'.*'
+  return '.*' + '.*'.join(list(s)) + '.*'
+
 
 class SimpleRegexAutocompleter:
+
   def __init__(self, path):
     start = time()
     paths = glob.glob(os.path.join(path, '*py'))

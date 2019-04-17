@@ -7,13 +7,16 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import CfgN
 from autocomplete.code_understanding.typing.collector import Collector
 from autocomplete.nsn_logging import info
 
+
 def graph_from_source(source):
   basic_node = parso.parse(source)
   builder = control_flow_graph.ControlFlowGraphBuilder()
   return builder.create_cfg_node(basic_node)
 
+
 def frame_from_source(source):
   return control_flow_graph.run_graph(graph_from_source(source))
+
 
 def collector_from_source(source):
   collector = Collector()
@@ -24,12 +27,11 @@ def collector_from_source(source):
   info(f'len(collector.functions): {len(collector.functions)}')
   for func in collector.functions:
     info(f'Calling {func.name}')
-    func.call([],{}, a_frame)
-    
+    func.call([], {}, a_frame)
+
   CfgNode.collector = None  # Cleanup.
   return collector
 
-  
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -38,5 +40,5 @@ if __name__ == '__main__':
   with open(args.source) as f:
     source = ''.join(f.readlines())
     print(collector_from_source(source))
-    
+
     # info(frame_)````

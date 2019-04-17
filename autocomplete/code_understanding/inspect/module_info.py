@@ -53,12 +53,14 @@ def load_modules_from_module_infos(module_infos):
     sys.path.pop(0)
   return modules
 
+
 def create_dataframe_summary_of_modules(modules):
-  columns=('module', 'member_name', 'member', 'type', 'module_path')
+  columns = ('module', 'member_name', 'member', 'type', 'module_path')
   MemberInfo = namedtuple('MemberInfo', columns)
   mi = MemberInfo(*([] for _ in columns))
   for module in modules:
-    for member_name, member in filter(lambda x: _is_public_func_or_class(*x), inspect.getmembers(module)):
+    for member_name, member in filter(lambda x: _is_public_func_or_class(*x),
+                                      inspect.getmembers(module)):
       mi.module.append(module.__name__)
       mi.member_name.append(member_name)
       mi.member.append(member)

@@ -17,12 +17,11 @@ from enum import Enum
 
 import attr
 from autocomplete.code_understanding.typing import debug
-from autocomplete.code_understanding.typing.expressions import (LiteralExpression,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (
+    LiteralExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             FuzzyObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, FuzzyObject, UnknownObject)
 from autocomplete.nsn_logging import info
 
 
@@ -39,7 +38,6 @@ class Namespace(dict):
   https://tech.blog.aknin.name/2010/06/05/pythons-innards-naming/
   '''
   name: str = attr.ib()
-
 
   # TODO: delete these?
   def has_attribute(self, name):
@@ -77,12 +75,17 @@ class Module(Namespace):
       return self.containing_package.root()
     return self
 
+
 class CallableInterface(ABC):
-  @abstractmethod
-  def call(self, curr_frame): ...
 
   @abstractmethod
-  def get_parameters(self): ...
+  def call(self, curr_frame):
+    ...
+
+  @abstractmethod
+  def get_parameters(self):
+    ...
+
 
 @attr.s(str=False, repr=False)
 class Klass(Namespace, CallableInterface):
@@ -121,7 +124,7 @@ class Klass(Namespace, CallableInterface):
       instance_members['__init__'].value().call(curr_frame)
 
     return instance
-  
+
   def get_parameters(self):
     if '__init__' in self:
       return self['__init__'].get_parameters()
@@ -156,6 +159,7 @@ class Function(Namespace, CallableInterface):
   # We use a notion of a 'bound frame' to encapsulate values which are
   # bound to this function - e.g. cls & self, nonlocals in a nested func.
   bound_frame = None
+
   # TODO: Cell vars.
 
   def get_or_create_bound_frame(self):
@@ -179,7 +183,8 @@ class Function(Namespace, CallableInterface):
       out = out.merge(ret)
     return out
 
-  def get_parameters(self): return self.parameters
+  def get_parameters(self):
+    return self.parameters
 
   def __str__(self):
     return f'Func({tuple(self.parameters)})'
@@ -197,8 +202,9 @@ class StubFunction(Namespace, CallableInterface):
   def call(self, curr_frame):
     # TODO: Handle parameters?
     return self.returns
-  
-  def get_parameters(self, curr_frame): return self.parameters
+
+  def get_parameters(self, curr_frame):
+    return self.parameters
 
   def __str__(self):
     return f'Func({tuple(self.parameters)})'

@@ -1,4 +1,3 @@
-
 def _name_id_or_arg(node):
   if hasattr(node, 'name'):
     return node.name
@@ -7,6 +6,7 @@ def _name_id_or_arg(node):
   if hasattr(node, 'arg'):
     return node.arg
   return None
+
 
 def _complete_name(node, node_to_parent_dict, base_name='', descendents=None):
   if descendents is None:
@@ -23,5 +23,6 @@ def _complete_name(node, node_to_parent_dict, base_name='', descendents=None):
 
   descendents.add(node)
   if parent is not None:
-    return _complete_name(parent, node_to_parent_dict, base_name=name, descendents=descendents)
+    return _complete_name(
+        parent, node_to_parent_dict, base_name=name, descendents=descendents)
   return name

@@ -10,18 +10,19 @@ from autocomplete.code_understanding.utils import type_name
 import argparse
 import webbrowser
 
+
 class AstDrawer(ast.NodeVisitor):
+
   def __init__(self, path='/tmp/ast'):
     self.parent = None
-    self.parent_lineno=0
+    self.parent_lineno = 0
     self.graph = graphviz.Digraph('AST', filename=path)
     self.line_to_nodes = {}
-
 
   def generic_visit(self, node):
     # We start indexing at 0 while in the AST it starts at 1, so we shift
     # lineno immediately by 1.
-    lineno = node.lineno-1 if hasattr(node, 'lineno') else None
+    lineno = node.lineno - 1 if hasattr(node, 'lineno') else None
     lineno = lineno if lineno is not None else self.parent_lineno
     if lineno in self.line_to_nodes:
       arr = self.line_to_nodes[lineno]
@@ -58,7 +59,10 @@ class AstDrawer(ast.NodeVisitor):
     if include_source:
       # We use '\l' instead of \n for left-justified lines:
       # http://www.graphviz.org/doc/info/attrs.html#k:escString
-      self.graph.node(name=''.join(f'{i}: {line}\l' for i,line in enumerate(lines)), shape='box')
+      self.graph.node(
+          name=''.join(f'{i}: {line}\l' for i, line in enumerate(lines)),
+          shape='box')
+
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -71,4 +75,5 @@ if __name__ == '__main__':
   drawer.visit(tree)
   drawer.create_graph(source)
   drawer.graph.render(drawer.graph.filename)
-  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename + '.pdf')
+  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename +
+                                        '.pdf')

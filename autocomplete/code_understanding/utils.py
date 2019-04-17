@@ -1,6 +1,7 @@
 import os
 import webbrowser
 
+
 def shorten_path(path, splitters=(os.path.sep, '_'), preserve_last=True):
   assert len(splitters) >= 1
   vals = path.split(splitters[0])
@@ -13,6 +14,7 @@ def shorten_path(path, splitters=(os.path.sep, '_'), preserve_last=True):
   if preserve_last:
     return splitters[0].join([out, vals[-1]])
   return out
+
 
 def display_df_in_browser(df):
   tmp_path = '/tmp/tmp.html'

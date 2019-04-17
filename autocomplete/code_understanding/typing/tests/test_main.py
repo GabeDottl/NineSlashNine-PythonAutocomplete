@@ -2,10 +2,8 @@
 import parso
 
 from autocomplete.code_understanding.typing import control_flow_graph
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     Instance,
-                                                                     Klass,
-                                                                     Module)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, Instance, Klass, Module)
 from autocomplete.code_understanding.typing.api import frame_from_source
 
 
@@ -13,6 +11,7 @@ def test_simple_assignment():
   source = 'a=1'
   frame_ = frame_from_source(source)
   assert frame_['a'].value() == 1
+
 
 def test_imports():
   source = '''
@@ -37,6 +36,7 @@ from x.y.z import (q, r as s)'''
   assert frame_['q'].value().name == 'x.y.z.q'
   assert 's' in frame_
   assert frame_['s'].value().name == 'x.y.z.r'
+
 
 def test_classes():
   source = '''
@@ -77,6 +77,7 @@ a = x.foo(0, None)
   assert frame_['y.b'].value() == 1
   assert frame_['z.b'].value() == 2
 
+
 def test_arrays():
   source = '''
 a = [0,1,2]
@@ -100,13 +101,11 @@ b2 = a2[0]
   # assert frame_['z.b'].value() == 2
 
 
-
-
-
 # def test_main_sample():
 #    with open('/Users/gabe/code/autocomplete/autocomplete/code_understanding/typing/examples/test_main_sample_code.py') as f:
 #      basic_source = ''.join(f.readlines())
 #    frame_ = frame_from_source(basic_source)
+
 
 def generate_test_from_actual(a_frame):
   for name, val in a_frame.locals.items():
@@ -124,6 +123,7 @@ def generate_test_from_actual(a_frame):
       print(f'assert isinstance(a_frame[\'{name}\'].value(), Function)')
     else:
       print(f'assert a_frame[\'{name}\'].value() == {val.value()}')
+
 
 if __name__ == '__main__':
   test_simple_assignment()

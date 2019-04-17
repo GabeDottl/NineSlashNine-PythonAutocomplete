@@ -12,6 +12,7 @@ import os
 import pandas as pd
 import webbrowser
 
+
 def get_all_py_files(path, recursive=True):
   if recursive:
     return glob.glob(os.path.join(path, '**', '*py'))
@@ -46,9 +47,10 @@ def join_names(a, b):
   return f'{a}.{b}'
 
 
-def _get_complete_attribute_path( node, suffix=''):
+def _get_complete_attribute_path(node, suffix=''):
   if isinstance(node.value, _ast.Attribute):
-    return _get_complete_attribute_path(node.value, suffix=join_names(node.attr, suffix))
+    return _get_complete_attribute_path(
+        node.value, suffix=join_names(node.attr, suffix))
   # assert isinstance(node.value, _ast.Name)
   if isinstance(node.value, _ast.Call):
     return join_names(node.value.func, join_names(node.attr, suffix))
@@ -67,9 +69,7 @@ def get_statistics_about_python_source(path, source=None, shorten_path=True):
       'path', 'type', 'name', 'complete_name', 'lineno', 'node', 'parent'
   ]
   values = list(
-              zip(
-                  itertools.repeat(path, len(traveler.nodes)),
-                  *zip(*traveler.nodes)))
+      zip(itertools.repeat(path, len(traveler.nodes)), *zip(*traveler.nodes)))
 
   df = pd.DataFrame(values, columns=columns)
   _append_code(df, source)

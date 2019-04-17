@@ -2,6 +2,7 @@ import ast
 
 
 class AstTypeFinder(ast.NodeVisitor):
+
   def __init__(self):
     self.target_type = None
     self.target_node = None

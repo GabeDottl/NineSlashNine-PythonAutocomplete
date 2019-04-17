@@ -1,5 +1,6 @@
 import inspect
 
+
 def get_classes(module):
   out = []
   for name, member in inspect.getmembers(module):
@@ -26,5 +27,3 @@ def get_bucketized_members(obj, out=None):
     elif inspect.ismodule(member):
       out['module'].append(member)
   return out
-
-

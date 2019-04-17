@@ -158,6 +158,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   def has_attribute(self, name):
     return self.value.has_attribute(
         name) or self._dynamic_container.has_attribute(name)
+
   def get_attribute(self, name):
     try:
       return self.value.get_attribute(name)
@@ -353,7 +354,6 @@ class FuzzyObject(PObject):
     elif out:  # len(out) == 1
       return out[0]
     return UnknownObject(f'FV[{indicies}]')
-
 
   def get_item(self, args, curr_frame):
     out = []

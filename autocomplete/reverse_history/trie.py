@@ -33,6 +33,7 @@ class Node:
     return out
 
   def traverse(self, array=False, nodes=None, path=''):
+
     class LoopException(Exception):
       pass
 
@@ -44,11 +45,14 @@ class Node:
       nodes.add(self)
       for char, child in self.children.items():
         if child.count > 0:
-          yield child.count, [char, child.remainder] if array else char + child.remainder
+          yield child.count, [char, child.remainder
+                             ] if array else char + child.remainder
         if child in nodes:
           raise LoopException(char)
-        for count, arr in child.traverse(array=True, nodes=nodes, path=path + char):
-          yield count, [char, child.remainder] + arr if array else ''.join([char, child.remainder] + arr)
+        for count, arr in child.traverse(
+            array=True, nodes=nodes, path=path + char):
+          yield count, [char, child.remainder] + arr if array else ''.join(
+              [char, child.remainder] + arr)
     except LoopException as e:
       raise LoopException(''.join(e.args + [char]))
     except RecursionError as e:
@@ -57,8 +61,9 @@ class Node:
     nodes.remove(self)
 
   def to_str(self, indent=''):
-    return ''.join(f'{indent}{c}{node.remainder}\n{node.to_str(indent + " "*(1+len(node.remainder)))}'
-                   for c, node in self.children.items())
+    return ''.join(
+        f'{indent}{c}{node.remainder}\n{node.to_str(indent + " "*(1+len(node.remainder)))}'
+        for c, node in self.children.items())
 
   def add_child(self, char, child):
     assert child != self, char
@@ -83,7 +88,7 @@ class Node:
       try:
         curr_node = curr_node.children[sub_str[i]]
         path.append((sub_str[i], curr_node))
-        sub_str = sub_str[i+1:]
+        sub_str = sub_str[i + 1:]
       except KeyError:
 
         return None
@@ -102,6 +107,7 @@ class Node:
       return child.assert_valid()
     return True
 
+
 class AutocompleteTrie:
 
   def __init__(self):
@@ -111,6 +117,7 @@ class AutocompleteTrie:
     out = AutocompleteTrie()
     out.root = self.root.prune_infrequent_copy(min_count)
     return out
+
 
 # first:
 #   curr node has no remainder matching or matching child
@@ -134,9 +141,8 @@ class AutocompleteTrie:
 #
 # Insert partially into
 
-
-
   def add(self, line):
+
     def split_node(node, split_point, additional_remainder):
       new_node = Node()
       new_node.remainder = node.remainder[:split_point]
@@ -144,7 +150,7 @@ class AutocompleteTrie:
       new_node.highest_child_char = c
       new_node.highest_child_count = node.get_max_count_at_or_beneath()
       new_node.children[c] = node
-      node.remainder = node.remainder[split_point+1:]
+      node.remainder = node.remainder[split_point + 1:]
       if len(additional_remainder) > 0:
         new_child = Node()
         new_child.remainder = additional_remainder[1:]
@@ -153,6 +159,7 @@ class AutocompleteTrie:
       return new_node
 
     class RemainderSplitException(Exception):
+
       def __init__(self, split_point):
         super(RemainderSplitException, self).__init__()
         self.split_point = split_point
@@ -169,15 +176,16 @@ class AutocompleteTrie:
         # Reset split point in case of exception before natural reset.
         split_point = 0
         curr_node = curr_node.children[c]
-        for split_point, (a, b) in enumerate(zip(curr_node.remainder, line_iter)):
+        for split_point, (a, b) in enumerate(
+            zip(curr_node.remainder, line_iter)):
           if a != b:
             raise RemainderSplitException(split_point=split_point)
-      if split_point > 0 and split_point != len(curr_node.remainder) -1:
-        new_subtree = split_node(curr_node, split_point+1, '')
+      if split_point > 0 and split_point != len(curr_node.remainder) - 1:
+        new_subtree = split_node(curr_node, split_point + 1, '')
         new_subtree.count = 1
         c, parent = path[-1]
         parent.children[c] = new_subtree
-      else: # Perfect match with curr_node - increment count.
+      else:  # Perfect match with curr_node - increment count.
         curr_node.increment_count()
         last_node = curr_node
         x = []

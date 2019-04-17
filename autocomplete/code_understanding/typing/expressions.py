@@ -82,43 +82,45 @@ class CallExpression(Expression):
     out = returns[0]
     for ret in returns[1:]:
       out = out.merge(ret)
-    
+
     pobject.call(curr_frame)
 
     return function_assignment.call(self.args, self.kwargs, curr_frame)
 
+
 def _process_args(self, args, kwargs, curr_frame):
-    param_iter = iter(self.parameters)
-    arg_iter = iter(args)
-    for arg, param in zip(arg_iter, param_iter):
-      if param.type == ParameterType.SINGLE:
-        curr_frame[param.name] = arg.evaluate(curr_frame)
-      elif param.type == ParameterType.ARGS:
-        curr_frame[param.name] = [arg.evaluate(curr_frame)
-                                 ] + [a.evaluate(curr_frame) for a in arg_iter]
-      else:  # KWARGS
-        raise ValueError(
-            f'Invalid number of positionals. {arg}: {args} fitting {self.parameters}'
-        )
+  param_iter = iter(self.parameters)
+  arg_iter = iter(args)
+  for arg, param in zip(arg_iter, param_iter):
+    if param.type == ParameterType.SINGLE:
+      curr_frame[param.name] = arg.evaluate(curr_frame)
+    elif param.type == ParameterType.ARGS:
+      curr_frame[param.name] = [arg.evaluate(curr_frame)
+                               ] + [a.evaluate(curr_frame) for a in arg_iter]
+    else:  # KWARGS
+      raise ValueError(
+          f'Invalid number of positionals. {arg}: {args} fitting {self.parameters}'
+      )
 
-    kwargs_name = None
-    for param in param_iter:
-      if param.name in kwargs:
-        curr_frame[VariableExpression(
-            param.name)] = kwargs[param.name].evaluate(curr_frame)
-      elif param.type == ParameterType.KWARGS:
-        kwargs_name = param.name
-      else:
-        # Use default. If there's no assignment and no explicit default, this
-        # will be NONE_POBJECT.
-        curr_frame[VariableExpression(param.name)] = param.default
+  kwargs_name = None
+  for param in param_iter:
+    if param.name in kwargs:
+      curr_frame[VariableExpression(
+          param.name)] = kwargs[param.name].evaluate(curr_frame)
+    elif param.type == ParameterType.KWARGS:
+      kwargs_name = param.name
+    else:
+      # Use default. If there's no assignment and no explicit default, this
+      # will be NONE_POBJECT.
+      curr_frame[VariableExpression(param.name)] = param.default
 
-    if kwargs_name:  # Add remaining keywords to kwargs if there is one.
-      in_dict = {}
-      for key, value in kwargs:
-        if key not in curr_frame:
-          in_dict[key] = value
-      curr_frame[kwargs_name] = FuzzyObject([in_dict])
+  if kwargs_name:  # Add remaining keywords to kwargs if there is one.
+    in_dict = {}
+    for key, value in kwargs:
+      if key not in curr_frame:
+        in_dict[key] = value
+    curr_frame[kwargs_name] = FuzzyObject([in_dict])
+
 
 @attr.s
 class AttributeExpression(Expression):
@@ -177,18 +179,22 @@ class ForExpression(Expression):
   def evaluate(self, curr_frame) -> FuzzyObject:
     return self.generator_expression.evaluate(curr_frame)
 
+
 @attr.s
 class FactorExpression(Expression):
   operator = attr.ib()
   expression = attr.ib()
 
   def evaluate(self, curr_frame):
-    if self.operator == '+': return self.expression.evaluate(curr_frame)
-    if self.operator == '-': return MathExpression(LiteralExpression(-1), '*', self.expression).evaluate(curr_frame)
-    if self.operator == '~': 
+    if self.operator == '+':
+      return self.expression.evaluate(curr_frame)
+    if self.operator == '-':
+      return MathExpression(LiteralExpression(-1), '*',
+                            self.expression).evaluate(curr_frame)
+    if self.operator == '~':
       info(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
-    
+
 
 @attr.s
 class MathExpression(Expression):
@@ -274,7 +280,6 @@ class ComparisonExpression(Expression):
       return l is not r
 
     assert False, f'Cannot handle {self.operator} yet.'
-
 
 
 Variable = Expression

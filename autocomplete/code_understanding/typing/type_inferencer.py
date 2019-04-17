@@ -63,8 +63,6 @@ class TypeInferencer:
     else:
       assert False, node_info(node)
 
-
-
   def handle_classdef(self, node):
     reference = self._create_reference_and_assignment(node)
     self.current_scope_path.append(reference)
@@ -220,8 +218,6 @@ class TypeInferencer:
   def handle_for_stmt(self, node):
     for child in node.children:
       pass
-
-
 
   def handle_while_stmt(self, node):
     for child in node.children:

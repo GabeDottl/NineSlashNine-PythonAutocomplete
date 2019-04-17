@@ -5,6 +5,7 @@ import ast
 
 
 class Visitor(ast.NodeVisitor):
+
   def __init__(self, trie):
     self.trie = trie
 
@@ -49,12 +50,14 @@ class Visitor(ast.NodeVisitor):
 #   with open(filepath, 'r') as f:
 #     add_source_to_trie(f.readlines(), trie)
 
+
 def add_source_to_trie_with_ast(filepath, trie):
   with open(filepath, 'r') as f:
     source = ''.join(f.readlines())
   root = ast.parse(source)
   visitor = Visitor(trie)
   visitor.visit(root)
+
 
 def add_source_tree_to_trie(path, trie):
   filepaths = glob(os.path.join(path, '**', '*py'), recursive=True)

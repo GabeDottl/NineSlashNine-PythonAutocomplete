@@ -1,5 +1,6 @@
 import attr
 
+
 @attr.s
 class RunTimeExceptionWrapper:
   exception = attr.ib()
@@ -10,6 +11,7 @@ class RunTimeExceptionWrapper:
 class CompileTimeExceptionWrapper:
   exception = attr.ib()
   parso_node = attr.ib()
+
 
 @attr.s
 class SourceExceptionCapturer:
