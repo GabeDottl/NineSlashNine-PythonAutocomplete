@@ -5,9 +5,11 @@ from enum import Enum
 from typing import Dict, List
 
 import attr
+
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import FuzzyObject, UnknownObject, PObject, AugmentedObject, NONE_POBJECT
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import info
 
 
@@ -39,7 +41,6 @@ class Frame:
   # GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
   # PYTHON3_BUILTINS = ['PermissionError']
   # ALL_BUILTINS = set(dir(__builtin__)) | set(GLOBALS) | set(PYTHON3_BUILTINS)
-
 
   # Symbol tables.
   # _globals: Dict = attr.ib(factory=dict)  # Instead of 'globals' we use _root.locals. Falls apart with imports?

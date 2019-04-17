@@ -4,13 +4,13 @@ from functools import wraps
 import attr
 
 from autocomplete.code_understanding.typing import module_loader
-from autocomplete.code_understanding.typing.expressions import \
-    VariableExpression, Expression
+from autocomplete.code_understanding.typing.expressions import (
+    Expression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionType, Klass, Module, Parameter)
 from autocomplete.code_understanding.typing.pobjects import (
-    FuzzyObject, FuzzyBoolean, UnknownObject)
+    FuzzyBoolean, FuzzyObject, UnknownObject)
 from autocomplete.nsn_logging import info
 
 # from autocomplete.code_understanding.typing.collector import Collector

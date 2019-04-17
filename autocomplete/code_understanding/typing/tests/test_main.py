@@ -3,12 +3,11 @@ import os
 from glob import glob
 
 import parso
+
 from autocomplete.code_understanding.typing import control_flow_graph
 from autocomplete.code_understanding.typing.api import frame_from_source
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     Instance,
-                                                                     Klass,
-                                                                     Module)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, Instance, Klass, Module)
 from autocomplete.nsn_logging import info
 
 
@@ -129,12 +128,14 @@ def generate_test_from_actual(a_frame):
     else:
       print(f'assert a_frame[\'{name}\'].value() == {val.value()}')
 
+
 def test_processing_all_typing_dir():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
   for filename in filenames:
     info(f'filename: {filename}')
     frame_from_source(filename)
+
 
 if __name__ == '__main__':
   test_simple_assignment()

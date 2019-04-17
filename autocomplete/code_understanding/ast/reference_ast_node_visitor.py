@@ -1,10 +1,11 @@
+import ast
+import importlib
+
+import _ast
 from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
 from autocomplete.code_understanding.builtins import builtins, module_members
 from autocomplete.code_understanding.utils import *
 from autocomplete.nsn_logging import *
-import importlib
-import _ast
-import ast
 
 
 class ReferenceAstNodeVisitor(ast.NodeVisitor):

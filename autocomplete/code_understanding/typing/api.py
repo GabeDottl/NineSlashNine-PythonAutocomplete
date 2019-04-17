@@ -1,10 +1,11 @@
 import argparse
-from autocomplete.code_understanding.typing import frame
 
 import parso
-from autocomplete.code_understanding.typing import control_flow_graph
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import CfgNode
+
+from autocomplete.code_understanding.typing import control_flow_graph, frame
 from autocomplete.code_understanding.typing.collector import Collector
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
+    CfgNode)
 from autocomplete.nsn_logging import info
 
 

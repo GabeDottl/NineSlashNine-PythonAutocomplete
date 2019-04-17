@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from functools import partialmethod
 from typing import List
-from enum import Enum
-
-from autocomplete.nsn_logging import info
 
 import attr
+
+from autocomplete.nsn_logging import info
 
 _OPERATORS = [
     '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__',

@@ -1,13 +1,13 @@
 import sys
 from typing import List, Tuple, Union
 
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import \
-    CfgNode, AssignmentStmtCfgNode
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
+    AssignmentStmtCfgNode, CfgNode)
 from autocomplete.code_understanding.typing.expressions import (
-    AttributeExpression, CallExpression, UnknownExpression,
-    ComparisonExpression, Expression, LiteralExpression, MathExpression,
-    FactorExpression, NotExpression, SubscriptExpression, TupleExpression,
-    ListExpression, Variable, VariableExpression)
+    AttributeExpression, CallExpression, ComparisonExpression, Expression,
+    FactorExpression, ListExpression, LiteralExpression, MathExpression,
+    NotExpression, SubscriptExpression, TupleExpression, UnknownExpression,
+    Variable, VariableExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Parameter, ParameterType)
 from autocomplete.nsn_logging import info

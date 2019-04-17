@@ -1,6 +1,8 @@
 # Comment.
 import glob
+
 import numpy as np
+
 import autocomplete.code_understanding.fake3 as fake3
 from autocomplete.code_understanding.fake2 import a_func
 

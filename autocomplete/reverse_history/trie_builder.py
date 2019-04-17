@@ -1,7 +1,8 @@
+import ast
 import os
 from glob import glob
+
 import astor
-import ast
 
 
 class Visitor(ast.NodeVisitor):

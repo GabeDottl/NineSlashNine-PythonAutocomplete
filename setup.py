@@ -1,4 +1,5 @@
 from setuptools import setup
+
 # d = os.path.split(os.path.abspath(__file__))[0]
 # packages = list(filter(lambda x: not os.path.isdir(x), [os.path.join(d, x) for x in os.listdir(d)]))
 

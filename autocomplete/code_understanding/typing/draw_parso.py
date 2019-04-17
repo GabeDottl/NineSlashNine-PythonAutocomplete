@@ -3,10 +3,11 @@
 Basic reference:
 https://graphviz.readthedocs.io/en/stable/examples.html
 '''
-import parso
-import graphviz
 import argparse
 import webbrowser
+
+import graphviz
+import parso
 
 
 class ParsoDrawer:

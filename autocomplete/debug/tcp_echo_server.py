@@ -1,6 +1,7 @@
-import asyncio
-from jedi import debug
 import argparse
+import asyncio
+
+from jedi import debug
 
 
 @asyncio.coroutine

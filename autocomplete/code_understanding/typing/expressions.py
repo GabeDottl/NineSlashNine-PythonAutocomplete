@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import attr
 
 from autocomplete.code_understanding.typing.pobjects import (
-    PObject, FuzzyObject, UnknownObject, AugmentedObject)
+    AugmentedObject, FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import info
 
 

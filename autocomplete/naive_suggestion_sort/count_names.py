@@ -1,11 +1,12 @@
 '''A module which does a simple count of how frequently all name tokens are used
 within a given path of python files.'''
-from glob import glob
-from tokenize import tokenize, NAME
-import os
-from collections import defaultdict, OrderedDict
 import argparse
+import os
 import pickle
+from collections import OrderedDict, defaultdict
+from glob import glob
+from tokenize import NAME, tokenize
+
 from autocomplete.nsn_logging import *
 
 

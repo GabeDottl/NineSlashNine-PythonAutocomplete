@@ -1,16 +1,19 @@
-from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
-from autocomplete.code_understanding.utils import *
-from autocomplete.code_understanding.reference_ast_node_visitor import ReferenceAstNodeVisitor
-from autocomplete.nsn_logging import *
-import _ast
 import ast
 import glob
-import graphviz
 import importlib
 import itertools
 import os
-import pandas as pd
 import webbrowser
+
+import graphviz
+import pandas as pd
+
+import _ast
+from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
+from autocomplete.code_understanding.reference_ast_node_visitor import (
+    ReferenceAstNodeVisitor)
+from autocomplete.code_understanding.utils import *
+from autocomplete.nsn_logging import *
 
 
 def get_all_py_files(path, recursive=True):

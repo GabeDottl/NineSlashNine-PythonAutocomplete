@@ -1,5 +1,5 @@
-from nbconvert import PythonExporter
 import nbformat
+from nbconvert import PythonExporter
 
 
 def notebook_to_code(notebook_path):

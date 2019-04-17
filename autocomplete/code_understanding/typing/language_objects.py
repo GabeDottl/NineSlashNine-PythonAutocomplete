@@ -16,12 +16,13 @@ from copy import copy
 from enum import Enum
 
 import attr
+
 from autocomplete.code_understanding.typing import debug
 from autocomplete.code_understanding.typing.expressions import (
     LiteralExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, UnknownObject, FuzzyBoolean)
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, UnknownObject)
 from autocomplete.nsn_logging import info
 
 

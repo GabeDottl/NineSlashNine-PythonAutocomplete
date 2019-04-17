@@ -1,8 +1,8 @@
-from prettytable import PrettyTable
 from collections import defaultdict
+from functools import partial
 
 import attr
-from functools import partial
+from prettytable import PrettyTable
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     FromImportCfgNode, ImportCfgNode)

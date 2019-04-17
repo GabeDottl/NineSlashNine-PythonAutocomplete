@@ -1,9 +1,11 @@
-import re
 import glob
-from autocomplete.nsn_logging import *
-from time import time
 import os
+import re
+from time import time
+
 import tensorflow as tf
+
+from autocomplete.nsn_logging import *
 
 
 def wildcard_wrapper(s):
