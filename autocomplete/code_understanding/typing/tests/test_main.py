@@ -3,11 +3,12 @@ import os
 from glob import glob
 
 import parso
-
 from autocomplete.code_understanding.typing import control_flow_graph
 from autocomplete.code_understanding.typing.api import frame_from_source
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, Instance, Klass, Module)
+from autocomplete.code_understanding.typing.language_objects import (Function,
+                                                                     Instance,
+                                                                     Klass,
+                                                                     Module)
 from autocomplete.nsn_logging import info
 
 
@@ -121,7 +122,7 @@ def generate_test_from_actual(a_frame):
       print(f'cls = a_frame[\'{name}\'].value()')
       print('assert isinstance(cls, Klass)')
       klass = val.value()
-      for member_name in klass.members.keys():
+      for member_name in klass.keys():
         print(f'assert {member_name} in cls.members')
     elif isinstance(val.value(), Function):
       print(f'assert isinstance(a_frame[\'{name}\'].value(), Function)')
@@ -133,9 +134,9 @@ def test_processing_all_typing_dir():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
   for filename in filenames:
-    info(f'filename: {filename}')
+    debug(f'filename: {filename}')
     if os.path.basename(filename) == 'grammar.py':
-      info(f'Skipping {filename}')
+      debug(f'Skipping {filename}')
       continue
     with open(filename) as f:
       source = ''.join(f.readlines())

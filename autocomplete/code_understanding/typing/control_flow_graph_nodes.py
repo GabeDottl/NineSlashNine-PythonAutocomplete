@@ -4,13 +4,20 @@ from functools import wraps
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (
-    Expression, SubscriptExpression, VariableExpression)
+from autocomplete.code_understanding.typing.errors import (ParsingError,
+                                                           assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (Expression,
+                                                                SubscriptExpression,
+                                                                VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, FunctionType, Klass, Module, Parameter)
-from autocomplete.code_understanding.typing.pobjects import (
-    FuzzyBoolean, FuzzyObject, UnknownObject)
+from autocomplete.code_understanding.typing.language_objects import (Function,
+                                                                     FunctionType,
+                                                                     Klass,
+                                                                     Module,
+                                                                     Parameter)
+from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
@@ -102,26 +109,24 @@ class AssignmentStmtCfgNode(CfgNode):
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
-    if len(self.left_variables) == 1:
-      variable = self.left_variables[0]
+    self._process_variable(curr_frame, self.left_variables, result)
+
+  def _process_variable(self, curr_frame, variable, result):
+    if not hasattr(variable, '__iter__'):
       if self.collector:
         self.collector.add_variable_assignment(
-            variable,
-            self.value_node.get_code().strip())
+            variable, f'({self.value_node.get_code().strip()})[{i}]')
+      assert_unexpected_parso(isinstance(variable, Expression), variable)
       if isinstance(variable, SubscriptExpression):
         variable.set(curr_frame, result)
       else:
+        # TODO: Handle this properly...
         curr_frame[variable] = result
     else:
-      for i, variable in enumerate(self.left_variables):
-        if self.collector:
-          self.collector.add_variable_assignment(
-              variable, f'({self.value_node.get_code().strip()})[{i}]')
-        if isinstance(variable, SubscriptExpression):
-          variable.set(curr_frame, result._get_item_processed(i))
-        else:
-          # TODO: Handle this properly...
-          curr_frame[variable] = result._get_item_processed(i)
+      # Recursively process variables.
+      for i, variable_item in enumerate(variable):
+        self._process_variable(curr_frame, variable_item,
+                               result._get_item_processed(i))
 
   def __str__(self):
     return self._to_str()
@@ -168,7 +173,7 @@ class KlassCfgNode(CfgNode):
         frame_type=FrameType.KLASS, namespace=klass)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
-    klass._d = new_frame._locals
+    klass._members = new_frame._locals
     for name, member in klass.items():
 
       def instance_member(f):

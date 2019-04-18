@@ -7,6 +7,7 @@ import argparse
 import webbrowser
 
 import graphviz
+
 import parso
 
 

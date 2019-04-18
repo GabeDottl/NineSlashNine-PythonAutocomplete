@@ -17,20 +17,30 @@
 #
 # DFS down tree to node to determine values
 # - Memoize where possible + shortcut
-import traceback
 import sys
-import parso
+import traceback
+
 import attr
 
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    ExpressionCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
-    ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode)
+import parso
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (ExpressionCfgNode,
+                                                                             FromImportCfgNode,
+                                                                             FuncCfgNode,
+                                                                             GroupCfgNode,
+                                                                             IfCfgNode,
+                                                                             ImportCfgNode,
+                                                                             KlassCfgNode,
+                                                                             NoOpCfgNode,
+                                                                             ReturnCfgNode)
+from autocomplete.code_understanding.typing.errors import (ParsingError,
+                                                           assert_unexpected_parso)
 from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing.utils import (
-    ParsingError, assert_unexpected_parso,
-    create_expression_node_tuples_from_if_stmt, expression_from_node, node_info,
-    parameters_from_parameters, statement_node_from_expr_stmt)
-from autocomplete.nsn_logging import info, warning, error
+from autocomplete.code_understanding.typing.utils import (create_expression_node_tuples_from_if_stmt,
+                                                          expression_from_node,
+                                                          node_info,
+                                                          parameters_from_parameters,
+                                                          statement_node_from_expr_stmt)
+from autocomplete.nsn_logging import debug, error, warning
 
 
 def run_graph(graph, frame=None):
@@ -84,7 +94,7 @@ class ControlFlowGraphBuilder:
     #   handle_error(e, node)
 
   def create_cfg_node_for_error_node(self, node):
-    info(f'Error node when processing: {node.get_code()}')
+    debug(f'Error node when processing: {node.get_code()}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_single_input(self, node):
@@ -130,6 +140,10 @@ class ControlFlowGraphBuilder:
     assert_unexpected_parso(node.value == 'pass', node_info)
     return NoOpCfgNode(node)
 
+  def create_cfg_node_for_string(self, node):
+    # TODO: Documentation?
+    return NoOpCfgNode(node)
+
   def create_cfg_node_for_pass(self, node):
     return NoOpCfgNode(node)
 
@@ -147,15 +161,15 @@ class ControlFlowGraphBuilder:
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return self.create_cfg_node(node.children[1])
 
-  # def create_cfg_node_for_decorator(self, node): info(f'Skipping {node.type}')
-  # def create_cfg_node_for_decorators(self, node): info(f'Skipping {node.type}')
+  # def create_cfg_node_for_decorator(self, node): debug(f'Skipping {node.type}')
+  # def create_cfg_node_for_decorators(self, node): debug(f'Skipping {node.type}')
 
   # Parso doesn't handle these grammar nodes in the expectezd way:
   # async_func's are treated as async_stmt with a funcdef inside.
-  # def create_cfg_node_for_async_funcdef(self, node): info(f'Skipping {node.type}')
+  # def create_cfg_node_for_async_funcdef(self, node): debug(f'Skipping {node.type}')
 
   # augassign is treated as a regular assignment with a special operator (e.g. +=)
-  # def create_cfg_node_for_augassign(self, node): info(f'Skipping {node.type}')
+  # def create_cfg_node_for_augassign(self, node): debug(f'Skipping {node.type}')
 
   def create_cfg_node_for_if_stmt(self, node):
     return IfCfgNode(
@@ -170,7 +184,7 @@ class ControlFlowGraphBuilder:
 
   def create_cfg_node_for_expr_stmt(self, node):
     return statement_node_from_expr_stmt(node)
-    # info(f'Creating AssignmentStmtCfgNode for {node}')
+    # debug(f'Creating AssignmentStmtCfgNode for {node}')
     # return AssignmentStmtCfgNode(statement, node)
 
   def create_cfg_node_for_atom_expr(self, node):
@@ -184,28 +198,28 @@ class ControlFlowGraphBuilder:
         expression_from_node(node.children[1]), parso_node=node)
 
   def create_cfg_node_for_flow_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_break_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_continue_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_yield_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_raise_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_import_stmt(self, node):
     assert_unexpected_parso(False, "Not used.")
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_import_name(self, node):
@@ -272,7 +286,7 @@ class ControlFlowGraphBuilder:
     #              'import' ('*' | '(' import_as_names ')' | import_as_names))
     # import_as_name: NAME ['as' NAME]
     # from is first child
-    info(node.get_code())
+    debug(node.get_code())
     node_index = 1
     # First node after import might be '.' or '...' operators.
 
@@ -358,47 +372,47 @@ class ControlFlowGraphBuilder:
     return out
 
   def create_cfg_node_for_global_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_nonlocal_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_assert_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_compound_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_async_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_while_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_for_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_try_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_except_clause(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_with_stmt(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_with_item(self, node):
-    info(f'Skipping {node.type}')
+    debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
   def create_cfg_node_for_classdef(self, node):
@@ -406,57 +420,57 @@ class ControlFlowGraphBuilder:
     suite = self.create_cfg_node(node.children[-1])
     return KlassCfgNode(name, suite, parso_node=node)
 
-  # def process_parameters(self, node): info(f'Skipping {node.type}')
-  # def process_typedargslist(self, node): info(f'Skipping {node.type}')
-  # def process_tfpdef(self, node): info(f'Skipping {node.type}')
-  # def process_varargslist(self, node): info(f'Skipping {node.type}')
-  # def process_vfpdef(self, node): info(f'Skipping {node.type}')
-  # def process_annassign(self, node): info(f'Skipping {node.type}')
-  # def process_testlist_star_expr(self, node): info(f'Skipping {node.type}')
-  # def process_import_as_name(self, node): info(f'Skipping {node.type}')
-  # def process_dotted_as_name(self, node): info(f'Skipping {node.type}')
-  # def process_import_as_names(self, node): info(f'Skipping {node.type}')
-  # def process_dotted_as_names(self, node): info(f'Skipping {node.type}')
-  # def process_dotted_name(self, node): info(f'Skipping {node.type}')
+  # def process_parameters(self, node): debug(f'Skipping {node.type}')
+  # def process_typedargslist(self, node): debug(f'Skipping {node.type}')
+  # def process_tfpdef(self, node): debug(f'Skipping {node.type}')
+  # def process_varargslist(self, node): debug(f'Skipping {node.type}')
+  # def process_vfpdef(self, node): debug(f'Skipping {node.type}')
+  # def process_annassign(self, node): debug(f'Skipping {node.type}')
+  # def process_testlist_star_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_import_as_name(self, node): debug(f'Skipping {node.type}')
+  # def process_dotted_as_name(self, node): debug(f'Skipping {node.type}')
+  # def process_import_as_names(self, node): debug(f'Skipping {node.type}')
+  # def process_dotted_as_names(self, node): debug(f'Skipping {node.type}')
+  # def process_dotted_name(self, node): debug(f'Skipping {node.type}')
 
-  # def process_test(self, node): info(f'Skipping {node.type}')
-  # def process_test_nocond(self, node): info(f'Skipping {node.type}')
-  # def process_lambdef(self, node): info(f'Skipping {node.type}')
-  # def process_lambdef_nocond(self, node): info(f'Skipping {node.type}')
-  # def process_or_test(self, node): info(f'Skipping {node.type}')
-  # def process_and_test(self, node): info(f'Skipping {node.type}')
-  # def process_not_test(self, node): info(f'Skipping {node.type}')
-  # def process_comparison(self, node): info(f'Skipping {node.type}')
-  # def process_comp_op(self, node): info(f'Skipping {node.type}')
-  # def process_star_expr(self, node): info(f'Skipping {node.type}')
-  # def process_expr(self, node): info(f'Skipping {node.type}')
-  # def process_xor_expr(self, node): info(f'Skipping {node.type}')
-  # def process_and_expr(self, node): info(f'Skipping {node.type}')
-  # def process_shift_expr(self, node): info(f'Skipping {node.type}')
-  # def process_arith_expr(self, node): info(f'Skipping {node.type}')
-  # def process_term(self, node): info(f'Skipping {node.type}')
-  # def process_factor(self, node): info(f'Skipping {node.type}')
-  # def process_power(self, node): info(f'Skipping {node.type}')
+  # def process_test(self, node): debug(f'Skipping {node.type}')
+  # def process_test_nocond(self, node): debug(f'Skipping {node.type}')
+  # def process_lambdef(self, node): debug(f'Skipping {node.type}')
+  # def process_lambdef_nocond(self, node): debug(f'Skipping {node.type}')
+  # def process_or_test(self, node): debug(f'Skipping {node.type}')
+  # def process_and_test(self, node): debug(f'Skipping {node.type}')
+  # def process_not_test(self, node): debug(f'Skipping {node.type}')
+  # def process_comparison(self, node): debug(f'Skipping {node.type}')
+  # def process_comp_op(self, node): debug(f'Skipping {node.type}')
+  # def process_star_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_xor_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_and_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_shift_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_arith_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_term(self, node): debug(f'Skipping {node.type}')
+  # def process_factor(self, node): debug(f'Skipping {node.type}')
+  # def process_power(self, node): debug(f'Skipping {node.type}')
 
-  # def process_atom(self, node): info(f'Skipping {node.type}')
-  # def process_testlist_comp(self, node): info(f'Skipping {node.type}')
-  # def process_trailer(self, node): info(f'Skipping {node.type}')
-  # def process_subscriptlist(self, node): info(f'Skipping {node.type}')
-  # def process_subscript(self, node): info(f'Skipping {node.type}')
-  # def process_sliceop(self, node): info(f'Skipping {node.type}')
-  # def process_exprlist(self, node): info(f'Skipping {node.type}')
-  # def process_testlist(self, node): info(f'Skipping {node.type}')
-  # def process_dictorsetmaker(self, node): info(f'Skipping {node.type}')
+  # def process_atom(self, node): debug(f'Skipping {node.type}')
+  # def process_testlist_comp(self, node): debug(f'Skipping {node.type}')
+  # def process_trailer(self, node): debug(f'Skipping {node.type}')
+  # def process_subscriptlist(self, node): debug(f'Skipping {node.type}')
+  # def process_subscript(self, node): debug(f'Skipping {node.type}')
+  # def process_sliceop(self, node): debug(f'Skipping {node.type}')
+  # def process_exprlist(self, node): debug(f'Skipping {node.type}')
+  # def process_testlist(self, node): debug(f'Skipping {node.type}')
+  # def process_dictorsetmaker(self, node): debug(f'Skipping {node.type}')
 
-  # def process_arglist(self, node): info(f'Skipping {node.type}')
-  # def process_argument(self, node): info(f'Skipping {node.type}')
-  # def process_comp_iter(self, node): info(f'Skipping {node.type}')
-  # def process_sync_comp_for(self, node): info(f'Skipping {node.type}')
-  # def process_comp_for(self, node): info(f'Skipping {node.type}')
-  # def process_comp_if(self, node): info(f'Skipping {node.type}')
-  # def process_encoding_decl(self, node): info(f'Skipping {node.type}')
-  # def process_yield_expr(self, node): info(f'Skipping {node.type}')
-  # def process_yield_arg(self, node): info(f'Skipping {node.type}')
+  # def process_arglist(self, node): debug(f'Skipping {node.type}')
+  # def process_argument(self, node): debug(f'Skipping {node.type}')
+  # def process_comp_iter(self, node): debug(f'Skipping {node.type}')
+  # def process_sync_comp_for(self, node): debug(f'Skipping {node.type}')
+  # def process_comp_for(self, node): debug(f'Skipping {node.type}')
+  # def process_comp_if(self, node): debug(f'Skipping {node.type}')
+  # def process_encoding_decl(self, node): debug(f'Skipping {node.type}')
+  # def process_yield_expr(self, node): debug(f'Skipping {node.type}')
+  # def process_yield_arg(self, node): debug(f'Skipping {node.type}')
 
 
 # if __name__ == '__main__':

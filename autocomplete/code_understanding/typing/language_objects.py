@@ -14,17 +14,20 @@ So __getitem__, __getattribute__, __call__, etc. translate into get_item, get_at
 from abc import ABC, abstractmethod
 from copy import copy
 from enum import Enum
+from functools import wraps
+from typing import Dict
 
 import attr
 
-from autocomplete.code_understanding.typing import debug
-from autocomplete.code_understanding.typing.expressions import LiteralExpression, VariableExpression
+from autocomplete.code_understanding.typing.expressions import (LiteralExpression,
+                                                                VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, UnknownObject)
-from autocomplete.nsn_logging import info
-
-# from autocomplete.nsn_logging import info
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
+                                                             AugmentedObject,
+                                                             FuzzyBoolean,
+                                                             PObject,
+                                                             UnknownObject)
+from autocomplete.nsn_logging import debug, error
 
 
 @attr.s
@@ -42,32 +45,32 @@ class Namespace:
   name: str = attr.ib()
   # We wrap a dict explicitly rather than subclassing to avoid certain odd behavior - e.g. __bool__
   # being overridden s.t. if there are no members, it will return false.
-  _d = attr.ib(init=False, factory=dict)
+  _members: Dict[str, PObject] = attr.ib(factory=dict)
 
   def __contains__(self, name):
-    return name in self._d
+    return name in self._members
 
   def __getitem__(self, name):
-    return self._d[name]
+    return self._members[name]
 
   def __setitem__(self, name, value):
-    self._d[name] = value
+    self._members[name] = value
 
   def items(self):
-    return self._d.items()
+    return self._members.items()
 
   # TODO: delete these?
   def has_attribute(self, name):
-    return name in self._d
+    return name in self._members
 
   def get_attribute(self, name):
     try:
-      return self._d[name]
+      return self._members[name]
     except KeyError as e:
       raise AttributeError(e)
 
   def set_attribute(self, name, value):
-    self._d[name] = value
+    self._members[name] = value
 
 
 class ModuleType(Enum):
@@ -80,9 +83,9 @@ class ModuleType(Enum):
 @attr.s(str=False, repr=False)
 class Module(Namespace):
   module_type: ModuleType = attr.ib()
-  members = attr.ib()
-  containing_package = attr.ib(None)
-  filepath = attr.ib(None)
+  _members = attr.ib()
+  containing_package = attr.ib()
+  filename = attr.ib()
 
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:
@@ -97,6 +100,48 @@ class Module(Namespace):
     return self
 
 
+@attr.s
+class LazyModule(Module):
+  '''A Module which is lazily loaded with members.
+  
+  On the first attribute access, this module is loaded from its filename.
+  '''
+  load_module_exports_from_filename = attr.ib()
+  _loaded = attr.ib(False)
+  _members = attr.ib(None)
+
+  def _lazy_load(func):
+
+    @wraps(func)
+    def _wrapper(self, *args, **kwargs):
+      if not self._loaded:
+        debug(f'Lazily loading from: {self.filename}')
+        try:
+          self._members = self.load_module_exports_from_filename(self.filename)
+        except ValueError:
+          error(f'Unable to lazily load {self.filename}')
+        self._loaded = True
+      return func(self, *args, **kwargs)
+
+    return _wrapper
+
+  @_lazy_load
+  def __contains__(self, name):
+    return super().__contains__(name)
+
+  @_lazy_load
+  def __getitem__(self, name):
+    return super().__contains__(name)
+
+  @_lazy_load
+  def __setitem__(self, name, value):
+    super().__setitem__(name, value)
+
+  @_lazy_load
+  def items(self):
+    return super().items()
+
+
 # class CallableInterface(ABC):
 #   @abstractmethod
 #   def call(self, args, kwargs, args, kwargs, curr_frame): ...
@@ -109,7 +154,7 @@ class Module(Namespace):
 class Klass(Namespace):
 
   def __str__(self):
-    return f'class {self.name}: {list(self._d.keys())}'
+    return f'class {self.name}: {list(self._members.keys())}'
 
   def __repr__(self):
     return str(self)
@@ -158,9 +203,10 @@ class Klass(Namespace):
 class Instance(Namespace):
   klass = attr.ib()
   name: str = attr.ib(None, init=False)  # Override namespace name.
+  _members = attr.ib({})
 
   def __str__(self):
-    return f'Inst {self.klass.name}: {list(self._d.keys())}'
+    return f'Inst {self.klass.name}: {list(self._members.keys())}'
 
   def __repr__(self):
     return str(self)
@@ -179,6 +225,7 @@ class Function(Namespace):
   parameters = attr.ib()
   graph = attr.ib()
   type = attr.ib(FunctionType.FREE)
+  _members = attr.ib({})
   # We use a notion of a 'bound frame' to encapsulate values which are
   # bound to this function - e.g. cls & self, nonlocals in a nested func.
   bound_frame = None
@@ -195,8 +242,6 @@ class Function(Namespace):
         frame_type=FrameType.FUNCTION, namespace=self)
     if self.bound_frame:
       new_frame.merge(self.bound_frame)
-    if debug.print_frame_in_function:
-      info(f'Function frame: {new_frame}')
     self._process_args(args, kwargs, new_frame)
     self.graph.process(new_frame)
 
@@ -247,6 +292,7 @@ class StubFunction(Namespace):
   parameters = attr.ib()
   returns = attr.ib()
   type = attr.ib(FunctionType.FREE)
+  _members = attr.ib({})
 
   def call(self, args, kwargs, curr_frame):
     # TODO: Handle parameters?

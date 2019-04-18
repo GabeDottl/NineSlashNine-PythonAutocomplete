@@ -4,8 +4,8 @@ from functools import partial
 import attr
 from prettytable import PrettyTable
 
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    FromImportCfgNode, ImportCfgNode)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FromImportCfgNode,
+                                                                             ImportCfgNode)
 from autocomplete.code_understanding.typing.language_objects import Module
 
 

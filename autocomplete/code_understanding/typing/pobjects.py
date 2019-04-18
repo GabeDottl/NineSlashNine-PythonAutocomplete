@@ -148,6 +148,7 @@ class UnknownObject(PObject):
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.MAYBE
 
+  # TODO: Rename 'dereference'?
   def value(self) -> object:
     return None
 
@@ -231,8 +232,9 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     elif hasattr(self._object, '__getitem__'):
       try:
         return AugmentedObject(self._object.__getitem__(indicies))
-      except (KeyError, IndexError):
-        return UnknownObject(f'{self._object}[{indicies}]')
+      except (KeyError, IndexError, TypeError):
+        pass
+    return UnknownObject(f'{self._object}[{indicies}]')
 
   def get_item(self, args):
     if hasattr(self._object, 'get_item'):
@@ -412,7 +414,7 @@ class FuzzyObject(PObject):
     return self._get_item_processed(indicies)
 
   def set_item(self, index, value):
-    info(f'Skipping setting {self._object}[{index}] = {value}')
+    debug(f'Skipping setting {self._object}[{index}] = {value}')
 
   def _operator(self, other, operator):
     try:

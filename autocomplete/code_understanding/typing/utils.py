@@ -1,27 +1,30 @@
-import sys
-from typing import List, Tuple, Union
-from functools import wraps
 import itertools
+import sys
+from functools import wraps
+from typing import List, Tuple, Union
 
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    AssignmentStmtCfgNode, CfgNode)
-from autocomplete.code_understanding.typing.expressions import (
-    AttributeExpression, CallExpression, ComparisonExpression, Expression,
-    FactorExpression, ListExpression, LiteralExpression, MathExpression,
-    IfElseExpression, NotExpression, SubscriptExpression, TupleExpression,
-    UnknownExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.language_objects import (
-    Parameter, ParameterType)
-from autocomplete.nsn_logging import info, warning, error
-
-
-class ParsingError(Exception):
-  ...
-
-
-def assert_unexpected_parso(assertion, *error):
-  if not assertion:
-    raise ParsingError(str(error))
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (AssignmentStmtCfgNode,
+                                                                             CfgNode)
+from autocomplete.code_understanding.typing.errors import (ParsingError,
+                                                           assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
+                                                                CallExpression,
+                                                                ComparisonExpression,
+                                                                Expression,
+                                                                FactorExpression,
+                                                                IfElseExpression,
+                                                                ListExpression,
+                                                                LiteralExpression,
+                                                                MathExpression,
+                                                                NotExpression,
+                                                                SubscriptExpression,
+                                                                TupleExpression,
+                                                                UnknownExpression,
+                                                                Variable,
+                                                                VariableExpression)
+from autocomplete.code_understanding.typing.language_objects import (Parameter,
+                                                                     ParameterType)
+from autocomplete.nsn_logging import error, info, warning
 
 
 def statement_node_from_expr_stmt(node):

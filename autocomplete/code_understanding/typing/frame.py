@@ -6,10 +6,15 @@ from typing import Dict, List
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (
-    AttributeExpression, Variable, SubscriptExpression, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
+                                                                SubscriptExpression,
+                                                                Variable,
+                                                                VariableExpression)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
+                                                             AugmentedObject,
+                                                             FuzzyObject,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 

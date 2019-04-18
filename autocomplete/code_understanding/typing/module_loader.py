@@ -10,14 +10,20 @@ created) and returning types.
 3) If we can't find a module that's imported, we will create an 'Unknown'
 module.
 '''
-from autocomplete.code_understanding.typing.language_objects import (Module,
-                                                                     ModuleType)
-from autocomplete.nsn_logging import info, warning, error
-from autocomplete.code_understanding.typing import api
 import importlib
 import os
+from typing import Dict
+
+from autocomplete.code_understanding.typing import api
+from autocomplete.code_understanding.typing.language_objects import (LazyModule,
+                                                                     Module,
+                                                                     ModuleType)
+from autocomplete.code_understanding.typing.pobjects import PObject
+from autocomplete.nsn_logging import (debug, error, pop_context, push_context,
+                                      warning)
 
 __module_dict: dict = {}
+__path_module_dict: dict = {}
 
 
 def get_module(name: str) -> Module:
@@ -29,29 +35,34 @@ def get_module(name: str) -> Module:
       return _create_unknown_module(name)
     return module
   __module_dict[name] = None
-  module = _load_module(name)
+  module = load_module(name)
   assert module
   __module_dict[name] = module
+  __path_module_dict[module.filename] = module
   return module
 
 
-def _module_from_source(name, filepath, source) -> Module:
-  old_cwd = os.getcwd()
-  new_dir = os.path.dirname(filepath)
-  info(f'new_dir: {new_dir}')
-  os.chdir(new_dir)
-  frame_ = api.frame_from_source(source)
-  info(f'old_cwd: {old_cwd}')
-  os.chdir(old_cwd)
+def get_module_from_filename(name, filename) -> Module:
+  try:
+    return __path_module_dict[os.path.abspath(filename)]
+  except KeyError:
+    pass
+  module = load_module_from_filename(name, filename)
+  __path_module_dict[module.filename] = module
+  return module
 
-  # name = os.path.split(os.path.basename(path))[0]
-  # TODO: containing_package.
-  return Module(
-      module_type=ModuleType.LOCAL,  # TODO
-      name=name,
-      filepath=filepath,
-      members=frame_._locals,
-      containing_package=None)
+
+def _module_exports_from_source(source, filename) -> Dict[str, PObject]:
+  old_cwd = os.getcwd()
+  new_dir = os.path.dirname(filename)
+  debug(f'new_dir: {new_dir}')
+  os.chdir(new_dir)
+  push_context(os.path.basename(filename))
+  frame_ = api.frame_from_source(source)
+  pop_context()
+  debug(f'old_cwd: {old_cwd}')
+  os.chdir(old_cwd)
+  return dict(filter(lambda kv: '_' != kv[0][0], frame_._locals.items()))
 
 
 def _create_unknown_module(name):
@@ -62,6 +73,7 @@ def _create_unknown_module(name):
         module_type=ModuleType.UNKNOWN,
         name=part,
         members={},
+        filename=name,  # TODO
         containing_package=containing_package)
   return containing_package
 
@@ -75,7 +87,8 @@ def _get_module_stub_source_filename(name) -> str:
   import typeshed
   typeshed_dir = os.path.dirname(typeshed.__file__)
   # basename = name.split('.')[0]
-  assert name != '.' and name[0] != '.'
+  if name != '.' or name[0] != '.':
+    raise ValueError()
   module_path_base = name.replace('.', os.sep)
   for top_level in ('stdlib', 'third_party'):
     # Sorting half to start with the lowest python level, half for consistency across runs.
@@ -94,20 +107,46 @@ def _get_module_stub_source_filename(name) -> str:
   raise ValueError(f'Did not find typeshed for {name}')
 
 
-# def _filenames_from_module_name(name) -> List[str]:
+def load_module_exports_from_filename(filename):
+  try:
+    with open(filename) as f:
+      source = ''.join(f.readlines())
+    return _module_exports_from_source(source, filename)
+  except UnicodeDecodeError as e:
+    warning(f'{filename}: {e}')
+    raise ValueError(e)
 
 
-def _module_from_filename(name, filename) -> Module:
-  with open(filename) as f:
-    source = ''.join(f.readlines())
-  return _module_from_source(name, filename, source)
+def load_module_from_filename(name, filename, lazy=True) -> Module:
+  if lazy:
+    return _create_lazy_module(name, filename)
+
+  exports = load_module_exports_from_filename(filename)
+  # name = os.path.splitext(os.path.basename(path))[0]
+  # TODO: containing_package.
+  return Module(
+      module_type=ModuleType.LOCAL,  # TODO
+      name=name,
+      filename=filename,
+      members=exports,
+      containing_package=None)
 
 
-def _load_module(name: str) -> Module:
-  info(f'Loading module: {name}')
+def _create_lazy_module(name, filename) -> LazyModule:
+  return LazyModule(
+      module_type=ModuleType.LOCAL,  # TODO
+      name=name,
+      members={},
+      filename=filename,
+      load_module_exports_from_filename=load_module_exports_from_filename,
+      containing_package=None)
+
+
+def load_module(name: str, lazy=True) -> Module:
+  debug(f'Loading module: {name}')
   try:
     stub_path = _get_module_stub_source_filename(name)
-    return _module_from_filename(name, stub_path)
+    return load_module_from_filename(name, stub_path, lazy)
   except ValueError:
     pass
   try:
@@ -121,12 +160,12 @@ def _load_module(name: str) -> Module:
         else:
           path = f'{path}.py'
 
-      _module_from_filename(name, path)
+      load_module_from_filename(name, path, lazy)
     spec = importlib.util.find_spec(name)
     if spec:
       if spec.has_location:
         path = spec.loader.get_filename()
-        return _module_from_filename(name, path)
+        return load_module_from_filename(name, path, lazy)
       else:  # System module
         # TODO.
         warning(f'System modules not implemented.')

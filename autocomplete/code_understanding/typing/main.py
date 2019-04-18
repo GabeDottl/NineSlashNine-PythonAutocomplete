@@ -1,6 +1,6 @@
 import parso
-
-from autocomplete.code_understanding.typing import control_flow_graph, module_loader
+from autocomplete.code_understanding.typing import (control_flow_graph,
+                                                    module_loader)
 
 if __name__ == '__main__':
   with open(

@@ -3,9 +3,12 @@ from wsgiref.validate import validator
 
 import attr
 
-from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, FuzzyObject, PObject, UnknownObject)
-from autocomplete.nsn_logging import info, warning
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
+                                                             FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             PObject,
+                                                             UnknownObject)
+from autocomplete.nsn_logging import debug, warning
 
 
 class Expression(ABC):
@@ -58,6 +61,10 @@ class TupleExpression(Expression):
     return AugmentedObject(
         tuple(e.evaluate(curr_frame) for e in self.expressions))
 
+  def __iter__(self):
+    for expression in self.expressions:
+      yield expression
+
 
 @attr.s
 class ListExpression(Expression):
@@ -66,6 +73,10 @@ class ListExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return AugmentedObject(
         list(e.evaluate(curr_frame) for e in self.expressions))
+
+  def __iter__(self):
+    for expression in self.expressions:
+      yield expression
 
 
 @attr.s
@@ -170,7 +181,7 @@ class FactorExpression(Expression):
           LiteralExpression(-1), '*', self.expression,
           self.parso_node).evaluate(curr_frame)
     if self.operator == '~':
-      info(f'Skipping inversion and just returning expression')
+      debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
 
 
@@ -227,7 +238,7 @@ class MathExpression(Expression):
     except TypeError:
       ...
     warning(f'MathExpression failed: {l}{self.operator}{r}')
-    return UnknownExpression(self.parso_node)
+    return UnknownObject(f'{self.parso_node.get_code()}')
 
 
 @attr.s
