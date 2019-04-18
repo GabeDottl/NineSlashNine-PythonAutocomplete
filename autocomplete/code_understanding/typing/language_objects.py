@@ -18,12 +18,13 @@ from enum import Enum
 import attr
 
 from autocomplete.code_understanding.typing import debug
-from autocomplete.code_understanding.typing.expressions import (
-    LiteralExpression, VariableExpression)
+from autocomplete.code_understanding.typing.expressions import LiteralExpression, VariableExpression
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject,
+                                                             FuzzyBoolean, UnknownObject)
 from autocomplete.nsn_logging import info
+
+# from autocomplete.nsn_logging import info
 
 
 @attr.s
@@ -81,6 +82,7 @@ class Module(Namespace):
   module_type: ModuleType = attr.ib()
   members = attr.ib()
   containing_package = attr.ib(None)
+  filepath = attr.ib(None)
 
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:

@@ -12,10 +12,6 @@ from absl import logging
 
 logging.set_verbosity('info')
 
-def info(message, *args, log=True, **kwargs):
-  if log:
-    logging.info(message, *args, **kwargs)
-
 
 def info(message, *args, log=True, **kwargs):
   if log:

@@ -4,7 +4,6 @@ from functools import wraps
 
 import attr
 
-from autocomplete.code_understanding.typing import module_loader
 from autocomplete.code_understanding.typing.expressions import (Expression,
                                                                 SubscriptExpression,
                                                                 VariableExpression)
@@ -47,10 +46,11 @@ class ImportCfgNode(CfgNode):
   module_path = attr.ib()
   parso_node = attr.ib()
   as_name = attr.ib(None)
+  module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
-    module = module_loader.get_module(self.module_path)
+    module = self.module_loader.get_module(self.module_path)
     # info(f'Importing {module.path()} as {name}')  # Logs *constantly*
     if self.collector:
       self.collector.add_module_import(module.path(), self.as_name)
@@ -63,10 +63,11 @@ class FromImportCfgNode(CfgNode):
   from_import_name = attr.ib()
   parso_node = attr.ib()
   as_name = attr.ib(None)
+  module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.from_import_name
-    module = module_loader.get_module(self.module_path)
+    module = self.module_loader.get_module(self.module_path)
     if self.collector:
       self.collector.add_from_import(module.path(), self.from_import_name,
                                      self.as_name)

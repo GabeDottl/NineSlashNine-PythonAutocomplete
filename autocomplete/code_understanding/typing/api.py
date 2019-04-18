@@ -2,7 +2,7 @@ import argparse
 
 import parso
 
-from autocomplete.code_understanding.typing import control_flow_graph, frame
+from autocomplete.code_understanding.typing import control_flow_graph, frame, module_loader
 from autocomplete.code_understanding.typing.collector import Collector
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     CfgNode)
@@ -11,7 +11,7 @@ from autocomplete.nsn_logging import info
 
 def graph_from_source(source):
   basic_node = parso.parse(source)
-  builder = control_flow_graph.ControlFlowGraphBuilder()
+  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader)
   return builder.create_cfg_node(basic_node)
 
 

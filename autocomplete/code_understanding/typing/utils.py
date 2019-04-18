@@ -6,15 +6,17 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode)
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, CallExpression, ComparisonExpression, Expression,
-    FactorExpression, ListExpression, LiteralExpression, MathExpression, IfElseExpression,
-    NotExpression, SubscriptExpression, TupleExpression, UnknownExpression,
-    Variable, VariableExpression)
+    FactorExpression, ListExpression, LiteralExpression, MathExpression,
+    IfElseExpression, NotExpression, SubscriptExpression, TupleExpression,
+    UnknownExpression, Variable, VariableExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Parameter, ParameterType)
 from autocomplete.nsn_logging import info, warning, error
 
 
-class ParsingError(Exception): ...
+class ParsingError(Exception):
+  ...
+
 
 def assert_unexpected_parso(assertion, *error):
   if not assertion:
@@ -35,12 +37,12 @@ def statement_node_from_expr_stmt(node):
     variables = [expression_from_node(child)]
   if len(node.children) == 2:  # a += b - augmented assignment.
     annasign = node.children[1]
-    assert annasign.type == 'annassign', node_info(node)
+    assert_unexpected_parso(annasign.type == 'annassign', node_info(node))
     operator = annasign.children[-2]
-    assert operator.type == 'operator', node_info(node)
+    assert_unexpected_parso(operator.type == 'operator', node_info(node))
     value_node = annasign.children[-1]
   else:
-    assert len(node.children) == 3, node_info(node)
+    assert_unexpected_parso(len(node.children) == 3, node_info(node))
     operator = node.children[1]
     value_node = node.children[-1]
   result_expression = expression_from_node(value_node)
@@ -62,18 +64,18 @@ def create_expression_node_tuples_from_if_stmt(
       # Few cases:
       # 1) {if/elif} {conditional} : {suite}
       # 2) else : {suite}
-      assert child.type == 'keyword', (node_info(node), node_info(child))
+      assert_unexpected_parso(child.type == 'keyword', (node_info(node), node_info(child)))
       conditional_or_op = next(
           iterator)  # Conditional expression or an operator.
       if conditional_or_op.type == 'operator':
-        assert child.value == 'else' and conditional_or_op.value == ':', (
-            conditional_or_op, child)
+        assert_unexpected_parso(child.value == 'else' and conditional_or_op.value == ':', (
+            conditional_or_op, child))
         expression = LiteralExpression(True)
       else:
         expression = expression_from_node(conditional_or_op)
-        assert expression, node_info(child)
+        assert_unexpected_parso(expression, node_info(child))
         n = next(iterator)  # Skip past the operator
-        assert n.type == 'operator', node_info(n)
+        assert_unexpected_parso(n.type == 'operator', node_info(n))
       content = next(iterator)
       cfg_node = cfg_builder.create_cfg_node(content)
 
@@ -94,33 +96,34 @@ def create_expression_node_tuples_from_if_stmt(
 #     #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
 #     child = node.children[0]
 #     if child.type == 'operator':
-#       assert len(node.children) == 3, node_info(node)
+#       assert_unexpected_parso(len(node.children) == 3, node_info(node))
 #       if child.value == '(' or child.value == '[':
 #         return reference_from_node(node.children[1])
 #       else:
-#         assert False, node_info(child)
+#         assert_unexpected_parso(False, node_info(child))
 #     else:
-#       assert len(node.children) == 1 and child.type == 'name', node_info(child)
+#       assert_unexpected_parso(len(node.children) == 1 and child.type == 'name', node_info(child))
 #       return reference_from_node(child)
 #   elif node.type == 'atom_expr':
 #     return reference_from_atom_expr(node)
 #   elif node.type == 'testlist_comp':
 #     return references_from_testlist_comp(node)
 #   else:
-#     assert False, node_info(node)
+#     assert_unexpected_parso(False, node_info(node))
+
 
 def _param_name_from_param_child(param_child):
   if param_child.type == 'name':
     return param_child.value
-  assert param_child.type == 'tfpdef'
+  assert_unexpected_parso(param_child.type == 'tfpdef')
   return param_child.children[0].value
 
 
 def parameters_from_parameters(node) -> List[Parameter]:
-  assert node.children[0].type == 'operator', node_info(node)  # paran
+  assert_unexpected_parso(node.children[0].type == 'operator', node_info(node))  # paran)
   out = []
   for param in node.children[1:-1]:  # Skip parens.
-    assert param.type == 'param', node_info(param)
+    assert_unexpected_parso(param.type == 'param', node_info(param))
     if len(param.children) == 1:  # name
       param_child = param.children[0]
       param_name = _param_name_from_param_child(param_child)
@@ -131,7 +134,7 @@ def parameters_from_parameters(node) -> List[Parameter]:
         param_name = _param_name_from_param_child(param_child)
         out.append(Parameter(param_name, ParameterType.SINGLE))
       else:
-        assert param.children[0].type == 'operator', node_info(param)
+        assert_unexpected_parso(param.children[0].type == 'operator', node_info(param))
         if param.children[0].value == '*':
           out.append(Parameter(param.children[1].value, ParameterType.ARGS))
         else:  # **
@@ -149,10 +152,10 @@ def parameters_from_parameters(node) -> List[Parameter]:
                 ParameterType.SINGLE,
                 default=expression_from_node(param.children[2])))
       else:
-        assert False
+        assert_unexpected_parso(False)
 
     else:  # if len(param.children) == 4:  # name, =, expr, ','
-      assert len(param.children) == 4, node_info(param)
+      assert_unexpected_parso(len(param.children) == 4, node_info(param))
       out.append(
           Parameter(param.children[0].value, ParameterType.SINGLE,
                     expression_from_node(param.children[-2])))
@@ -164,14 +167,14 @@ def expressions_from_testlist_comp(node) -> List[Variable]:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
-    assert False, ('Can\'t have comp_for references - only expressions.',
-                   node_info(node))
+    assert_unexpected_parso(False, ('Can\'t have comp_for references - only expressions.',
+                   node_info(node)))
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,
     out = []
     for child in node.children:
       if child.type == 'operator':
-        assert child.value == ','
+        assert_unexpected_parso(child.value == ',')
         continue
       out.append(expression_from_node(child))
     return out
@@ -186,17 +189,18 @@ def expression_from_testlist_comp(node) -> TupleExpression:
     # return ForComprehensionExpression(
     #     names=node.children[1], source=expression_from_node(node.children[-1]))
 
+  # expr(x) for x in b
   if len(node.children
-        ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
-    assert False, ('Don\'t support comp_for references - only expressions.',
-                   node_info(node))
+        ) == 2 and node.children[1].type == 'comp_for':
+    assert_unexpected_parso(False, ('Don\'t support comp_for references - only expressions.',
+                   node_info(node)))
 
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,
     out = []
     for child in node.children:
       if child.type == 'operator':
-        assert child.value == ','
+        assert_unexpected_parso(child.value == ',')
         continue
       out.append(expression_from_node(child))
     return TupleExpression(out)
@@ -206,7 +210,7 @@ def expression_from_testlist(node) -> TupleExpression:
   out = []
   for child in node.children:
     if child.type == 'operator':
-      assert child.value == ','
+      assert_unexpected_parso(child.value == ',')
       continue
     out.append(expression_from_node(child))
   return TupleExpression(out)
@@ -214,7 +218,7 @@ def expression_from_testlist(node) -> TupleExpression:
 
 # def reference_from_atom_expr(node):
 #   expression = expression_from_atom_expr(node)
-#   assert False, node_info(node)
+#   assert_unexpected_parso(False, node_info(node))
 
 
 def expression_from_atom_expr(node) -> Expression:
@@ -247,13 +251,14 @@ def expression_from_atom_expr(node) -> Expression:
       last_expression = SubscriptExpression(last_expression,
                                             subscript_expressions)
     else:
-      assert trailer.children[0].value == '.', trailer.get_code()
+      assert_unexpected_parso(trailer.children[0].value == '.', trailer.get_code())
       last_expression = AttributeExpression(last_expression,
                                             trailer.children[1].value)
   return last_expression
 
 
 def _unimplmented_expression(func):
+
   @wraps(func)
   def wrapper(node):
     try:
@@ -261,25 +266,30 @@ def _unimplmented_expression(func):
     except NotImplementedError:
       warning(f'Failing to handle node: {node_info(node)}')
       return UnknownExpression(node)
+
   return wrapper
+
 
 @_unimplmented_expression
 def expressions_from_subscriptlist(
-    node) -> Union[Expression, Tuple[Expression]]:
-  # subscriptlist: subscript (',' subscript)* [',']
-  # subscript: test | [test] ':' [test] [sliceop]
-  # sliceop: ':' [test]
-  if node.type != 'subscriptlist' and node.type != 'subscript':
-    return expression_from_node(node),  # Tuple
-  elif node.type == 'subscriptlist':
-    return tuple(
-        expressions_from_subscriptlist(node) for node in filter(
-            lambda x: x.type != 'operator' or x.value != ',', node.children))
-  else:  # subscript
-    # num op num [sliceop]
-    # info(f'Failing to handle node: {node_info(node)}')
-    # return UnknownExpression(node)
-    raise NotImplementedError()  # TODO
+    node) -> Tuple[Expression]:
+  try:
+    # subscriptlist: subscript (',' subscript)* [',']
+    # subscript: test | [test] ':' [test] [sliceop]
+    # sliceop: ':' [test]
+    if node.type != 'subscriptlist' and node.type != 'subscript':
+      return expression_from_node(node),  # Tuple
+    elif node.type == 'subscriptlist':
+      return tuple(
+          expressions_from_subscriptlist(node) for node in filter(
+              lambda x: x.type != 'operator' or x.value != ',', node.children))
+    else:  # subscript
+      # num op num [sliceop]
+      # info(f'Failing to handle node: {node_info(node)}')
+      # return UnknownExpression(node)
+      raise NotImplementedError()  # TODO
+  except:
+    return [UnknownExpression(node)]
 
 # @_unimplmented_expression
 def args_and_kwargs_from_arglist(node):
@@ -297,15 +307,13 @@ def args_and_kwargs_from_arglist(node):
       if first_child.type == 'name':
         second_child = node.children[1]
         if second_child.type == 'operator' and second_child.value == '=':  # kwarg
-          return [], {
-              first_child.value: expression_from_node(node.children[2])
-          }
+          return [], {first_child.value: expression_from_node(node.children[2])}
         else:  # comp_for
           assert_unexpected_parso(second_child.type == 'comp_for')
           raise NotImplementedError()
 
       else:  # *args or **kwargs
-        # assert len(node.children) == 2, node_info(node)
+        # assert_unexpected_parso(len(node.children) == 2, node_info(node))
         raise NotImplementedError()
 
     else:  # arglist
@@ -318,7 +326,7 @@ def args_and_kwargs_from_arglist(node):
             kwargs[child.children[0].value] = expression_from_node(
                 child.children[2])
           else:
-            assert len(child.children) == 2, node_info(child)
+            assert_unexpected_parso(len(child.children) == 2, node_info(child))
             raise NotImplementedError()  # *args or **kwargs
         elif child.type != 'operator':  # not ','
           args.append(expression_from_node(child))
@@ -326,7 +334,6 @@ def args_and_kwargs_from_arglist(node):
   except NotImplementedError as e:
     warning(f'Failed to handle: {node_info(node)}')
     return [UnknownExpression(node)], {}
-    
 
 
 def expression_from_node(node):
@@ -342,7 +349,7 @@ def expression_from_node(node):
     return VariableExpression(node.value)
   if node.type == 'factor':
     return FactorExpression(node.children[0].value,
-                            expression_from_node(node.children[1]))
+                            expression_from_node(node.children[1]), node)
   if node.type == 'arith_expr' or node.type == 'term':
     return expression_from_math_expr(node)
   if node.type == 'atom':
@@ -369,7 +376,8 @@ def expression_from_node(node):
   warning(f'Unhanded type!!!!: {node_info(node)}')
   return UnknownExpression(node)
   # raise NotImplementedError(node_info(node))
-    # assert False, node_info(node)
+  # assert_unexpected_parso(False, node_info(node))
+
 
 @_unimplmented_expression
 def expression_from_atom(node):
@@ -382,7 +390,7 @@ def expression_from_atom(node):
     if node.children[1].type == 'keyword' and node.children[1].value == 'yield':
       raise NotImplementedError('Not yet handling yield_expr')
     else:
-      assert len(node.children) == 3, node_info(node)
+      assert_unexpected_parso(len(node.children) == 3, node_info(node))
       return expression_from_node(node.children[1])
   elif node.children[0].value == '[':
     if len(node.children) == 3:
@@ -405,38 +413,40 @@ def expression_from_comparison(node):
   # sake of a __future__ import described in PEP 401 (which really works :-)
   # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
   # TODO: Implement.
-  operator = node.children[1].get_code().strip()  # Handles operators & comp_op ('is' 'not')
-  assert len(node.children) == 3, node_info(node)
+  operator = node.children[1].get_code().strip(
+  )  # Handles operators & comp_op ('is' 'not')
+  assert_unexpected_parso(len(node.children) == 3, node_info(node))
   left = expression_from_node(node.children[0])
   right = expression_from_node(node.children[2])
-  return ComparisonExpression(
-      left=left, operator=operator, right=right)
+  return ComparisonExpression(left=left, operator=operator, right=right)
 
 
 def expression_from_test(node):
   # a if b else c
-  assert len(node.children) == 5, node_info(node)
+  assert_unexpected_parso(len(node.children) == 5, node_info(node))
   true_result = expression_from_node(node.children[0])
   conditional_expression = expression_from_node(node.children[2])
   false_result = expression_from_node(node.children[-1])
   return IfElseExpression(true_result, conditional_expression, false_result)
 
+
 @_unimplmented_expression
 def expression_from_math_expr(node):
-# expr: xor_expr ('|' xor_expr)*
-# xor_expr: and_expr ('^' and_expr)*
-# and_expr: shift_expr ('&' shift_expr)*
-# shift_expr: arith_expr (('<<'|'>>') arith_expr)*
-# arith_expr: term (('+'|'-') term)*
-# term: factor (('*'|'@'|'/'|'%'|'//') factor)*
-# factor: ('+'|'-'|'~') factor | power
-# power: atom_expr ['**' factor]
+  # expr: xor_expr ('|' xor_expr)*
+  # xor_expr: and_expr ('^' and_expr)*
+  # and_expr: shift_expr ('&' shift_expr)*
+  # shift_expr: arith_expr (('<<'|'>>') arith_expr)*
+  # arith_expr: term (('+'|'-') term)*
+  # term: factor (('*'|'@'|'/'|'%'|'//') factor)*
+  # factor: ('+'|'-'|'~') factor | power
+  # power: atom_expr ['**' factor]
   if len(node.children) != 3:
     # TODO: https://docs.python.org/3/reference/expressions.html#operator-precedence
     raise NotImplementedError()
   left = expression_from_node(node.children[0])
   right = expression_from_node(node.children[2])
-  return MathExpression(left=left, operator=node.children[1].value, right=right, parso_node=node)
+  return MathExpression(
+      left=left, operator=node.children[1].value, right=right, parso_node=node)
 
 
 def children_contains_operator(node, operator_str):
@@ -495,7 +505,7 @@ def keyword_eval(keyword_str):
     return None
   elif keyword_str == 'Ellipsis' or keyword_str == '...':
     return Ellipsis
-  assert False, keyword_str
+  assert_unexpected_parso(False, keyword_str)
 
 
 def print_tree(node, indent='', file=sys.stdout):

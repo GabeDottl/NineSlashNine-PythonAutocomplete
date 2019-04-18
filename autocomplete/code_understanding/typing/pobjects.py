@@ -228,7 +228,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     elif hasattr(self._object, '__getitem__'):
       try:
         return AugmentedObject(self._object.__getitem__(indicies))
-      except KeyError:
+      except (KeyError, IndexError):
         return UnknownObject(f'{self._object}[{indicies}]')
 
   def get_item(self, args):
@@ -237,7 +237,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     return self._get_item_processed(_process_indicies(args))
 
   def set_item(self, index, value): 
-    raise NotImplementedError(f'Skipping setting {self._object}[{index}] = {value}')
+    warning(f'Skipping setting {self._object}[{index}] = {value}')
 
   def __str__(self):
     return f'AV({self._object}):[{self._dynamic_container}]'
@@ -265,6 +265,10 @@ class FuzzyObject(PObject):
   _values: List = attr.ib()  # Tuple of possible values
   _source_node = attr.ib(None)  # type is CfgNode - circular dep breaks lint.
 
+  @_values.validator
+  def _values_valid(self, attribute, values):
+    return all(isinstance(value, PObject) for value in values)
+
   def __attrs_post_init(self):
     new_values = []
     for val in self._values:
@@ -275,6 +279,10 @@ class FuzzyObject(PObject):
       else:
         new_values.append(val)
     self._values = new_values
+    self.validate()
+
+  def validate(self):
+    assert all(isinstance(value, PObject) for value in self._values)
 
   def __str__(self):
     return f'FV({self._values}{self._source_node})'
@@ -329,14 +337,14 @@ class FuzzyObject(PObject):
     # return FuzzyObject([], dynamic_creation=True)
 
   def set_attribute(self, name: str, value):
-    if not isinstance(value, (FuzzyObject, AugmentedObject, UnknownObject)):
+    if not isinstance(value, PObject):
       value = AugmentedObject(value)
     for val in self._values:
       val.set_attribute(name, value)
 
   def apply_to_values(self, func):
     for value in self._values:
-      func(value)
+      value.apply_to_values(func)
 
   def value_equals(self, other) -> FuzzyBoolean:
     truths = [value.value_equals(other) for value in self._values]
@@ -371,8 +379,9 @@ class FuzzyObject(PObject):
   def call(self, args, kwargs, curr_frame):
     out = []
     for value in self._values:
-      # Try both - may contain a PObject, LangObject, or [list, tuple, dict].
-      out.append(value.call(args, kwargs, curr_frame))
+      result = value.call(args, kwargs, curr_frame)
+      assert isinstance(result, PObject)
+      out.append(result)
     if len(out) > 1:
       return FuzzyObject(out)
     elif out:  # len(out) == 1
@@ -383,8 +392,10 @@ class FuzzyObject(PObject):
     out = []
     for value in self._values:
       try:
-        out.append(value._get_item_processed(
-            indicies))  # TODO: Add API get_item_processed_args
+        result = value._get_item_processed(
+            indicies)
+        assert isinstance(result, PObject)
+        out.append(result)  # TODO: Add API get_item_processed_args
       except IndexError as e:
         warning(e)
         out.append(UnknownObject(f'{value}[{indicies}]'))
@@ -403,14 +414,18 @@ class FuzzyObject(PObject):
 
   def _operator(self, other, operator):
     try:
-      return FuzzyObject([getattr(self.value(), operator)(other.value())])
+      values = [getattr(self.value(), operator)(other.value())]
+      assert all(isinstance(value, PObject) for value in values)
+      return FuzzyObject(values)
     except ValueError:
       types = self._types.union(other._types)
       values = []
       for v1 in self._values:
         try:
           for v2 in other._values:
-            values.append(getattr(v1, operator)(v2))
+            result = getattr(v1, operator)(v2)
+            assert isinstance(result, PObject)
+            values.append(result)
         except TypeError:
           continue
       # for v in chain(self._values, other._values):

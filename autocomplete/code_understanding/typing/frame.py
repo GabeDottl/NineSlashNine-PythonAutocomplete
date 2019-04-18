@@ -79,6 +79,8 @@ class Frame:
     if not isinstance(value, PObject):
       value = AugmentedObject(value)  # Wrap everything in FuzzyObjects.
     # TODO: Handle nonlocal & global keyword states and cells.
+    if isinstance(value, FuzzyObject):
+      value.validate()
 
     if isinstance(variable, VariableExpression):
       self._locals[variable.name] = value

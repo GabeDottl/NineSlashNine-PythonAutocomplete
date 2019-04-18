@@ -2,12 +2,9 @@ from abc import ABC, abstractmethod
 from wsgiref.validate import validator
 
 import attr
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
-                                                             FuzzyObject,
-                                                             FuzzyBoolean,
-                                                             PObject,
-                                                             UnknownObject)
-from autocomplete.nsn_logging import info
+from autocomplete.code_understanding.typing.pobjects import (
+    AugmentedObject, FuzzyObject, FuzzyBoolean, PObject, UnknownObject)
+from autocomplete.nsn_logging import info, warning
 
 
 class Expression(ABC):
@@ -23,6 +20,7 @@ class LiteralExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     return AugmentedObject(self.literal)
+
 
 @attr.s
 class UnknownExpression(Expression):
@@ -56,8 +54,8 @@ class TupleExpression(Expression):
   expressions = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    return FuzzyObject(
-        [tuple(e.evaluate(curr_frame) for e in self.expressions)])
+    return AugmentedObject(
+        tuple(e.evaluate(curr_frame) for e in self.expressions))
 
 
 @attr.s
@@ -65,14 +63,14 @@ class ListExpression(Expression):
   expressions = attr.ib(validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
-    return FuzzyObject([
-        AugmentedObject(list(e.evaluate(curr_frame) for e in self.expressions))
-    ])
+    return AugmentedObject(
+        list(e.evaluate(curr_frame) for e in self.expressions))
 
 
 @attr.s
 class CallExpression(Expression):
-  function_expression = attr.ib(validator=[attr.validators.instance_of(Expression)])
+  function_expression = attr.ib(
+      validator=[attr.validators.instance_of(Expression)])
   args = attr.ib(factory=list)
   kwargs = attr.ib(factory=dict)
 
@@ -98,15 +96,17 @@ class SubscriptExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     return self.get(curr_frame)
+
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
     return pobject.get_item(
         tuple(e.evaluate(curr_frame) for e in self.subscript_list))
 
   def set(self, curr_frame, value):
-      pobject = self.base_expression.evaluate(curr_frame)
-      return pobject.set_item(
-          tuple(e.evaluate(curr_frame) for e in self.subscript_list), value)
+    pobject = self.base_expression.evaluate(curr_frame)
+    return pobject.set_item(
+        tuple(e.evaluate(curr_frame) for e in self.subscript_list), value)
+
 
 @attr.s
 class VariableExpression(Expression):
@@ -134,6 +134,7 @@ class IfElseExpression(Expression):
       ])
     return self.true_result.evaluate(curr_frame)
 
+
 @attr.s
 class ForExpression(Expression):
   generator_expression = attr.ib()
@@ -148,13 +149,15 @@ class ForExpression(Expression):
 class FactorExpression(Expression):
   operator = attr.ib()
   expression = attr.ib()
+  parso_node = attr.ib()
 
   def evaluate(self, curr_frame):
     if self.operator == '+':
       return self.expression.evaluate(curr_frame)
     if self.operator == '-':
-      return MathExpression(LiteralExpression(-1), '*',
-                            self.expression).evaluate(curr_frame)
+      return MathExpression(
+          LiteralExpression(-1), '*', self.expression,
+          self.parso_node).evaluate(curr_frame)
     if self.operator == '~':
       info(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
@@ -210,7 +213,8 @@ class MathExpression(Expression):
 
       if self.operator == '*':
         return l * r
-    except TypeError: ...
+    except TypeError:
+      ...
     warning(f'MathExpression failed: {l}{self.operator}{r}')
     return UnknownExpression(self.parso_node)
 
