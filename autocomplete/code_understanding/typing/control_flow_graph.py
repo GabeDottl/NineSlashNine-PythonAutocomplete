@@ -26,7 +26,8 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     ExpressionCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
     ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode)
 from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing.utils import (ParsingError, assert_unexpected_parso,
+from autocomplete.code_understanding.typing.utils import (
+    ParsingError, assert_unexpected_parso,
     create_expression_node_tuples_from_if_stmt, expression_from_node, node_info,
     parameters_from_parameters, statement_node_from_expr_stmt)
 from autocomplete.nsn_logging import info, warning, error
@@ -54,8 +55,9 @@ def condense_graph(graph):
 
 
 # def handle_error(e, node):
-  # traceback.print_tb(e.tb)
-  # raise e
+# traceback.print_tb(e.tb)
+# raise e
+
 
 @attr.s
 class ControlFlowGraphBuilder:
@@ -68,10 +70,12 @@ class ControlFlowGraphBuilder:
       if hasattr(self, f'create_cfg_node_for_{node.type}'):
         return getattr(self, f'create_cfg_node_for_{node.type}')(node)
       warning(f'Unhandled type: {node.type}')
-    except (AttributeError, ValueError, NotImplementedError, ParsingError) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
+    except (
+        AttributeError, ValueError, NotImplementedError, ParsingError
+    ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
       # handle_error(e, node)
       error(f'Caught while creating: {node.get_code()}')
-    # except Exception as e:  # 
+    # except Exception as e:  #
     #   handle_error(e, node)
     # except:
     #   pass
@@ -211,10 +215,15 @@ class ControlFlowGraphBuilder:
     # dotted_name: NAME ('.' NAME)*
     child = node.children[1]  # 0 is 'import'
     if child.type == 'name':
-      return ImportCfgNode(child.value, parso_node=node, module_loader=self.module_loader)
+      return ImportCfgNode(
+          child.value, parso_node=node, module_loader=self.module_loader)
     if child.type == 'dotted_as_name':
       path, as_name = self.path_and_name_from_dotted_as_name(child)
-      return ImportCfgNode(path, as_name=as_name, parso_node=node, module_loader=self.module_loader)
+      return ImportCfgNode(
+          path,
+          as_name=as_name,
+          parso_node=node,
+          module_loader=self.module_loader)
 
     assert_unexpected_parso(child.type == 'dotted_as_names', node_info(child))
     # Some combination of things.
@@ -224,7 +233,11 @@ class ControlFlowGraphBuilder:
     for child in dotted_as_names.children:
       if child.type == 'name':
         import_nodes.append(
-            ImportCfgNode(child.value, as_name=None, parso_node=node, module_loader=self.module_loader))
+            ImportCfgNode(
+                child.value,
+                as_name=None,
+                parso_node=node,
+                module_loader=self.module_loader))
       elif child.type == 'operator':
         assert_unexpected_parso(child.value == ',', node_info(child))
       else:
@@ -232,7 +245,11 @@ class ControlFlowGraphBuilder:
                                 node_info(child))
         path, as_name = self.path_and_name_from_dotted_as_name(child)
         import_nodes.append(
-            ImportCfgNode(path, as_name=as_name, parso_node=node, module_loader=self.module_loader))
+            ImportCfgNode(
+                path,
+                as_name=as_name,
+                parso_node=node,
+                module_loader=self.module_loader))
     return out
 
   def path_and_name_from_dotted_as_name(self, node):
@@ -290,11 +307,16 @@ class ControlFlowGraphBuilder:
           path,
           from_import_name='*',
           as_name=next_node.children[-1].value,
-          parso_node=node, module_loader=self.module_loader)
+          parso_node=node,
+          module_loader=self.module_loader)
 
     # Example: from a.b import c
     if next_node.type == 'name':
-      return FromImportCfgNode(path, next_node.value, parso_node=node, module_loader=self.module_loader)
+      return FromImportCfgNode(
+          path,
+          next_node.value,
+          parso_node=node,
+          module_loader=self.module_loader)
 
     # Example: from x.y.z import r as s
     if next_node.type == 'import_as_name':
@@ -304,7 +326,8 @@ class ControlFlowGraphBuilder:
           path,
           from_import_name=next_node.children[0].value,
           as_name=next_node.children[-1].value,
-          parso_node=node, module_loader=self.module_loader)
+          parso_node=node,
+          module_loader=self.module_loader)
 
     # Example: from a import b, c as d
     assert_unexpected_parso(next_node.type == 'import_as_names',
@@ -315,7 +338,10 @@ class ControlFlowGraphBuilder:
       if child.type == 'name':
         from_import_nodes.append(
             FromImportCfgNode(
-                path, from_import_name=child.value, parso_node=node, module_loader=self.module_loader))
+                path,
+                from_import_name=child.value,
+                parso_node=node,
+                module_loader=self.module_loader))
       elif child.type == 'operator':
         assert_unexpected_parso(child.value == ',', node_info(node))
       else:
@@ -431,6 +457,7 @@ class ControlFlowGraphBuilder:
   # def process_encoding_decl(self, node): info(f'Skipping {node.type}')
   # def process_yield_expr(self, node): info(f'Skipping {node.type}')
   # def process_yield_arg(self, node): info(f'Skipping {node.type}')
+
 
 # if __name__ == '__main__':
 #   basic_node = parso.parse('a=1')

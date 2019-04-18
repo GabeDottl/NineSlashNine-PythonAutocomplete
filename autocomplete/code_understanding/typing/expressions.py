@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from wsgiref.validate import validator
 
 import attr
+
 from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyObject, FuzzyBoolean, PObject, UnknownObject)
+    AugmentedObject, FuzzyBoolean, FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -94,18 +95,28 @@ class SubscriptExpression(Expression):
   base_expression = attr.ib()
   subscript_list = attr.ib()
 
+  @subscript_list.validator
+  def _validate_subscript_list(self, attribute, values):
+    for value in values:
+      if not isinstance(value, Expression):
+        raise ValueError(value)
+
   def evaluate(self, curr_frame) -> PObject:
     return self.get(curr_frame)
 
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.get_item(
-        tuple(e.evaluate(curr_frame) for e in self.subscript_list))
+    values = []
+    for e in self.subscript_list:
+      values.append(e.evaluate(curr_frame))
+    return pobject.get_item(tuple(values))
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.set_item(
-        tuple(e.evaluate(curr_frame) for e in self.subscript_list), value)
+    values = []
+    for e in self.subscript_list:
+      values.append(e.evaluate(curr_frame))
+    return pobject.set_item(tuple(values), value)
 
 
 @attr.s

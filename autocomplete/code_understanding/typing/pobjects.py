@@ -89,13 +89,15 @@ class PObject(ABC):
   @abstractmethod
   def get_item(self, args):
     ...
-  
+
   @abstractmethod
   def set_item(self, index, value):
     ...
 
   def __bool__(self):
-    raise ValueError('Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.')
+    raise ValueError(
+        'Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.'
+    )
 
 
 @attr.s(str=False, repr=False)
@@ -162,7 +164,8 @@ class UnknownObject(PObject):
     # TODO
     return UnknownObject('get_item?')
 
-  def set_item(self, index, value): ...
+  def set_item(self, index, value):
+    ...
 
   def __str__(self):
     return f'UO[{self._dynamic_container}]'
@@ -236,7 +239,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
       return self._object.get_item(args)
     return self._get_item_processed(_process_indicies(args))
 
-  def set_item(self, index, value): 
+  def set_item(self, index, value):
     warning(f'Skipping setting {self._object}[{index}] = {value}')
 
   def __str__(self):
@@ -267,7 +270,7 @@ class FuzzyObject(PObject):
 
   @_values.validator
   def _values_valid(self, attribute, values):
-    return all(isinstance(value, PObject) for value in values)
+    assert all(isinstance(value, PObject) for value in values)
 
   def __attrs_post_init(self):
     new_values = []
@@ -392,8 +395,7 @@ class FuzzyObject(PObject):
     out = []
     for value in self._values:
       try:
-        result = value._get_item_processed(
-            indicies)
+        result = value._get_item_processed(indicies)
         assert isinstance(result, PObject)
         out.append(result)  # TODO: Add API get_item_processed_args
       except IndexError as e:

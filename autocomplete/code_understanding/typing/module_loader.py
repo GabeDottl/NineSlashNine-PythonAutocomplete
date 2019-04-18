@@ -53,6 +53,7 @@ def _module_from_source(name, filepath, source) -> Module:
       members=frame_._locals,
       containing_package=None)
 
+
 def _create_unknown_module(name):
   parts = name.split('.')
   containing_package = None
@@ -65,8 +66,50 @@ def _create_unknown_module(name):
   return containing_package
 
 
+def _get_module_stub_source_filename(name) -> str:
+  '''Retrieves the stub version of a module, if it exists.
+  
+  This currently only relies on typeshed, but in the future should also pull from some local repo.'''
+  # TODO: local install + TYPESHED_HOME env variable like pytype:
+  # https://github.com/google/pytype/blob/309a87fab8a861241823592157208e65c970f7b6/pytype/pytd/typeshed.py#L24
+  import typeshed
+  typeshed_dir = os.path.dirname(typeshed.__file__)
+  # basename = name.split('.')[0]
+  assert name != '.' and name[0] != '.'
+  module_path_base = name.replace('.', os.sep)
+  for top_level in ('stdlib', 'third_party'):
+    # Sorting half to start with the lowest python level, half for consistency across runs.
+    # Skip the version-2-only python files.
+    for version in filter(
+        lambda x: x != '2',
+        sorted(os.listdir(os.path.join(typeshed_dir, top_level)))):
+      for module_path in (os.path.join(module_path_base, "__init__.pyi"),
+                          f'{module_path_base}.pyi'):
+        abs_module_path = os.path.join(typeshed_dir, top_level, version,
+                                       module_path)
+        # info(abs_module_path)
+        if os.path.exists(abs_module_path):
+          # info(f'Found typeshed path for {name}: {abs_module_path}')
+          return abs_module_path
+  raise ValueError(f'Did not find typeshed for {name}')
+
+
+# def _filenames_from_module_name(name) -> List[str]:
+
+
+def _module_from_filename(name, filename) -> Module:
+  with open(filename) as f:
+    source = ''.join(f.readlines())
+  return _module_from_source(name, filename, source)
+
+
 def _load_module(name: str) -> Module:
   info(f'Loading module: {name}')
+  try:
+    stub_path = _get_module_stub_source_filename(name)
+    return _module_from_filename(name, stub_path)
+  except ValueError:
+    pass
   try:
     if name[0] == '.':
       if name == '.':
@@ -77,17 +120,13 @@ def _load_module(name: str) -> Module:
           path = os.path.join(path, '__init__.py')
         else:
           path = f'{path}.py'
-      
-      with open(path) as f:
-        source = ''.join(f.readlines())
-      return _module_from_source(name, path, source)
+
+      _module_from_filename(name, path)
     spec = importlib.util.find_spec(name)
     if spec:
       if spec.has_location:
         path = spec.loader.get_filename()
-        with open(path) as f:
-          source = ''.join(f.readlines())
-        return _module_from_source(name, path, source)
+        return _module_from_filename(name, path)
       else:  # System module
         # TODO.
         warning(f'System modules not implemented.')

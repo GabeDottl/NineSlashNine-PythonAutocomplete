@@ -6,14 +6,10 @@ from typing import Dict, List
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
-                                                                Variable,SubscriptExpression,
-                                                                VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             AugmentedObject,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.expressions import (
+    AttributeExpression, Variable, SubscriptExpression, VariableExpression)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -45,7 +41,6 @@ class Frame:
   # GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
   # PYTHON3_BUILTINS = ['PermissionError']
   # ALL_BUILTINS = set(dir(__builtin__)) | set(GLOBALS) | set(PYTHON3_BUILTINS)
-
 
   # Symbol tables.
   # _globals: Dict = attr.ib(factory=dict)  # Instead of 'globals' we use _root.locals. Falls apart with imports?
@@ -98,7 +93,7 @@ class Frame:
                   variable: Variable,
                   raise_error_if_missing=False,
                   nested=False) -> PObject:
-    
+
     if isinstance(variable, SubscriptExpression):
       return variable.get()
     if isinstance(variable, AttributeExpression):
@@ -134,7 +129,8 @@ class Frame:
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.
-    warning(f'{name} doesn\'t exist in current context! Returning UnknownObject.')
+    warning(
+        f'{name} doesn\'t exist in current context! Returning UnknownObject.')
     if raise_error_if_missing:
       raise ValueError(f'{variable} doesn\'t exist in current context!')
     else:

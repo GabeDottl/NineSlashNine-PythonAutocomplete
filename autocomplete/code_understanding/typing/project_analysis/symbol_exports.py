@@ -11,6 +11,7 @@ def extract_exports(source):
   exports = dict(filter(lambda k, v: '_' == k[0], frame_._locals))
   return exports
 
+
 if __name__ == "__main__":
   parser = ArgumentParser()
   parser.add_argument('target')

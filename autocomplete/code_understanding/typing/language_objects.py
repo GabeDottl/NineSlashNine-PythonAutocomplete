@@ -20,8 +20,8 @@ import attr
 from autocomplete.code_understanding.typing import debug
 from autocomplete.code_understanding.typing.expressions import LiteralExpression, VariableExpression
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject,
-                                                             FuzzyBoolean, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, UnknownObject)
 from autocomplete.nsn_logging import info
 
 # from autocomplete.nsn_logging import info
@@ -109,13 +109,13 @@ class Module(Namespace):
 class Klass(Namespace):
 
   def __str__(self):
-    return f'class {self.name}: {list(self.keys())}'
+    return f'class {self.name}: {list(self._d.keys())}'
 
   def __repr__(self):
     return str(self)
 
   def call(self, args, kwargs, curr_frame):
-    return AugmentedObject(self.new(args, kwargs,curr_frame))
+    return AugmentedObject(self.new(args, kwargs, curr_frame))
 
   def new(self, args, kwargs, curr_frame):
     # TODO: Handle params.

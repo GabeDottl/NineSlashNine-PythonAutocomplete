@@ -4,18 +4,13 @@ from functools import wraps
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (Expression,
-                                                                SubscriptExpression,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (
+    Expression, SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     FunctionType,
-                                                                     Klass,
-                                                                     Module,
-                                                                     Parameter)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, FunctionType, Klass, Module, Parameter)
+from autocomplete.code_understanding.typing.pobjects import (
+    FuzzyBoolean, FuzzyObject, UnknownObject)
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
@@ -73,7 +68,9 @@ class FromImportCfgNode(CfgNode):
                                      self.as_name)
     # info(f'{name} from {module.path}')  # Logs *constantly*
     if self.from_import_name == '*':
-      raise NotImplementedError(f'Failing to handle: from {self.module_path} import * | importing nothing.')
+      raise NotImplementedError(
+          f'Failing to handle: from {self.module_path} import * | importing nothing.'
+      )
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
     except AttributeError:
@@ -112,7 +109,7 @@ class AssignmentStmtCfgNode(CfgNode):
             variable,
             self.value_node.get_code().strip())
       if isinstance(variable, SubscriptExpression):
-          variable.set(curr_frame,result)
+        variable.set(curr_frame, result)
       else:
         curr_frame[variable] = result
     else:
@@ -121,7 +118,7 @@ class AssignmentStmtCfgNode(CfgNode):
           self.collector.add_variable_assignment(
               variable, f'({self.value_node.get_code().strip()})[{i}]')
         if isinstance(variable, SubscriptExpression):
-          variable.set(curr_frame,result._get_item_processed(i))
+          variable.set(curr_frame, result._get_item_processed(i))
         else:
           # TODO: Handle this properly...
           curr_frame[variable] = result._get_item_processed(i)

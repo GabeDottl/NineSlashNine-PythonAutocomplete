@@ -1,6 +1,7 @@
 import sys
 from typing import List, Tuple, Union
 from functools import wraps
+import itertools
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode)
@@ -64,12 +65,14 @@ def create_expression_node_tuples_from_if_stmt(
       # Few cases:
       # 1) {if/elif} {conditional} : {suite}
       # 2) else : {suite}
-      assert_unexpected_parso(child.type == 'keyword', (node_info(node), node_info(child)))
+      assert_unexpected_parso(child.type == 'keyword',
+                              (node_info(node), node_info(child)))
       conditional_or_op = next(
           iterator)  # Conditional expression or an operator.
       if conditional_or_op.type == 'operator':
-        assert_unexpected_parso(child.value == 'else' and conditional_or_op.value == ':', (
-            conditional_or_op, child))
+        assert_unexpected_parso(
+            child.value == 'else' and conditional_or_op.value == ':',
+            (conditional_or_op, child))
         expression = LiteralExpression(True)
       else:
         expression = expression_from_node(conditional_or_op)
@@ -120,7 +123,8 @@ def _param_name_from_param_child(param_child):
 
 
 def parameters_from_parameters(node) -> List[Parameter]:
-  assert_unexpected_parso(node.children[0].type == 'operator', node_info(node))  # paran)
+  assert_unexpected_parso(node.children[0].type == 'operator',
+                          node_info(node))  # paran)
   out = []
   for param in node.children[1:-1]:  # Skip parens.
     assert_unexpected_parso(param.type == 'param', node_info(param))
@@ -134,7 +138,8 @@ def parameters_from_parameters(node) -> List[Parameter]:
         param_name = _param_name_from_param_child(param_child)
         out.append(Parameter(param_name, ParameterType.SINGLE))
       else:
-        assert_unexpected_parso(param.children[0].type == 'operator', node_info(param))
+        assert_unexpected_parso(param.children[0].type == 'operator',
+                                node_info(param))
         if param.children[0].value == '*':
           out.append(Parameter(param.children[1].value, ParameterType.ARGS))
         else:  # **
@@ -167,8 +172,9 @@ def expressions_from_testlist_comp(node) -> List[Variable]:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
-    assert_unexpected_parso(False, ('Can\'t have comp_for references - only expressions.',
-                   node_info(node)))
+    assert_unexpected_parso(
+        False, ('Can\'t have comp_for references - only expressions.',
+                node_info(node)))
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,
     out = []
@@ -190,10 +196,10 @@ def expression_from_testlist_comp(node) -> TupleExpression:
     #     names=node.children[1], source=expression_from_node(node.children[-1]))
 
   # expr(x) for x in b
-  if len(node.children
-        ) == 2 and node.children[1].type == 'comp_for':
-    assert_unexpected_parso(False, ('Don\'t support comp_for references - only expressions.',
-                   node_info(node)))
+  if len(node.children) == 2 and node.children[1].type == 'comp_for':
+    assert_unexpected_parso(
+        False, ('Don\'t support comp_for references - only expressions.',
+                node_info(node)))
 
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,
@@ -251,7 +257,8 @@ def expression_from_atom_expr(node) -> Expression:
       last_expression = SubscriptExpression(last_expression,
                                             subscript_expressions)
     else:
-      assert_unexpected_parso(trailer.children[0].value == '.', trailer.get_code())
+      assert_unexpected_parso(trailer.children[0].value == '.',
+                              trailer.get_code())
       last_expression = AttributeExpression(last_expression,
                                             trailer.children[1].value)
   return last_expression
@@ -271,25 +278,31 @@ def _unimplmented_expression(func):
 
 
 @_unimplmented_expression
-def expressions_from_subscriptlist(
-    node) -> Tuple[Expression]:
+def expressions_from_subscriptlist(node) -> Tuple[Expression]:
   try:
     # subscriptlist: subscript (',' subscript)* [',']
     # subscript: test | [test] ':' [test] [sliceop]
     # sliceop: ':' [test]
     if node.type != 'subscriptlist' and node.type != 'subscript':
-      return expression_from_node(node),  # Tuple
+      expression = expression_from_node(node)
+      assert isinstance(expression, Expression)
+      return (expression,)
     elif node.type == 'subscriptlist':
-      return tuple(
-          expressions_from_subscriptlist(node) for node in filter(
-              lambda x: x.type != 'operator' or x.value != ',', node.children))
+      values = tuple(
+          itertools.chain(
+              expressions_from_subscriptlist(node) for node in filter(
+                  lambda x: x.type != 'operator' or x.value != ',', node
+                  .children)))
+      assert all(isinstance(value, Expression) for value in values)
+      return values
     else:  # subscript
       # num op num [sliceop]
       # info(f'Failing to handle node: {node_info(node)}')
       # return UnknownExpression(node)
       raise NotImplementedError()  # TODO
   except:
-    return [UnknownExpression(node)]
+    return (UnknownExpression(node),)
+
 
 # @_unimplmented_expression
 def args_and_kwargs_from_arglist(node):
