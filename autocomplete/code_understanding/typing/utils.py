@@ -4,20 +4,27 @@ from functools import wraps
 from typing import List, Tuple, Union
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    AssignmentStmtCfgNode, CfgNode)
+    AssignmentStmtCfgNode, CfgNode, GroupCfgNode)
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, CallExpression, ComparisonExpression, Expression,
     FactorExpression, IfElseExpression, ListExpression, LiteralExpression,
-    MathExpression, NotExpression, SubscriptExpression, TupleExpression,
-    UnknownExpression, Variable, VariableExpression)
+    MathExpression, NotExpression, StarExpression, SubscriptExpression,
+    TupleExpression, UnknownExpression, Variable, VariableExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Parameter, ParameterType)
-from autocomplete.nsn_logging import error, info, warning
+from autocomplete.nsn_logging import debug, error, info, warning
 
 
 def statement_node_from_expr_stmt(node):
+  # expr_stmt: testlist_star_expr (annassign | augassign (yield_expr|testlist) |
+  #                   ('=' (yield_expr|testlist_star_expr))*)
+  # annassign: ':' test ['=' test]
+  # testlist_star_expr: (test|cf) (',' (test|star_expr))* [',']
+  # augassign: ('+=' | '-=' | '*=' | '@=' | '/=' | '%=' | '&=' | '|=' | '^=' |
+  #           '<<=' | '>>=' | '**=' | '//=')
+
   # Essentially, these are assignment expressions and can take a few forms:
   # a = b, a: List[type] = [...]
   # a,b = 1,2 or a,b = foo()
@@ -27,26 +34,51 @@ def statement_node_from_expr_stmt(node):
 
   if child.type == 'testlist_star_expr':
     variables = expressions_from_testlist_comp(child)
-  else:
+  else:  # Illegal per the grammar, but this includes things like 'name'.
     variables = [expression_from_node(child)]
+
   if len(node.children) == 2:  # a += b - augmented assignment.
     annasign = node.children[1]
     assert_unexpected_parso(annasign.type == 'annassign', node_info(node))
     operator = annasign.children[-2]
     assert_unexpected_parso(operator.type == 'operator', node_info(node))
     value_node = annasign.children[-1]
-  else:
-    assert_unexpected_parso(len(node.children) == 3, node_info(node))
-    operator = node.children[1]
-    value_node = node.children[-1]
-  result_expression = expression_from_node(value_node)
+    result_expression = expression_from_node(value_node)
 
-  return AssignmentStmtCfgNode(
-      variables,
-      operator.value,
-      result_expression,
-      value_node=value_node,
-      parso_node=node)
+  else:
+    value_node = node.children[-1]
+    result_expression = expression_from_node(value_node)
+    if len(node.children) == 3:  # a = b
+      return AssignmentStmtCfgNode(
+          variables,
+          '=',
+          result_expression,
+          value_node=value_node,
+          parso_node=node)
+
+    # Example: a = b = ... = expr
+    target_repeats = [variables]
+    # Every other node is a variable - skip over '=' operators.
+    for i in range(2, len(node.children) - 1, 2):
+      child = node.children[i]
+      if child.type == 'testlist_star_expr':
+        target_repeats.append(expressions_from_testlist_comp(child))
+      else:  # Illegal per the grammar, but this includes things like 'name'.
+        target_repeats.append([expression_from_node(child)])
+    assignments = []
+    # Strictly speaking, this isn't perfectly accurate - i.e. each variable should be assigned
+    # to the next variable - but I think it's fine to just skip them all to being assigned to the
+    # final result?
+    for target in target_repeats:
+      assignments.append(
+          AssignmentStmtCfgNode(
+              target,
+              '=',
+              result_expression,
+              value_node=value_node,
+              parso_node=node))
+    assert len(assignments) == len(node.children) // 2
+    return GroupCfgNode(assignments, parso_node=node)
 
 
 def create_expression_node_tuples_from_if_stmt(
@@ -183,7 +215,7 @@ def expression_from_testlist_comp(node) -> TupleExpression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
-    warning(f'Processing comp_for - throwing in unknown.')
+    debug(f'Processing comp_for - throwing in unknown.')
     return TupleExpression([UnknownExpression(node.get_code())])
     # return ForComprehensionExpression(
     #     names=node.children[1], source=expression_from_node(node.children[-1]))
@@ -264,7 +296,7 @@ def _unimplmented_expression(func):
     try:
       return func(node)
     except NotImplementedError:
-      warning(f'Failing to handle node: {node_info(node)}')
+      debug(f'Failing to handle node: {node_info(node)}')
       return UnknownExpression(node.get_code())
 
   return wrapper
@@ -338,7 +370,7 @@ def args_and_kwargs_from_arglist(node):
           args.append(expression_from_node(child))
       return args, kwargs
   except NotImplementedError as e:
-    warning(f'Failed to handle: {node_info(node)}')
+    debug(f'Failed to handle: {node_info(node)}')
     return [UnknownExpression(node.get_code())], {}
 
 
@@ -373,13 +405,15 @@ def expression_from_node(node):
   if node.type == 'not_test':
     return NotExpression(expression_from_node(node.children[1]))
   if node.type == 'lambdef':
-    warning(f'Failed to process lambdef - unknown.')
+    debug(f'Failed to process lambdef - unknown.')
     return UnknownExpression(node.get_code())
   if node.type == 'fstring':
-    warning(f'Failed to process fstring_expr - string.')
+    debug(f'Failed to process fstring_expr - string.')
     return LiteralExpression(node.get_code())  # fstring_string type.
+  if node.type == 'star_expr':
+    return StarExpression(expression_from_node(node.children[-1]))
     # return UnknownExpression()
-  warning(f'Unhanded type!!!!: {node_info(node)}')
+  debug(f'Unhanded type!!!!: {node_info(node)}')
   return UnknownExpression(node.get_code())
   # raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))

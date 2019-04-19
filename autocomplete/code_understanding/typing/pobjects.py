@@ -6,7 +6,7 @@ from typing import List
 
 import attr
 
-from autocomplete.nsn_logging import info, warning
+from autocomplete.nsn_logging import debug, info, warning
 
 _OPERATORS = [
     '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__',
@@ -189,6 +189,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
       return self._object.get_attribute(name)
     except AttributeError:
       # TODO: Log
+      debug(f'Failed to access {name} from {self._object}')
       return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):

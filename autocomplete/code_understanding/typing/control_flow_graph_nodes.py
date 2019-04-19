@@ -8,7 +8,7 @@ from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
-    Expression, SubscriptExpression, VariableExpression)
+    Expression, StarExpression, SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionImpl, FunctionType, Klass, Module, Parameter)
@@ -67,25 +67,33 @@ class FromImportCfgNode(CfgNode):
   module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
-    name = self.as_name if self.as_name else self.from_import_name
-    module = self.module_loader.get_module(self.module_path)
-    if self.collector:
-      self.collector.add_from_import(module.path(), self.from_import_name,
-                                     self.as_name)
-    # info(f'{name} from {module.path}')  # Logs *constantly*
+    # Example: from foo import *
     if self.from_import_name == '*':
-      raise NotImplementedError(
-          f'Failing to handle: from {self.module_path} import * | importing nothing.'
-      )
-    try:
-      curr_frame[name] = module.get_attribute(self.from_import_name)
-    except AttributeError as e:
-      warning(
-          f'from_import_name {self.from_import_name} not found in {self.module_path}. {e}'
-      )
-      curr_frame[name] = UnknownObject(name='.'.join(
-          [self.module_path,
-           self.from_import_name]))  # TODO: Extra fuzzy value / unknown?
+      module = self.module_loader.get_module(self.module_path)
+      for name, pobject in module.items():
+        curr_frame[name] = pobject
+      return
+
+    # Normal case.
+    name = self.as_name if self.as_name else self.from_import_name
+    pobject = self.module_loader.get_pobject_from_module(
+        self.module_path, self.from_import_name)
+    curr_frame[name] = pobject
+
+    # if self.collector:
+    #   self.collector.add_from_import(module.path(), self.from_import_name,
+    #                                  self.as_name)
+    # info(f'{name} from {module.path}')  # Logs *constantly*
+
+    # try:
+    #   curr_frame[name] = module.get_attribute(self.from_import_name)
+    # except AttributeError as e:
+    #   warning(
+    #       f'from_import_name {self.from_import_name} not found in {self.module_path}. {e}'
+    #   )
+    #   curr_frame[name] = UnknownObject(name='.'.join(
+    #       [self.module_path,
+    #        self.from_import_name]))  # TODO: Extra fuzzy value / unknown?
 
 
 @attr.s
@@ -126,8 +134,16 @@ class AssignmentStmtCfgNode(CfgNode):
     else:
       # Recursively process variables.
       for i, variable_item in enumerate(variable):
-        self._process_variable(curr_frame, variable_item,
-                               result._get_item_processed(i))
+        if isinstance(variable_item, StarExpression):
+          info(
+              f'Mishandling star assignment - {self.parso_node.get_code().strip()}'
+          )
+          # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
+          self._process_variable(curr_frame, variable_item.base_expression,
+                                 result._get_item_processed(i))
+        else:
+          self._process_variable(curr_frame, variable_item,
+                                 result._get_item_processed(i))
 
   def __str__(self):
     return self._to_str()

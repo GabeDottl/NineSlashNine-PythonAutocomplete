@@ -17,7 +17,8 @@ from typing import Dict
 from autocomplete.code_understanding.typing import api, collector
 from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleType)
-from autocomplete.code_understanding.typing.pobjects import PObject
+from autocomplete.code_understanding.typing.pobjects import (PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import (debug, error, pop_context, push_context,
                                       warning)
 
@@ -25,7 +26,27 @@ __module_dict: dict = {}
 __path_module_dict: dict = {}
 
 
-def get_module(name: str) -> Module:
+class InvalidModuleError(Exception):
+  ...
+
+
+def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
+  module = get_module(module_name)
+  # pobject_name may correspond to a module - try getting it.
+  full_pobject_name = f'{module_name}.{pobject_name}'
+  if module.is_package and pobject_name not in module:
+    try:
+      return get_module(full_pobject_name, unknown_fallback=False)
+    except InvalidModuleError:
+      warning(f'Failed to import pobject from module: {full_pobject_name}')
+      return UnknownObject(full_pobject_name)
+  try:
+    return module[pobject_name]
+  except AttributeError:
+    return UnknownObject(full_pobject_name)
+
+
+def get_module(name: str, unknown_fallback=True) -> Module:
   global __module_dict
   if name in __module_dict:
     module = __module_dict[name]
@@ -64,19 +85,6 @@ def _module_exports_from_source(source, filename) -> Dict[str, PObject]:
   return dict(filter(lambda kv: '_' != kv[0][0], frame_._locals.items()))
 
 
-def _create_unknown_module(name):
-  parts = name.split('.')
-  containing_package = None
-  for part in parts:
-    containing_package = Module(
-        module_type=ModuleType.UNKNOWN,
-        name=part,
-        members={},
-        filename=name,  # TODO
-        containing_package=containing_package)
-  return containing_package
-
-
 def _get_module_stub_source_filename(name) -> str:
   '''Retrieves the stub version of a module, if it exists.
   
@@ -102,7 +110,8 @@ def _get_module_stub_source_filename(name) -> str:
         # info(abs_module_path)
         if os.path.exists(abs_module_path):
           # info(f'Found typeshed path for {name}: {abs_module_path}')
-          return abs_module_path
+          return abs_module_path, os.path.basename(
+              module_path) == '__init__.pyi'
   raise ValueError(f'Did not find typeshed for {name}')
 
 
@@ -116,9 +125,67 @@ def load_module_exports_from_filename(filename):
     raise ValueError(e)
 
 
-def load_module_from_filename(name, filename, lazy=True) -> Module:
+def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
+  debug(f'Loading module: {name}')
+  try:
+    stub_path, is_package = _get_module_stub_source_filename(name)
+    return load_module_from_filename(
+        name, stub_path, is_package=is_package, lazy=lazy)
+  except ValueError:
+    pass
+  is_package = False
+  if name[0] == '.':
+    if name == '.':
+      # TODO: Weird getting this from a collector... state.py?
+      path = os.path.join(collector.get_current_context_dir(), '__init__.py')
+      is_package = True
+    else:
+      path = f'.{name.replace(".", os.sep)}'
+      if os.path.isdir(path):
+        path = os.path.join(path, '__init__.py')
+        is_package = True
+      else:
+        path = f'{path}.py'
+
+    load_module_from_filename(name, path, is_package=is_package, lazy=lazy)
+  try:
+    spec = importlib.util.find_spec(name)
+    if spec:
+      if spec.has_location:
+        path = spec.loader.get_filename()
+        return load_module_from_filename(
+            name, path, is_package=_is_init(path), lazy=lazy)
+      else:  # System module
+        # TODO.
+        warning(f'System modules not implemented.')
+  except AttributeError as e:
+    # find_spec can break for sys modules unexpectedly.
+    warning(f'Exception while getting spec for {name}')
+    warning(e)
+  if not unknown_fallback:
+    raise InvalidModuleError(name)
+  warning(f'Could not find Module {name} - falling back to Unknown.')
+  return _create_unknown_module(name)
+
+
+def _is_init(path):
+  name = os.path.basename(path)
+  return '__init__.py' in name  # include .pyi
+
+
+def load_module_from_filename(name,
+                              filename,
+                              *,
+                              is_package,
+                              unknown_fallback=False,
+                              lazy=True) -> Module:
+  if not os.path.exists(filename):
+    if not unknown_fallback:
+      raise InvalidModuleError(filename)
+    else:
+      return _create_unknown_module(name)
   if lazy:
-    return _create_lazy_module(name, filename)
+    return _create_lazy_module(name, filename, is_package=is_package)
 
   exports = load_module_exports_from_filename(filename)
   # name = os.path.splitext(os.path.basename(path))[0]
@@ -128,47 +195,30 @@ def load_module_from_filename(name, filename, lazy=True) -> Module:
       name=name,
       filename=filename,
       members=exports,
-      containing_package=None)
+      containing_package=None,
+      is_package=is_package)
 
 
-def _create_lazy_module(name, filename) -> LazyModule:
+def _create_lazy_module(name, filename, is_package) -> LazyModule:
   return LazyModule(
       module_type=ModuleType.LOCAL,  # TODO
       name=name,
       members={},
       filename=filename,
       load_module_exports_from_filename=load_module_exports_from_filename,
-      containing_package=None)
+      containing_package=None,
+      is_package=is_package)
 
 
-def load_module(name: str, lazy=True) -> Module:
-  debug(f'Loading module: {name}')
-  try:
-    stub_path = _get_module_stub_source_filename(name)
-    return load_module_from_filename(name, stub_path, lazy)
-  except ValueError:
-    pass
-  try:
-    if name[0] == '.':
-      if name == '.':
-        path = os.path.join(os.getcwd(), '__init__.py')
-      else:
-        path = f'.{name.replace(".", os.sep)}'
-        if os.path.isdir(path):
-          path = os.path.join(path, '__init__.py')
-        else:
-          path = f'{path}.py'
-
-      load_module_from_filename(name, path, lazy)
-    spec = importlib.util.find_spec(name)
-    if spec:
-      if spec.has_location:
-        path = spec.loader.get_filename()
-        return load_module_from_filename(name, path, lazy)
-      else:  # System module
-        # TODO.
-        warning(f'System modules not implemented.')
-  except Exception as e:
-    warning(e)
-  warning(f'Could not find Module {name} - falling back to Unknown.')
-  return _create_unknown_module(name)
+def _create_unknown_module(name):
+  parts = name.split('.')
+  containing_package = None
+  for part in parts:
+    containing_package = Module(
+        module_type=ModuleType.UNKNOWN,
+        name=part,
+        members={},
+        filename=name,  # TODO
+        containing_package=containing_package,
+        is_package=False)
+  return containing_package

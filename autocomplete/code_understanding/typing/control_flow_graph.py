@@ -32,7 +32,7 @@ from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.utils import (
     create_expression_node_tuples_from_if_stmt, expression_from_node, node_info,
     parameters_from_parameters, statement_node_from_expr_stmt)
-from autocomplete.nsn_logging import debug, error, warning
+from autocomplete.nsn_logging import debug, error, info, warning
 
 
 def run_graph(graph, frame=None):
@@ -71,12 +71,13 @@ class ControlFlowGraphBuilder:
     try:
       if hasattr(self, f'create_cfg_node_for_{node.type}'):
         return getattr(self, f'create_cfg_node_for_{node.type}')(node)
-      warning(f'Unhandled type: {node.type}')
+      debug(f'Unhandled type: {node.type}')
     except (
-        AttributeError, ValueError, NotImplementedError, ParsingError
+        NotImplementedError,
+        ParsingError  # AttributeError, ValueError
     ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
       # handle_error(e, node)
-      error(f'Caught while creating: {node.get_code()}')
+      error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')
     # except Exception as e:  #
     #   handle_error(e, node)
     # except:
@@ -312,7 +313,7 @@ class ControlFlowGraphBuilder:
       return FromImportCfgNode(
           path,
           from_import_name='*',
-          as_name=next_node.children[-1].value,
+          as_name=None,
           parso_node=node,
           module_loader=self.module_loader)
 

@@ -1,7 +1,12 @@
+from inspect import getframeinfo, stack
+
+
 class ParsingError(Exception):
   ...
 
 
 def assert_unexpected_parso(assertion, *error):
   if not assertion:
-    raise ParsingError(str(error))
+    caller = getframeinfo(stack()[1][0])
+    raise ParsingError(
+        f'"{caller.filename}", line {caller.lineno}, {str(error)}')

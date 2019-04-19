@@ -48,7 +48,11 @@ class Namespace:
     return name in self._members
 
   def __getitem__(self, name):
-    return self._members[name]
+    try:
+      return self._members[name]
+    except KeyError as e:
+      warning(f'Failed to get {name} from {self.name}')
+      raise AttributeError(e)
 
   def __setitem__(self, name, value):
     self._members[name] = value
@@ -61,10 +65,7 @@ class Namespace:
     return name in self
 
   def get_attribute(self, name):
-    try:
-      return self[name]
-    except KeyError as e:
-      raise AttributeError(e)
+    return self[name]
 
   def set_attribute(self, name, value):
     self[name] = value
@@ -84,6 +85,7 @@ class Module(Namespace):
   _members = attr.ib()
   containing_package = attr.ib()
   filename = attr.ib()
+  is_package = attr.ib()
 
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:
@@ -114,9 +116,12 @@ class LazyModule(Module):
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
       if not self._loaded:
-        info(f'Lazily loading from: {self.filename}')
+        # info(f'Lazily loading from: {self.filename}')
         if self._loading:
-          warning(f'Already lazy-loading module... dependency cycle? {self.path}')
+          #
+          debug(
+              f'Already lazy-loading module... dependency cycle? {self.path()}. Or From import?'
+          )
           return func(self, *args, **kwargs)
         self._loading = True
         try:
@@ -134,7 +139,7 @@ class LazyModule(Module):
 
   @_lazy_load
   def __getitem__(self, name):
-    return super().__contains__(name)
+    return super().__getitem__(name)
 
   @_lazy_load
   def __setitem__(self, name, value):
@@ -248,6 +253,7 @@ class FunctionImpl(Function):
       debug(
           f'Call being made into {self.name} when it\'s already on the call stack. Returning an UnknownObject instead.'
       )
+      # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
     new_frame = curr_frame.make_child(
         frame_type=FrameType.FUNCTION, namespace=self)

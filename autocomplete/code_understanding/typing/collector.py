@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from functools import partial
 
@@ -11,6 +12,10 @@ _parso_node_context = []
 _missing_symbols = defaultdict(list)
 
 
+def get_current_context_dir():
+  return os.path.get_dir(_filename_context[-1])
+
+
 @attr.s
 class FileContext:
   filename = attr.ib()
@@ -20,6 +25,11 @@ class FileContext:
 
   def __exit__(self, exc_type, exc_value, traceback):
     _filename_context.pop()
+
+
+def paths_prefix():
+  filenames = [os.path.basename(path) for path in _filename_context]
+  return '|'.join(filenames)
 
 
 @attr.s

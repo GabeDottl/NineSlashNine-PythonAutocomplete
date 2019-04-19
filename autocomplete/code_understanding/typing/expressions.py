@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from wsgiref.validate import validator
 
 import attr
+from tensorflow.python.framework.errors_impl import UnimplementedError
 
 from autocomplete.code_understanding.typing.pobjects import (
     AugmentedObject, FuzzyBoolean, FuzzyObject, PObject, UnknownObject)
@@ -97,6 +98,23 @@ class CallExpression(Expression):
 
 
 @attr.s
+class VariableExpression(Expression):
+  name = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    return curr_frame[self]
+
+
+@attr.s
+class StarExpression(Expression):
+  '''E.g. *args - or more meaninglessly, *(a,b)'''
+  base_expression: Expression = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    raise NotImplementedError(f'*({self.base_expression})')
+
+
+@attr.s
 class AttributeExpression(Expression):
   base_expression: Expression = attr.ib()
   attribute: str = attr.ib()
@@ -133,14 +151,6 @@ class SubscriptExpression(Expression):
     for e in self.subscript_list:
       values.append(e.evaluate(curr_frame))
     return pobject.set_item(tuple(values), value)
-
-
-@attr.s
-class VariableExpression(Expression):
-  name = attr.ib()
-
-  def evaluate(self, curr_frame) -> PObject:
-    return curr_frame[self]
 
 
 @attr.s
