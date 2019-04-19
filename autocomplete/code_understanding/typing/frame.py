@@ -57,11 +57,18 @@ class Frame:
 
   def __attrs_post_init__(self):
     if not self._builtins:
-      self._builtins = {key: UnknownObject(key) for key in __builtins__.keys() }
+      self._builtins = {key: UnknownObject(key) for key in __builtins__.keys()}
 
   # TODO: nonlocal_names and global_names
   # _frame_type = attr.ib(FrameType.NORMAL)
   # TODO: Block stack?
+
+  def contains_namespace_on_stack(self, namespace):
+    if self._namespace == namespace:
+      return True
+    if self._back:
+      return self._back.contains_namespace_on_stack(namespace)
+    return False
 
   def merge(self, other_frame):
     # self._globals.update(other_frame._globals)
@@ -71,7 +78,11 @@ class Frame:
   def make_child(self, namespace, frame_type) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     return Frame(
-        frame_type=frame_type, back=self, root=self._root, namespace=namespace, builtins=self._builtins)
+        frame_type=frame_type,
+        back=self,
+        root=self._root,
+        namespace=namespace,
+        builtins=self._builtins)
 
   def to_module(self) -> 'Module':
     raise NotImplementedError()

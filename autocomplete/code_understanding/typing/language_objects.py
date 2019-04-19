@@ -58,16 +58,16 @@ class Namespace:
 
   # TODO: delete these?
   def has_attribute(self, name):
-    return name in self._members
+    return name in self
 
   def get_attribute(self, name):
     try:
-      return self._members[name]
+      return self[name]
     except KeyError as e:
       raise AttributeError(e)
 
   def set_attribute(self, name, value):
-    self._members[name] = value
+    self[name] = value
 
 
 class ModuleType(Enum):
@@ -106,6 +106,7 @@ class LazyModule(Module):
   '''
   load_module_exports_from_filename = attr.ib()
   _loaded = attr.ib(False)
+  _loading = attr.ib(False)
   _members = attr.ib(None)
 
   def _lazy_load(func):
@@ -113,7 +114,11 @@ class LazyModule(Module):
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
       if not self._loaded:
-        debug(f'Lazily loading from: {self.filename}')
+        info(f'Lazily loading from: {self.filename}')
+        if self._loading:
+          warning(f'Already lazy-loading module... dependency cycle? {self.path}')
+          return func(self, *args, **kwargs)
+        self._loading = True
         try:
           self._members = self.load_module_exports_from_filename(self.filename)
         except ValueError:
@@ -238,7 +243,12 @@ class FunctionImpl(Function):
     return BoundFunction(self, args, kwargs)
 
   def call(self, args, kwargs, curr_frame):
-    info(f'Calling {self.name}')
+    debug(f'Calling {self.name}')
+    if curr_frame.contains_namespace_on_stack(self):
+      debug(
+          f'Call being made into {self.name} when it\'s already on the call stack. Returning an UnknownObject instead.'
+      )
+      return UnknownObject(self.name)
     new_frame = curr_frame.make_child(
         frame_type=FrameType.FUNCTION, namespace=self)
     self._process_args(args, kwargs, new_frame)

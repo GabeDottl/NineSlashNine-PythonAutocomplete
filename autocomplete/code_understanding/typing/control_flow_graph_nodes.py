@@ -25,6 +25,7 @@ class CfgNode(ABC):
 
   def process(self, curr_frame):
     with collector.ParsoNodeContext(self.parso_node):
+      # info(f'Processing: {collector.get_code_context_string()}')
       self._process_impl(curr_frame)
 
   @abstractmethod
@@ -78,9 +79,9 @@ class FromImportCfgNode(CfgNode):
       )
     try:
       curr_frame[name] = module.get_attribute(self.from_import_name)
-    except AttributeError:
+    except AttributeError as e:
       warning(
-          f'from_import_name {self.from_import_name} not found in {self.module_path}'
+          f'from_import_name {self.from_import_name} not found in {self.module_path}. {e}'
       )
       curr_frame[name] = UnknownObject(name='.'.join(
           [self.module_path,

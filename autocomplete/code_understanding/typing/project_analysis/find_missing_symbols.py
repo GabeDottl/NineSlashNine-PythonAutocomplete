@@ -1,13 +1,16 @@
 import argparse
-
-from autocomplete.code_understanding.typing import api, collector, module_loader
 import os
 from glob import glob
+
+from autocomplete.code_understanding.typing import (api, collector,
+                                                    module_loader)
+from autocomplete.nsn_logging import info
 
 
 def scan_missing_symbols(filename):
   api.analyze_file(filename)
   return collector.get_missing_symbols_in_file(filename)
+
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
@@ -16,10 +19,12 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if os.path.isdir(args.directory_or_file):
-    filenames = glob(os.path.join(args.directory_or_file, '**/*.py'), recursive=args.recursive)
+    filenames = glob(
+        os.path.join(args.directory_or_file, '**/*.py'),
+        recursive=args.recursive)
     for filename in filenames:
+      info(f'Scanning {filename}')
       print(scan_missing_symbols(filename))
   else:
     assert os.path.exists(args.directory_or_file)
     print(scan_missing_symbols(args.directory_or_file))
-
