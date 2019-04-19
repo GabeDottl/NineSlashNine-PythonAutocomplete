@@ -20,11 +20,6 @@ def extract_exports(source, filename):
   return exports
 
 
-def scan_missing_symbols(filename):
-  collector_ = api.analyze_file(filename)
-  return collector.get_missing_symbols_in_file(filename)
-
-
 def create_symbol_index(sys_path):
   symbol_index = {}
   for path in sys_path:
