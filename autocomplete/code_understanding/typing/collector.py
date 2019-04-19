@@ -4,9 +4,66 @@ from functools import partial
 import attr
 from prettytable import PrettyTable
 
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FromImportCfgNode,
-                                                                             ImportCfgNode)
-from autocomplete.code_understanding.typing.language_objects import Module
+# TODO: Dict on type?
+_filename_context = []
+_block_context = []  # Module, Function, Klass
+_parso_node_context = []
+_missing_symbols = defaultdict(list)
+
+
+@attr.s
+class FileContext:
+  filename = attr.ib()
+
+  def __enter__(self):
+    _filename_context.append(self.filename)
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    _filename_context.pop()
+
+
+@attr.s
+class BlockContext:
+  block = attr.ib()
+
+  def __enter__(self):
+    _block_context.append(self.block)
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    _block_context.pop()
+
+
+@attr.s
+class ParsoNodeContext:
+  parso_node = attr.ib()
+
+  def __enter__(self):
+    _parso_node_context.append(self.parso_node)
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    _parso_node_context.pop()
+
+
+def get_code_context_string():
+  filename = _filename_context[-1] if _filename_context else ''
+  if _parso_node_context:
+    node = _parso_node_context[-1]
+    code = node.get_code().strip()
+    line = node.start_pos[0]
+    if filename:
+      return f'"{filename}", line {line}, ({code})'
+    return 'line {line}, ({code})'
+    # out = f'{node.start_pos}:{node.get_code()}'
+  return filename
+
+
+def add_missing_symbol(name):
+  assert _filename_context
+  _missing_symbols[_filename_context[-1]].append(name)
+
+
+def get_missing_symbols_in_file(filename):
+  return _missing_symbols[filename]
 
 
 @attr.s  #(frozen=True)

@@ -8,15 +8,21 @@ from typing import List
 import attr
 import pandas as pd
 
-from autocomplete.code_understanding.typing import api, module_loader
+from autocomplete.code_understanding.typing import (api, collector,
+                                                    module_loader)
 from autocomplete.nsn_logging import (info, pop_context, push_context,
                                       set_verbosity)
 
 
-def extract_exports(source):
+def extract_exports(source, filename):
   frame_ = api.frame_from_source(source)
   exports = dict(filter(lambda k, v: '_' != k[0], frame_._locals))
   return exports
+
+
+def scan_missing_symbols(filename):
+  collector_ = api.analyze_file(filename)
+  return collector.get_missing_symbols_in_file(filename)
 
 
 def create_symbol_index(sys_path):

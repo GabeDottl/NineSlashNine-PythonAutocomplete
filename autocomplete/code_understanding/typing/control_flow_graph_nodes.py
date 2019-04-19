@@ -4,30 +4,28 @@ from functools import wraps
 
 import attr
 
-from autocomplete.code_understanding.typing.errors import (ParsingError,
-                                                           assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (Expression,
-                                                                SubscriptExpression,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing import collector
+from autocomplete.code_understanding.typing.errors import (
+    ParsingError, assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (
+    Expression, SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     FunctionType,
-                                                                     Klass,
-                                                                     Module,
-                                                                     Parameter)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, FunctionImpl, FunctionType, Klass, Module, Parameter)
+from autocomplete.code_understanding.typing.pobjects import (
+    FuzzyBoolean, FuzzyObject, UnknownObject)
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
 
 
 class CfgNode(ABC):
-  collector: 'Collector' = None
+  collector: 'Collector' = None  # TODO: Drop.
+  parso_node = attr.ib()
 
   def process(self, curr_frame):
-    self._process_impl(curr_frame)
+    with collector.ParsoNodeContext(self.parso_node):
+      self._process_impl(curr_frame)
 
   @abstractmethod
   def _process_impl(self, curr_frame):
@@ -102,7 +100,7 @@ class AssignmentStmtCfgNode(CfgNode):
   # https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
   left_variables = attr.ib()
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
-  right_expression = attr.ib()
+  right_expression: Expression = attr.ib()
   value_node = attr.ib()
   parso_node = attr.ib()
 
@@ -112,10 +110,12 @@ class AssignmentStmtCfgNode(CfgNode):
     self._process_variable(curr_frame, self.left_variables, result)
 
   def _process_variable(self, curr_frame, variable, result):
+    if (hasattr(variable, '__len__') and len(variable) == 1):
+      variable = variable[0]
     if not hasattr(variable, '__iter__'):
       if self.collector:
         self.collector.add_variable_assignment(
-            variable, f'({self.value_node.get_code().strip()})[{i}]')
+            variable, f'({self.value_node.get_code().strip()})')
       assert_unexpected_parso(isinstance(variable, Expression), variable)
       if isinstance(variable, SubscriptExpression):
         variable.set(curr_frame, result)
@@ -212,9 +212,10 @@ class FuncCfgNode(CfgNode):
         default = param.default.evaluate(curr_frame)
         processed_params.append(Parameter(param.name, param.type, default))
     # Include full name.
-    func_name = ''.join([curr_frame._namespace.name, self.name
-                        ]) if curr_frame._namespace else self.name
-    func = Function(func_name, parameters=processed_params, graph=self.suite)
+    func_name = '.'.join([curr_frame._namespace.name, self.name
+                         ]) if curr_frame._namespace else self.name
+    func = FunctionImpl(
+        name=func_name, parameters=processed_params, graph=self.suite)
     if self.collector:
       self.collector.add_function_node(func)
     curr_frame[VariableExpression(self.name)] = func
@@ -225,7 +226,7 @@ class FuncCfgNode(CfgNode):
 
 @attr.s
 class ReturnCfgNode(CfgNode):
-  expression = attr.ib()
+  expression: Expression = attr.ib()
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):

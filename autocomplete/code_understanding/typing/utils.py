@@ -3,27 +3,17 @@ import sys
 from functools import wraps
 from typing import List, Tuple, Union
 
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (AssignmentStmtCfgNode,
-                                                                             CfgNode)
-from autocomplete.code_understanding.typing.errors import (ParsingError,
-                                                           assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
-                                                                CallExpression,
-                                                                ComparisonExpression,
-                                                                Expression,
-                                                                FactorExpression,
-                                                                IfElseExpression,
-                                                                ListExpression,
-                                                                LiteralExpression,
-                                                                MathExpression,
-                                                                NotExpression,
-                                                                SubscriptExpression,
-                                                                TupleExpression,
-                                                                UnknownExpression,
-                                                                Variable,
-                                                                VariableExpression)
-from autocomplete.code_understanding.typing.language_objects import (Parameter,
-                                                                     ParameterType)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
+    AssignmentStmtCfgNode, CfgNode)
+from autocomplete.code_understanding.typing.errors import (
+    ParsingError, assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (
+    AttributeExpression, CallExpression, ComparisonExpression, Expression,
+    FactorExpression, IfElseExpression, ListExpression, LiteralExpression,
+    MathExpression, NotExpression, SubscriptExpression, TupleExpression,
+    UnknownExpression, Variable, VariableExpression)
+from autocomplete.code_understanding.typing.language_objects import (
+    Parameter, ParameterType)
 from autocomplete.nsn_logging import error, info, warning
 
 
@@ -194,7 +184,7 @@ def expression_from_testlist_comp(node) -> TupleExpression:
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     warning(f'Processing comp_for - throwing in unknown.')
-    return TupleExpression([UnknownExpression(node)])
+    return TupleExpression([UnknownExpression(node.get_code())])
     # return ForComprehensionExpression(
     #     names=node.children[1], source=expression_from_node(node.children[-1]))
 
@@ -275,7 +265,7 @@ def _unimplmented_expression(func):
       return func(node)
     except NotImplementedError:
       warning(f'Failing to handle node: {node_info(node)}')
-      return UnknownExpression(node)
+      return UnknownExpression(node.get_code())
 
   return wrapper
 
@@ -301,10 +291,10 @@ def expressions_from_subscriptlist(node) -> Tuple[Expression]:
     else:  # subscript
       # num op num [sliceop]
       # info(f'Failing to handle node: {node_info(node)}')
-      # return UnknownExpression(node)
+      # return UnknownExpression(node.get_code())
       raise NotImplementedError()  # TODO
   except:
-    return (UnknownExpression(node),)
+    return (UnknownExpression(node.get_code()),)
 
 
 # @_unimplmented_expression
@@ -349,7 +339,7 @@ def args_and_kwargs_from_arglist(node):
       return args, kwargs
   except NotImplementedError as e:
     warning(f'Failed to handle: {node_info(node)}')
-    return [UnknownExpression(node)], {}
+    return [UnknownExpression(node.get_code())], {}
 
 
 def expression_from_node(node):
@@ -384,13 +374,13 @@ def expression_from_node(node):
     return NotExpression(expression_from_node(node.children[1]))
   if node.type == 'lambdef':
     warning(f'Failed to process lambdef - unknown.')
-    return UnknownExpression(node)
+    return UnknownExpression(node.get_code())
   if node.type == 'fstring':
     warning(f'Failed to process fstring_expr - string.')
     return LiteralExpression(node.get_code())  # fstring_string type.
     # return UnknownExpression()
   warning(f'Unhanded type!!!!: {node_info(node)}')
-  return UnknownExpression(node)
+  return UnknownExpression(node.get_code())
   # raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))
 

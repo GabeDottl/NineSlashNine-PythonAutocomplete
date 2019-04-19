@@ -19,15 +19,12 @@ from typing import Dict
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (LiteralExpression,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (
+    AnonymousExpression, LiteralExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             AugmentedObject,
-                                                             FuzzyBoolean,
-                                                             PObject,
-                                                             UnknownObject)
-from autocomplete.nsn_logging import debug, error
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, PObject, UnknownObject)
+from autocomplete.nsn_logging import debug, error, info, warning
 
 
 @attr.s
@@ -42,7 +39,7 @@ class Namespace:
   https://docs.python.org/3/reference/executionmodel.html#naming-and-binding
   https://tech.blog.aknin.name/2010/06/05/pythons-innards-naming/
   '''
-  name: str = attr.ib()
+  # name: str = attr.ib()
   # We wrap a dict explicitly rather than subclassing to avoid certain odd behavior - e.g. __bool__
   # being overridden s.t. if there are no members, it will return false.
   _members: Dict[str, PObject] = attr.ib(factory=dict)
@@ -82,6 +79,7 @@ class ModuleType(Enum):
 
 @attr.s(str=False, repr=False)
 class Module(Namespace):
+  name: str = attr.ib()
   module_type: ModuleType = attr.ib()
   _members = attr.ib()
   containing_package = attr.ib()
@@ -152,6 +150,8 @@ class LazyModule(Module):
 
 @attr.s(str=False, repr=False)
 class Klass(Namespace):
+  name: str = attr.ib()
+  _members: Dict[str, PObject] = attr.ib(factory=dict)
 
   def __str__(self):
     return f'class {self.name}: {list(self._members.keys())}'
@@ -163,25 +163,25 @@ class Klass(Namespace):
     return AugmentedObject(self.new(args, kwargs, curr_frame))
 
   def new(self, args, kwargs, curr_frame):
+    info(f'Creating instance of {self.name}')
     # TODO: Handle params.
     # TODO: __init__
     instance = Instance(self)
-    pobject = AugmentedObject(instance)
     for name, member in self.items():
       if member.value_is_a(
           Function
       ) == FuzzyBoolean.TRUE:  # and value.type == FunctionType.UNBOUND_INSTANCE_METHOD:
         value = member.value(
         )  # TODO: This can raise an exception for FuzzyObjects
-        new_func = copy(value)
-        bound_frame = new_func.get_or_create_bound_frame()
-        try:
-          self_param = new_func.parameters.pop(0)
-          # info(f'self_param: {self_param}')
-          bound_frame._locals[self_param.name] = pobject
-        except IndexError:
-          ...
-          # info(f'No self param in {new_func}')
+        new_func = value.bind([AnonymousExpression(self)], {})
+        # new_func = copy(value)
+        # bound_frame = new_func.get_or_create_bound_frame()
+        # try:
+        #   self_param = new_func.parameters.pop(0)
+        #   info(f'self_param: {self_param} for {new_func}')
+        #   bound_frame._locals[self_param.name] = pobject
+        # except IndexError:
+        #   warning(f'No self param in {new_func}')
         new_func.type = FunctionType.BOUND_INSTANCE_METHOD
         instance[name] = AugmentedObject(new_func)
       else:
@@ -193,17 +193,18 @@ class Klass(Namespace):
 
     return instance
 
-  def get_parameters(self):
-    if '__init__' in self:
-      return self['__init__'].get_parameters()
-    return []
+  # def get_parameters(self):
+  #   if '__init__' in self:
+  #     return self['__init__'].get_parameters()
+  #   return []
 
 
 @attr.s(str=False, repr=False)
 class Instance(Namespace):
   klass = attr.ib()
-  name: str = attr.ib(None, init=False)  # Override namespace name.
-  _members = attr.ib({})
+  _members = attr.ib(factory=dict)
+
+  # TODO: Class member fallback for classmethods?
 
   def __str__(self):
     return f'Inst {self.klass.name}: {list(self._members.keys())}'
@@ -220,28 +221,26 @@ class FunctionType(Enum):
   BOUND_INSTANCE_METHOD = 4
 
 
-@attr.s(str=False, repr=False)
 class Function(Namespace):
+  ...
+
+
+@attr.s(str=False, repr=False)
+class FunctionImpl(Function):
+  name = attr.ib()
   parameters = attr.ib()
   graph = attr.ib()
   type = attr.ib(FunctionType.FREE)
-  _members = attr.ib({})
-  # We use a notion of a 'bound frame' to encapsulate values which are
-  # bound to this function - e.g. cls & self, nonlocals in a nested func.
-  bound_frame = None
+  _members = attr.ib(factory=dict)
 
   # TODO: Cell vars.
-
-  def get_or_create_bound_frame(self):
-    if not self.bound_frame:
-      self.bound_frame = Frame()
-    return self.bound_frame
+  def bind(self, args, kwargs) -> 'BoundFunction':
+    return BoundFunction(self, args, kwargs)
 
   def call(self, args, kwargs, curr_frame):
+    info(f'Calling {self.name}')
     new_frame = curr_frame.make_child(
         frame_type=FrameType.FUNCTION, namespace=self)
-    if self.bound_frame:
-      new_frame.merge(self.bound_frame)
     self._process_args(args, kwargs, new_frame)
     self.graph.process(new_frame)
 
@@ -281,18 +280,54 @@ class Function(Namespace):
       curr_frame[kwargs_name] = AugmentedObject(in_dict)
 
   def __str__(self):
-    return f'Func({tuple(self.parameters)})'
+    return f'def {self.name}({tuple(self.parameters)})'
 
   def __repr__(self):
     return str(self)
 
 
 @attr.s(str=False, repr=False)
-class StubFunction(Namespace):
+class BoundFunction(Function):
+  _function = attr.ib(validator=attr.validators.instance_of(Function))
+  # We use a notion of a 'bound frame' to encapsulate values which are
+  # bound to this function - e.g. cls & self, nonlocals in a nested func.
+  # bound_frame = None
+  _bound_args = attr.ib(factory=list)
+  _bound_kwargs = attr.ib(factory=dict)
+  _bound_locals = attr.ib(factory=dict)  # For nested functions.
+  _members = attr.ib(factory=dict)
+
+  # @_function.validator
+  # def _function_validator(self, attribute, value):
+  #   assert isinstance(value, Function)
+
+  # TODO: Cell vars.
+  def bind(self, args, kwargs) -> 'BoundFunction':
+    return BoundFunction(self, args, kwargs)
+
+  def call(self, args, kwargs, curr_frame):
+    new_frame = curr_frame.make_child(
+        frame_type=FrameType.FUNCTION, namespace=self)
+    new_frame._locals = self._bound_locals
+    return self._function.call(self._bound_args + args, {
+        **kwargs,
+        **self._bound_kwargs
+    }, new_frame)
+
+  def __str__(self):
+    return f'bound[{self._bound_args}][{self._bound_kwargs}]:{self._function}'
+
+  def __repr__(self):
+    return str(self)
+
+
+@attr.s(str=False, repr=False)
+class StubFunction(Function):
+  name: str = attr.ib()
   parameters = attr.ib()
   returns = attr.ib()
   type = attr.ib(FunctionType.FREE)
-  _members = attr.ib({})
+  _members = attr.ib(factory=dict)
 
   def call(self, args, kwargs, curr_frame):
     # TODO: Handle parameters?

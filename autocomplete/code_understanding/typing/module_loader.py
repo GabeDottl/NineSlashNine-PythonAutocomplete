@@ -14,10 +14,9 @@ import importlib
 import os
 from typing import Dict
 
-from autocomplete.code_understanding.typing import api
-from autocomplete.code_understanding.typing.language_objects import (LazyModule,
-                                                                     Module,
-                                                                     ModuleType)
+from autocomplete.code_understanding.typing import api, collector
+from autocomplete.code_understanding.typing.language_objects import (
+    LazyModule, Module, ModuleType)
 from autocomplete.code_understanding.typing.pobjects import PObject
 from autocomplete.nsn_logging import (debug, error, pop_context, push_context,
                                       warning)
@@ -58,7 +57,7 @@ def _module_exports_from_source(source, filename) -> Dict[str, PObject]:
   debug(f'new_dir: {new_dir}')
   os.chdir(new_dir)
   push_context(os.path.basename(filename))
-  frame_ = api.frame_from_source(source)
+  frame_ = api.frame_from_source(source, filename)
   pop_context()
   debug(f'old_cwd: {old_cwd}')
   os.chdir(old_cwd)

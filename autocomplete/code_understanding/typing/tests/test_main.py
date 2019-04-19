@@ -5,16 +5,15 @@ from glob import glob
 import parso
 from autocomplete.code_understanding.typing import control_flow_graph
 from autocomplete.code_understanding.typing.api import frame_from_source
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     Instance,
-                                                                     Klass,
-                                                                     Module)
-from autocomplete.nsn_logging import info
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, Instance, Klass, Module)
+from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
+from autocomplete.nsn_logging import debug
 
 
 def test_simple_assignment():
   source = 'a=1'
-  frame_ = frame_from_source(source)
+  frame_ = frame_from_source(source, None)
   assert frame_['a'].value() == 1
 
 
@@ -26,7 +25,7 @@ import hob.dob as blob
 from functools import wraps
 from a.b import c
 from x.y.z import (q, r as s)'''
-  frame_ = frame_from_source(source)
+  frame_ = frame_from_source(source, None)
   assert 'numpy' in frame_ and isinstance(frame_['numpy'].value(), Module)
   assert frame_['numpy'].value().path() == 'numpy'
   assert 'whatever' in frame_ and isinstance(frame_['whatever'].value(), Module)
@@ -54,12 +53,13 @@ X.b = 2
 z = X()  # 2 at end
 x.b = 0
 '''
-  frame_ = frame_from_source(source)
+  frame_ = frame_from_source(source, None)
   assert 'X' in frame_ and isinstance(frame_['X'].value(), Klass)
   assert 'X.b' in frame_
   assert frame_['X.b'].value() == 2
   assert frame_['w.b'].value() == 0
   assert frame_['x.b'].value() == 0
+  assert frame_['y'].value_is_a(Instance) == FuzzyBoolean.TRUE
   assert frame_['y.b'].value() == 1
   assert frame_['z.b'].value() == 2
 
@@ -73,14 +73,15 @@ class X:
 x = X()
 a = x.foo(0, None)
 '''
-  frame_ = frame_from_source(source)
+  frame_ = frame_from_source(source, None)
   assert 'X' in frame_ and isinstance(frame_['X'].value(), Klass)
   assert 'X.b' in frame_
-  assert frame_['X.b'].value_type() == int
-  assert frame_['w.b'].value() == 0
-  assert frame_['x.b'].value() == 0
-  assert frame_['y.b'].value() == 1
-  assert frame_['z.b'].value() == 2
+  # TODO.
+  # assert frame_['X.b'].
+  # assert frame_['w.b'].value() == 0
+  # assert frame_['x.b'].value() == 0
+  # assert frame_['y.b'].value() == 1
+  # assert frame_['z.b'].value() == 2
 
 
 def test_arrays():
@@ -96,7 +97,7 @@ a2 = 'test'
 b2 = a2[0]
 '''
   # TODO: a = a[0]
-  frame_ = frame_from_source(source)
+  frame_ = frame_from_source(source, None)
   assert 'a' in frame_ and isinstance(frame_['a'].value(), list)
   assert 'b' in frame_
   assert frame_['b'].value() == 0
@@ -140,10 +141,11 @@ def test_processing_all_typing_dir():
       continue
     with open(filename) as f:
       source = ''.join(f.readlines())
-      frame_from_source(source)
+      frame_from_source(source, filename)
 
 
 if __name__ == '__main__':
+  test_stubs()
   test_simple_assignment()
   test_imports()
   test_classes()

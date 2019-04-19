@@ -6,15 +6,11 @@ from typing import Dict, List
 
 import attr
 
-from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
-                                                                SubscriptExpression,
-                                                                Variable,
-                                                                VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             AugmentedObject,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing import collector
+from autocomplete.code_understanding.typing.expressions import (
+    AttributeExpression, SubscriptExpression, Variable, VariableExpression)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -57,6 +53,7 @@ class Frame:
   _namespace = attr.ib(None)
   _back: 'Frame' = attr.ib(None)
   _root: 'Frame' = attr.ib(None)
+  _collector = None  # class variable
 
   # TODO: nonlocal_names and global_names
   # _frame_type = attr.ib(FrameType.NORMAL)
@@ -69,7 +66,8 @@ class Frame:
 
   def make_child(self, namespace, frame_type) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
-    return Frame(frame_type=frame_type, back=self, root=self._root)
+    return Frame(
+        frame_type=frame_type, back=self, root=self._root, namespace=namespace)
 
   def to_module(self) -> 'Module':
     raise NotImplementedError()
@@ -134,6 +132,10 @@ class Frame:
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.
+    collector.add_missing_symbol(name)
+    context_str = collector.get_code_context_string()
+    if context_str:
+      warning(f'At: {context_str}')
     warning(
         f'{name} doesn\'t exist in current context! Returning UnknownObject.')
     if raise_error_if_missing:

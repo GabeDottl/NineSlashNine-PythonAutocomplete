@@ -23,23 +23,15 @@ import traceback
 import attr
 
 import parso
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (ExpressionCfgNode,
-                                                                             FromImportCfgNode,
-                                                                             FuncCfgNode,
-                                                                             GroupCfgNode,
-                                                                             IfCfgNode,
-                                                                             ImportCfgNode,
-                                                                             KlassCfgNode,
-                                                                             NoOpCfgNode,
-                                                                             ReturnCfgNode)
-from autocomplete.code_understanding.typing.errors import (ParsingError,
-                                                           assert_unexpected_parso)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
+    ExpressionCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
+    ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode)
+from autocomplete.code_understanding.typing.errors import (
+    ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing.utils import (create_expression_node_tuples_from_if_stmt,
-                                                          expression_from_node,
-                                                          node_info,
-                                                          parameters_from_parameters,
-                                                          statement_node_from_expr_stmt)
+from autocomplete.code_understanding.typing.utils import (
+    create_expression_node_tuples_from_if_stmt, expression_from_node, node_info,
+    parameters_from_parameters, statement_node_from_expr_stmt)
 from autocomplete.nsn_logging import debug, error, warning
 
 

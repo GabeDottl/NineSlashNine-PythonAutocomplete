@@ -3,11 +3,8 @@ from wsgiref.validate import validator
 
 import attr
 
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
-                                                             FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (
+    AugmentedObject, FuzzyBoolean, FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, warning
 
 
@@ -16,6 +13,14 @@ class Expression(ABC):
   @abstractmethod
   def evaluate(self, curr_frame) -> PObject:
     raise NotImplementedError()  # abstract
+
+
+@attr.s
+class AnonymousExpression(Expression):
+  pobject: PObject = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    return self.pobject
 
 
 @attr.s
@@ -28,10 +33,10 @@ class LiteralExpression(Expression):
 
 @attr.s
 class UnknownExpression(Expression):
-  parso_node = attr.ib()
+  string = attr.ib()
 
   def evaluate(self, curr_frame):
-    return UnknownObject(self.parso_node.get_code())
+    return UnknownObject(self.string)
 
 
 # @attr.s
@@ -46,7 +51,7 @@ class UnknownExpression(Expression):
 
 @attr.s
 class NotExpression(Expression):
-  expression = attr.ib()
+  expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.expression.evaluate(curr_frame)
@@ -93,17 +98,17 @@ class CallExpression(Expression):
 
 @attr.s
 class AttributeExpression(Expression):
-  base_expression = attr.ib()
-  attribute = attr.ib()
+  base_expression: Expression = attr.ib()
+  attribute: str = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    value: FuzzyObject = self.base_expression.evaluate(curr_frame)
+    value: PObject = self.base_expression.evaluate(curr_frame)
     return value.get_attribute(self.attribute)
 
 
 @attr.s
 class SubscriptExpression(Expression):
-  base_expression = attr.ib()
+  base_expression: Expression = attr.ib()
   subscript_list = attr.ib()
 
   @subscript_list.validator
@@ -159,9 +164,9 @@ class IfElseExpression(Expression):
 
 @attr.s
 class ForExpression(Expression):
-  generator_expression = attr.ib()
-  conditional_expression = attr.ib()
-  iterable_expression = attr.ib()
+  generator_expression: Expression = attr.ib()
+  conditional_expression: Expression = attr.ib()
+  iterable_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return self.generator_expression.evaluate(curr_frame)
@@ -170,7 +175,7 @@ class ForExpression(Expression):
 @attr.s
 class FactorExpression(Expression):
   operator = attr.ib()
-  expression = attr.ib()
+  expression: Expression = attr.ib()
   parso_node = attr.ib()
 
   def evaluate(self, curr_frame):
