@@ -46,7 +46,7 @@ class Frame:
   # Symbol tables.
   # _globals: Dict = attr.ib(factory=dict)  # Instead of 'globals' we use _root.locals. Falls apart with imports?
   _locals: Dict = attr.ib(factory=dict)
-  _builtins: Dict = attr.ib(factory=dict)  # TODO
+  _builtins: Dict = attr.ib(None)  # TODO
   # _nonlocals: Dict = attr.ib(factory=dict)
   _returns: List[PObject] = attr.ib(factory=list)
   _frame_type: FrameType = attr.ib(FrameType.NORMAL)
@@ -54,6 +54,10 @@ class Frame:
   _back: 'Frame' = attr.ib(None)
   _root: 'Frame' = attr.ib(None)
   _collector = None  # class variable
+
+  def __attrs_post_init__(self):
+    if not self._builtins:
+      self._builtins = {key: UnknownObject(key) for key in __builtins__.keys() }
 
   # TODO: nonlocal_names and global_names
   # _frame_type = attr.ib(FrameType.NORMAL)
@@ -67,7 +71,7 @@ class Frame:
   def make_child(self, namespace, frame_type) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     return Frame(
-        frame_type=frame_type, back=self, root=self._root, namespace=namespace)
+        frame_type=frame_type, back=self, root=self._root, namespace=namespace, builtins=self._builtins)
 
   def to_module(self) -> 'Module':
     raise NotImplementedError()
