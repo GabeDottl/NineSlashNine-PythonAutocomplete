@@ -51,7 +51,6 @@ class Namespace:
     try:
       return self._members[name]
     except KeyError as e:
-      warning(f'Failed to get {name} from {self.name}')
       raise AttributeError(e)
 
   def __setitem__(self, name, value):
@@ -99,6 +98,13 @@ class Module(Namespace):
       return self.containing_package.root()
     return self
 
+  def __getitem__(self, name):
+    try:
+      return super().__getitem__(name)
+    except AttributeError:
+      if self.module_type != ModuleType.UNKNOWN:
+        warning(f'Failed to get {name} from {self.name}')
+      raise
 
 @attr.s
 class LazyModule(Module):
@@ -127,6 +133,7 @@ class LazyModule(Module):
         try:
           self._members = self.load_module_exports_from_filename(self.filename)
         except ValueError:
+          raise
           error(f'Unable to lazily load {self.filename}')
         self._loaded = True
       return func(self, *args, **kwargs)
@@ -290,7 +297,7 @@ class FunctionImpl(Function):
 
     if kwargs_name:  # Add remaining keywords to kwargs if there is one.
       in_dict = {}
-      for key, value in kwargs:
+      for key, value in kwargs.items():
         if key not in curr_frame:
           in_dict[key] = value
       curr_frame[kwargs_name] = AugmentedObject(in_dict)

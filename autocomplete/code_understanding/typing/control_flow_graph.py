@@ -60,6 +60,7 @@ def condense_graph(graph):
 # traceback.print_tb(e.tb)
 # raise e
 
+class TypingException(Exception): ...
 
 @attr.s
 class ControlFlowGraphBuilder:
@@ -78,7 +79,8 @@ class ControlFlowGraphBuilder:
     ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
       # handle_error(e, node)
       error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')
-    # except Exception as e:  #
+    # except Exception as e:
+    #   raise TypingException(e) from e # Wrap other exceptions in this so we can be sure they don't get caught later.
     #   handle_error(e, node)
     # except:
     #   pass

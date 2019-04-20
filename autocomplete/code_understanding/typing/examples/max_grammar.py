@@ -60,7 +60,7 @@ def gen():
 path = os.path.join('asdfasdfads', os.path.abspath(__file__))
 try:
   raise Exception()
-except Exception as e:
+except OSError as e:
   pass
 finally:
   pass

@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from wsgiref.validate import validator
 
 import attr
-from tensorflow.python.framework.errors_impl import UnimplementedError
 
 from autocomplete.code_understanding.typing.pobjects import (
     AugmentedObject, FuzzyBoolean, FuzzyObject, PObject, UnknownObject)

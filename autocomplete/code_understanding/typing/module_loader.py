@@ -73,15 +73,15 @@ def get_module_from_filename(name, filename) -> Module:
 
 
 def _module_exports_from_source(source, filename) -> Dict[str, PObject]:
-  old_cwd = os.getcwd()
-  new_dir = os.path.dirname(filename)
-  debug(f'new_dir: {new_dir}')
-  os.chdir(new_dir)
+  # old_cwd = os.getcwd()
+  # new_dir = os.path.dirname(filename)
+  # debug(f'new_dir: {new_dir}')
+  # os.chdir(new_dir)
   push_context(os.path.basename(filename))
   frame_ = api.frame_from_source(source, filename)
   pop_context()
-  debug(f'old_cwd: {old_cwd}')
-  os.chdir(old_cwd)
+  # debug(f'old_cwd: {old_cwd}')
+  # os.chdir(old_cwd)
   return dict(filter(lambda kv: '_' != kv[0][0], frame_._locals.items()))
 
 
@@ -140,7 +140,7 @@ def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
       path = os.path.join(collector.get_current_context_dir(), '__init__.py')
       is_package = True
     else:
-      path = f'.{name.replace(".", os.sep)}'
+      path = f'{collector.get_current_context_dir()}.{name.replace(".", os.sep)}'
       if os.path.isdir(path):
         path = os.path.join(path, '__init__.py')
         is_package = True
