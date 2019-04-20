@@ -107,6 +107,19 @@ class Frame:
       pobject = variable.base_expression.evaluate(self)
       pobject.set_attribute(variable.attribute, value)
 
+  # def _path_upto_module_namespace(self):
+  #   if isinstance(self.namespace, Module):
+  #     name = self.namespace.name if self.namespace and hasattr(self.namespace, 'name') else ''
+  #   if self.back:
+  #     return
+
+  def _get_current_filename(self):
+    if hasattr(self.namespace, 'filename'):
+      return self.namespace.filename
+    if self.back:
+      return self.back._get_current_filename()
+    return ''
+
   def __getitem__(self,
                   variable: Variable,
                   raise_error_if_missing=False,
@@ -147,8 +160,8 @@ class Frame:
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.
-    collector.add_missing_symbol(name)
     context_str = collector.get_code_context_string()
+    collector.add_missing_symbol(name, context_str)
     if context_str:
       warning(f'At: {context_str}')
     warning(

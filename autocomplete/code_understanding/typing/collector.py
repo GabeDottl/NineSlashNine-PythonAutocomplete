@@ -67,9 +67,9 @@ def get_code_context_string():
   return filename
 
 
-def add_missing_symbol(name):
-  assert _filename_context
-  _missing_symbols[_filename_context[-1]].append(name)
+def add_missing_symbol(filename, name, context):
+  # assert _filename_context
+  _missing_symbols[filename].append((name, context))
 
 
 def get_missing_symbols_in_file(filename):

@@ -14,7 +14,8 @@ import importlib
 import os
 from typing import Dict
 
-from autocomplete.code_understanding.typing import api, collector
+from autocomplete.code_understanding.typing import api, collector, frame
+from autocomplete.code_understanding.typing.collector import FileContext
 from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleType)
 from autocomplete.code_understanding.typing.pobjects import (PObject,
@@ -58,31 +59,33 @@ def get_module(name: str, unknown_fallback=True) -> Module:
   module = load_module(name)
   assert module
   __module_dict[name] = module
-  __path_module_dict[module.filename] = module
+  __path_module_dict[os.path.abspath(module.filename)] = module
   return module
 
 
-def get_module_from_filename(name, filename) -> Module:
-  try:
-    return __path_module_dict[os.path.abspath(filename)]
-  except KeyError:
-    pass
-  module = load_module_from_filename(name, filename)
-  __path_module_dict[module.filename] = module
+def get_module_from_filename(name, filename, is_package=False) -> Module:
+  abs_path = os.path.abspath(filename)
+  if abs_path in __path_module_dict:
+    return __path_module_dict[abs_path]
+  module = load_module_from_filename(name, filename, is_package=is_package)
+  __path_module_dict[abs_path] = module
   return module
 
 
-def _module_exports_from_source(source, filename) -> Dict[str, PObject]:
+def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
   # old_cwd = os.getcwd()
   # new_dir = os.path.dirname(filename)
   # debug(f'new_dir: {new_dir}')
   # os.chdir(new_dir)
   push_context(os.path.basename(filename))
-  frame_ = api.frame_from_source(source, filename)
+  with FileContext(filename):
+    a_frame = frame.Frame(namespace=module)
+    graph = api.graph_from_source(source)
+    graph.process(a_frame)
   pop_context()
   # debug(f'old_cwd: {old_cwd}')
   # os.chdir(old_cwd)
-  return dict(filter(lambda kv: '_' != kv[0][0], frame_._locals.items()))
+  return dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
 
 
 def _get_module_stub_source_filename(name) -> str:
@@ -115,11 +118,11 @@ def _get_module_stub_source_filename(name) -> str:
   raise ValueError(f'Did not find typeshed for {name}')
 
 
-def load_module_exports_from_filename(filename):
+def load_module_exports_from_filename(module, filename):
   try:
     with open(filename) as f:
       source = ''.join(f.readlines())
-    return _module_exports_from_source(source, filename)
+    return _module_exports_from_source(module, source, filename)
   except UnicodeDecodeError as e:
     warning(f'{filename}: {e}')
     raise ValueError(e)
@@ -187,16 +190,17 @@ def load_module_from_filename(name,
   if lazy:
     return _create_lazy_module(name, filename, is_package=is_package)
 
-  exports = load_module_exports_from_filename(filename)
-  # name = os.path.splitext(os.path.basename(path))[0]
-  # TODO: containing_package.
-  return Module(
+  module = Module(
       module_type=ModuleType.LOCAL,  # TODO
       name=name,
       filename=filename,
-      members=exports,
+      members={},
       containing_package=None,
       is_package=is_package)
+  module._members = load_module_exports_from_filename(module, filename)
+  # name = os.path.splitext(os.path.basename(path))[0]
+  # TODO: containing_package.
+  return module
 
 
 def _create_lazy_module(name, filename, is_package) -> LazyModule:

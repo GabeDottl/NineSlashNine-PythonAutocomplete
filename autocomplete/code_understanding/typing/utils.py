@@ -531,7 +531,7 @@ def extract_nodes_of_type(node, type_, out=None):
 
 def num(s):
   try:
-    return int(s, 0) # 0 allows hex to be read like 0xdeadbeef.
+    return int(s, 0)  # 0 allows hex to be read like 0xdeadbeef.
   except ValueError:
     return float(s)
 

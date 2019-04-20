@@ -60,7 +60,10 @@ def condense_graph(graph):
 # traceback.print_tb(e.tb)
 # raise e
 
-class TypingException(Exception): ...
+
+class TypingException(Exception):
+  ...
+
 
 @attr.s
 class ControlFlowGraphBuilder:

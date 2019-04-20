@@ -25,18 +25,19 @@ def frame_from_source(source: str, filename: str) -> frame.Frame:
 
 
 def analyze_file(filename):
-  with open(filename) as f:
-    source = ''.join(f.readlines())
-    with collector.FileContext(filename):
-      return collector_from_source(source)
+  #   with open(filename) as f:
+  #     source = ''.join(f.readlines())
+  #     with collector.FileContext(filename):
+  #       return collector_from_source(source)
 
-
-def collector_from_source(source: str):
+  # def collector_from_source(source: str):
   collector = Collector()  # TODO: Drop
   CfgNode.collector = collector
-  graph = graph_from_source(source)
-  a_frame = frame.Frame()
-  graph.process(a_frame)
+  module_loader.load_module_from_filename(
+      '', filename, is_package=False, lazy=False)
+  # graph = graph_from_source(source)
+  # a_frame = frame.Frame()
+  # graph.process(a_frame)
   debug(f'len(collector.functions): {len(collector.functions)}')
   for key, member in a_frame._locals.items():
     _process(member, a_frame)

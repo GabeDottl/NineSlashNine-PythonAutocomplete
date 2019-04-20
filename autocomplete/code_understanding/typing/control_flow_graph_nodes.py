@@ -232,7 +232,10 @@ class FuncCfgNode(CfgNode):
     func_name = '.'.join([curr_frame._namespace.name, self.name
                          ]) if curr_frame._namespace else self.name
     func = FunctionImpl(
-        name=func_name, parameters=processed_params, graph=self.suite)
+        name=func_name,
+        context=curr_frame.namespace,
+        parameters=processed_params,
+        graph=self.suite)
     if self.collector:
       self.collector.add_function_node(func)
     curr_frame[VariableExpression(self.name)] = func

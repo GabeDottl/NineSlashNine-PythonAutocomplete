@@ -106,6 +106,7 @@ class Module(Namespace):
         warning(f'Failed to get {name} from {self.name}')
       raise
 
+
 @attr.s
 class LazyModule(Module):
   '''A Module which is lazily loaded with members.
@@ -131,7 +132,8 @@ class LazyModule(Module):
           return func(self, *args, **kwargs)
         self._loading = True
         try:
-          self._members = self.load_module_exports_from_filename(self.filename)
+          self._members = self.load_module_exports_from_filename(
+              self, self.filename)
         except ValueError:
           raise
           error(f'Unable to lazily load {self.filename}')
@@ -245,6 +247,7 @@ class Function(Namespace):
 @attr.s(str=False, repr=False)
 class FunctionImpl(Function):
   name = attr.ib()
+  context = attr.ib()
   parameters = attr.ib()
   graph = attr.ib()
   type = attr.ib(FunctionType.FREE)
