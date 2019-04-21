@@ -91,8 +91,8 @@ class ReferenceAstNodeVisitor(ast.NodeVisitor):
     if complete_name is not None:
       # print(f'Complete name for {name}{lineno}: {complete_name}')
       self.names_to_node[complete_name] = node
-    self.nodes.append((type_name_, name, complete_name, lineno, node,
-                       self.parent))
+    self.nodes.append(
+        (type_name_, name, complete_name, lineno, node, self.parent))
     assert not node == self.parent
     if node not in self.node_to_parent:
       self.node_to_parent[node] = self.parent
@@ -142,8 +142,8 @@ class ReferenceAstNodeVisitor(ast.NodeVisitor):
         name = _get_complete_attribute_path(node)
       else:
         name = node.id
-      self.references.append((name, self._find_matching_name(node),
-                              self.current_context, lineno))
+      self.references.append(
+          (name, self._find_matching_name(node), self.current_context, lineno))
 
     elif isinstance(node, _ast.Module):
       old_global = self.current_global_names
@@ -174,8 +174,8 @@ class ReferenceAstNodeVisitor(ast.NodeVisitor):
         # If it's a class, keep the things around but with full names.
         for local_name, local_complete_name, local_type_name in self.current_local_names[::
                                                                                          -1]:
-          old_local.insert(0, (join_names(name, local_name),
-                               local_complete_name, local_type_name))
+          old_local.insert(0, (join_names(
+              name, local_name), local_complete_name, local_type_name))
       self.current_local_names = old_local
 
   def _find_matching_name(self, node):
@@ -201,8 +201,8 @@ class ReferenceAstNodeVisitor(ast.NodeVisitor):
       # assert isinstance(target, _ast.Name)
       if isinstance(target, _ast.Name):
         self.current_local_names.insert(
-            0, (target.id, join_names(self.current_context, target.id),
-                type_name(node)))
+            0, (target.id, join_names(self.current_context,
+                                      target.id), type_name(node)))
       else:
         assert isinstance(target, _ast.Attribute), f'{type(target)}'
         name = _get_complete_attribute_path(target)
@@ -226,10 +226,8 @@ class ReferenceAstNodeVisitor(ast.NodeVisitor):
         # for module_local_name in traveler.current_local_names:
         #   self.current_local_names.append()
       else:
-        self.current_local_names.append((name,
-                                         join_names(node.module,
-                                                    name_alias.name),
-                                         type_name(node)))
+        self.current_local_names.append(
+            (name, join_names(node.module, name_alias.name), type_name(node)))
 
   def _process_module(self, module_name):
     module_spec = importlib.util.find_spec(module_name)

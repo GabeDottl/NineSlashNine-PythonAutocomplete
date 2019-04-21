@@ -19,19 +19,24 @@
 # - Memoize where possible + shortcut
 import sys
 import traceback
+from functools import wraps
 
 import attr
-
 import parso
+
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    ExpressionCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
-    ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode)
+    AssignmentStmtCfgNode, CfgNode, ExpressionCfgNode, ForCfgNode,
+    FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode,
+    KlassCfgNode, NoOpCfgNode, ReturnCfgNode, WhileCfgNode, WithCfgNode)
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (
+    UnknownExpression)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.utils import (
-    create_expression_node_tuples_from_if_stmt, expression_from_node, node_info,
-    parameters_from_parameters, statement_node_from_expr_stmt)
+    _assert_returns_type, create_expression_node_tuples_from_if_stmt,
+    expression_from_node, node_info, parameters_from_parameters,
+    statement_node_from_expr_stmt, variables_from_node)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -69,6 +74,7 @@ class TypingException(Exception):
 class ControlFlowGraphBuilder:
   module_loader = attr.ib()
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node(self, node):
     '''Create handles all nodes which should create their own CfgNode - i.e.
     nodes that contain a complete statement/definition or control flow.'''
@@ -91,88 +97,110 @@ class ControlFlowGraphBuilder:
     # except NotImplementedError as e:
     #   handle_error(e, node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_error_node(self, node):
     debug(f'Error node when processing: {node.get_code()}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_single_input(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_file_input(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_eval_input(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_stmt(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_simple_stmt(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_small_stmt(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_suite(self, node):
     return GroupCfgNode(
         [self.create_cfg_node(child) for child in node.children],
         parso_node=node)
 
   # Noop nodes for our purposes.
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_del_stmt(self, node):
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_keyword(self, node):
     assert_unexpected_parso(node.value == 'pass', node_info)
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_string(self, node):
     # TODO: Documentation?
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_pass(self, node):
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_newline(self, node):
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_endmarker(self, node):
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_name(self, node):
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_decorated(self, node):
     # TODO: Handle first child decorator or decorators.
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return self.create_cfg_node(node.children[1])
 
+  # @_assert_returns_type(CfgNode)
   # def create_cfg_node_for_decorator(self, node): debug(f'Skipping {node.type}')
+  # @_assert_returns_type(CfgNode)
   # def create_cfg_node_for_decorators(self, node): debug(f'Skipping {node.type}')
 
   # Parso doesn't handle these grammar nodes in the expectezd way:
   # async_func's are treated as async_stmt with a funcdef inside.
+  # @_assert_returns_type(CfgNode)
   # def create_cfg_node_for_async_funcdef(self, node): debug(f'Skipping {node.type}')
 
   # augassign is treated as a regular assignment with a special operator (e.g. +=)
+  # @_assert_returns_type(CfgNode)
   # def create_cfg_node_for_augassign(self, node): debug(f'Skipping {node.type}')
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_if_stmt(self, node):
     return IfCfgNode(
         create_expression_node_tuples_from_if_stmt(self, node), node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_funcdef(self, node):
     # Children are: def name params : suite
     name = node.children[1].value
@@ -180,46 +208,56 @@ class ControlFlowGraphBuilder:
     suite = self.create_cfg_node(node.children[-1])
     return FuncCfgNode(name, parameters, suite, parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_expr_stmt(self, node):
     return statement_node_from_expr_stmt(node)
     # debug(f'Creating AssignmentStmtCfgNode for {node}')
     # return AssignmentStmtCfgNode(statement, node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_atom_expr(self, node):
     expression = expression_from_node(node)
     return ExpressionCfgNode(expression, parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_return_stmt(self, node):
     # First child is 'return', second is result.
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return ReturnCfgNode(
         expression_from_node(node.children[1]), parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_flow_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_break_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_continue_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_yield_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_raise_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_import_stmt(self, node):
     assert_unexpected_parso(False, "Not used.")
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_import_name(self, node):
     # import_name: 'import' dotted_as_names
     # dotted_as_names: dotted_as_name (',' dotted_as_name)*
@@ -279,6 +317,7 @@ class ControlFlowGraphBuilder:
     assert_unexpected_parso(len(node.children) == 3, node_info(node))
     return path, node.children[-1].value
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_import_from(self, node):
     # import_from: ('from' (('.' | '...')* dotted_name | ('.' | '...')+)
     #              'import' ('*' | '(' import_as_names ')' | import_as_names))
@@ -369,50 +408,84 @@ class ControlFlowGraphBuilder:
                 module_loader=self.module_loader))
     return out
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_global_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_nonlocal_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_assert_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_compound_stmt(self, node):
+    assert False
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_async_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
+    debug(f'Ignoring async in {node.type}')
+    return self.create_cfg_node(node.children[1])
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_while_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
+    assert len(node.children) == 4 or len(node.children) == 7, node_info(node)
+    conditional_expression = expression_from_node(node.children[1])
+    suite = self.create_cfg_node(node.children[1])
+    else_suite = self.create_cfg_node(node.children[-1]) if len(
+        node.children) == 7 else NoOpCfgNode(node.children[-1])
 
+    return WhileCfgNode(
+        conditional_expression, suite, else_suite, parso_node=node)
+
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_for_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
+    # Example for loop_variables in loop_expression: suite
+    loop_variables = variables_from_node(node.children[1])
+    assert not isinstance(loop_variables, UnknownExpression)
+    loop_expression = expression_from_node(node.children[3])
+    suite = self.create_cfg_node(node.children[-1])
+    return ForCfgNode(loop_variables, loop_expression, suite, parso_node=node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_try_stmt(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_except_clause(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_with_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
+    with_item = node.children[1]
+    as_name = None
+    if node.type == 'with_item':
+      with_item_expression = expression_from_node(with_item.children[0])
+      if len(with_item.children) == 3:
+        as_name = expression_from_node(with_item.children[-1])
+      else:
+        assert len(with_item.children) == 1, node
+    else:
+      with_item_expression = expression_from_node(with_item)
 
+    suite = self.create_cfg_node(node.children[-1])
+    return WithCfgNode(with_item_expression, as_name, suite, parso_node=node)
+
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_with_item(self, node):
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
 
+  @_assert_returns_type(CfgNode)
   def create_cfg_node_for_classdef(self, node):
     name = node.children[1].value
     suite = self.create_cfg_node(node.children[-1])

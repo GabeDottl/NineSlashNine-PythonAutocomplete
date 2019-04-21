@@ -176,8 +176,8 @@ class AutocompleteTrie:
         # Reset split point in case of exception before natural reset.
         split_point = 0
         curr_node = curr_node.children[c]
-        for split_point, (a, b) in enumerate(
-            zip(curr_node.remainder, line_iter)):
+        for split_point, (a,
+                          b) in enumerate(zip(curr_node.remainder, line_iter)):
           if a != b:
             raise RemainderSplitException(split_point=split_point)
       if split_point > 0 and split_point != len(curr_node.remainder) - 1:

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from functools import wraps
+from typing import Union
 
 import attr
 
@@ -12,15 +13,15 @@ from autocomplete.code_understanding.typing.expressions import (
 from autocomplete.code_understanding.typing.frame import FrameType
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionImpl, FunctionType, Klass, Module, Parameter)
-from autocomplete.code_understanding.typing.pobjects import (
-    FuzzyBoolean, FuzzyObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
 
 
 class CfgNode(ABC):
-  collector: 'Collector' = None  # TODO: Drop.
   parso_node = attr.ib()
 
   def process(self, curr_frame):
@@ -53,8 +54,7 @@ class ImportCfgNode(CfgNode):
     name = self.as_name if self.as_name else self.module_path
     module = self.module_loader.get_module(self.module_path)
     # info(f'Importing {module.path()} as {name}')  # Logs *constantly*
-    if self.collector:
-      self.collector.add_module_import(module.path(), self.as_name)
+    collector.add_module_import(module.path(), self.as_name)
     curr_frame[name] = module
 
 
@@ -67,6 +67,8 @@ class FromImportCfgNode(CfgNode):
   module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
+    collector.add_from_import(self.module_path, self.from_import_name,
+                              self.as_name)
     # Example: from foo import *
     if self.from_import_name == '*':
       module = self.module_loader.get_module(self.module_path)
@@ -76,13 +78,11 @@ class FromImportCfgNode(CfgNode):
 
     # Normal case.
     name = self.as_name if self.as_name else self.from_import_name
+
     pobject = self.module_loader.get_pobject_from_module(
         self.module_path, self.from_import_name)
     curr_frame[name] = pobject
 
-    # if self.collector:
-    #   self.collector.add_from_import(module.path(), self.from_import_name,
-    #                                  self.as_name)
     # info(f'{name} from {module.path}')  # Logs *constantly*
 
     # try:
@@ -110,40 +110,14 @@ class AssignmentStmtCfgNode(CfgNode):
   left_variables = attr.ib()
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression: Expression = attr.ib()
-  value_node = attr.ib()
+  value_node = attr.ib()  # TODO: Delete.
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
-    self._process_variable(curr_frame, self.left_variables, result)
-
-  def _process_variable(self, curr_frame, variable, result):
-    if (hasattr(variable, '__len__') and len(variable) == 1):
-      variable = variable[0]
-    if not hasattr(variable, '__iter__'):
-      if self.collector:
-        self.collector.add_variable_assignment(
-            variable, f'({self.value_node.get_code().strip()})')
-      assert_unexpected_parso(isinstance(variable, Expression), variable)
-      if isinstance(variable, SubscriptExpression):
-        variable.set(curr_frame, result)
-      else:
-        # TODO: Handle this properly...
-        curr_frame[variable] = result
-    else:
-      # Recursively process variables.
-      for i, variable_item in enumerate(variable):
-        if isinstance(variable_item, StarExpression):
-          info(
-              f'Mishandling star assignment - {self.parso_node.get_code().strip()}'
-          )
-          # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
-          self._process_variable(curr_frame, variable_item.base_expression,
-                                 result._get_item_processed(i))
-        else:
-          self._process_variable(curr_frame, variable_item,
-                                 result._get_item_processed(i))
+    _assign_variables_to_results(curr_frame, self.left_variables, result,
+                                 self.parso_node)
 
   def __str__(self):
     return self._to_str()
@@ -153,6 +127,78 @@ class AssignmentStmtCfgNode(CfgNode):
     if self.parso_node.get_code():
       out.append(f'{self.__class__.__name__}: {self.parso_node.get_code()}')
     return '\n'.join(out)
+
+
+def _assign_variables_to_results(curr_frame, variable, result, parso_node):
+  if (hasattr(variable, '__len__') and len(variable) == 1):
+    variable = variable[0]
+  if not hasattr(variable, '__iter__'):
+    collector.add_variable_assignment(variable,
+                                      f'({parso_node.get_code().strip()})')
+    assert_unexpected_parso(isinstance(variable, Expression), variable)
+    if isinstance(variable, SubscriptExpression):
+      variable.set(curr_frame, result)
+    else:
+      # TODO: Handle this properly...
+      curr_frame[variable] = result
+  else:
+    # Recursively process variables.
+    for i, variable_item in enumerate(variable):
+      if isinstance(variable_item, StarExpression):
+        info(f'Mishandling star assignment - {parso_node.get_code().strip()}')
+        # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
+        _assign_variables_to_results(curr_frame, variable_item.base_expression,
+                                     result._get_item_processed(i), parso_node)
+      else:
+        _assign_variables_to_results(curr_frame, variable_item,
+                                     result._get_item_processed(i), parso_node)
+
+
+@attr.s
+class ForCfgNode(CfgNode):
+  # Example for loop_variables in loop_expression: suite
+  loop_variables: Expression = attr.ib()
+  loop_expression: Expression = attr.ib()
+  suite: 'GroupCfgNode' = attr.ib()
+  parso_node = attr.ib()
+
+  def _process_impl(self, curr_frame):
+    _assign_variables_to_results(curr_frame, self.loop_variables,
+                                 self.loop_expression.evaluate(curr_frame),
+                                 self.parso_node)
+    self.suite.process(curr_frame)
+
+
+@attr.s
+class WhileCfgNode(CfgNode):
+  # Example for loop_variables in loop_expression: suite
+  conditional_expression: Expression = attr.ib()
+  suite: 'CfgNode' = attr.ib()
+  else_suite: 'CfgNode' = attr.ib()
+  parso_node = attr.ib()
+
+  def _process_impl(self, curr_frame):
+    self.conditional_expression.evaluate(curr_frame)
+    self.suite.process(curr_frame)
+    self.else_suite.process(curr_frame)
+
+
+@attr.s
+class WithCfgNode(CfgNode):
+  # For 'else', (True, node).
+  with_item_expression: Expression = attr.ib()
+  as_expression: Union[Expression, None] = attr.ib()
+  suite: 'GroupCfgNode' = attr.ib()
+  parso_node = attr.ib()
+
+  def _process_impl(self, curr_frame):
+    if self.as_expression:
+      _assign_variables_to_results(
+          curr_frame, self.as_expression,
+          self.with_item_expression.evaluate(curr_frame), self.parso_node)
+    else:
+      self.with_item_expression.evaluate(curr_frame)
+    self.suite.process(curr_frame)
 
 
 @attr.s
@@ -176,6 +222,14 @@ class IfCfgNode(CfgNode):
         node.process(curr_frame)
 
 
+def _search_for_module(frame):
+  if not frame:
+    return None
+  if isinstance(frame.namespace, Module):
+    return frame.namespace
+  return _search_for_module(frame._back)
+
+
 @attr.s
 class KlassCfgNode(CfgNode):
   name = attr.ib()
@@ -183,9 +237,10 @@ class KlassCfgNode(CfgNode):
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):
-    klass_name = f'{curr_frame._namespace.name}.{self.name}' if curr_frame._namespace else self.name
-    klass = Klass(klass_name)
+    klass_name = f'{curr_frame.namespace.name}.{self.name}' if curr_frame.namespace else self.name
+    klass = Klass(klass_name, curr_frame.namespace)
     curr_frame[self.name] = klass
+
     new_frame = curr_frame.make_child(
         frame_type=FrameType.KLASS, namespace=klass)
     # Locals defined in this frame are actually members of our class.
@@ -204,6 +259,11 @@ class KlassCfgNode(CfgNode):
 class GroupCfgNode(CfgNode):
   children = attr.ib()
   parso_node = attr.ib()
+
+  @children.validator
+  def _validate_children(self, attribute, children):
+    for child in children:
+      assert isinstance(child, CfgNode)
 
   def _process_impl(self, curr_frame):
     for child in self.children:
@@ -229,15 +289,14 @@ class FuncCfgNode(CfgNode):
         default = param.default.evaluate(curr_frame)
         processed_params.append(Parameter(param.name, param.type, default))
     # Include full name.
-    func_name = '.'.join([curr_frame._namespace.name, self.name
-                         ]) if curr_frame._namespace else self.name
+    func_name = '.'.join([curr_frame.namespace.name, self.name
+                         ]) if curr_frame.namespace else self.name
     func = FunctionImpl(
         name=func_name,
         context=curr_frame.namespace,
         parameters=processed_params,
         graph=self.suite)
-    if self.collector:
-      self.collector.add_function_node(func)
+    collector.add_function_node(func)
     curr_frame[VariableExpression(self.name)] = func
 
   def __str__(self):

@@ -1,3 +1,4 @@
+import itertools
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from enum import Enum
@@ -6,6 +7,8 @@ from typing import List
 
 import attr
 
+from autocomplete.code_understanding.typing.errors import (
+    LoadingModuleAttributeError, SourceAttributeError)
 from autocomplete.nsn_logging import debug, info, warning
 
 _OPERATORS = [
@@ -156,6 +159,7 @@ class UnknownObject(PObject):
     return FuzzyBoolean.MAYBE
 
   def call(self, args, kwargs, curr_frame):
+    _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
   def _get_item_processed(self, indicies):
@@ -175,6 +179,12 @@ class UnknownObject(PObject):
     return str(self)
 
 
+def _process_args_kwargs(args, kwargs, curr_frame):
+  '''Processes args & kwargs but does nothing with them.'''
+  for arg in itertools.chain(args, kwargs.values()):
+    arg.evaluate(curr_frame)
+
+
 @attr.s(str=False, repr=False)
 class AugmentedObject(PObject):  # TODO: CallableInterface
   _object = attr.ib()
@@ -186,9 +196,14 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
 
   def get_attribute(self, name):
     try:
+
       return self._object.get_attribute(name)
-    except AttributeError:
+    except (SourceAttributeError, LoadingModuleAttributeError):
       # TODO: Log
+      debug(f'Failed to access {name} from {self._object}')
+      return self._dynamic_container.get_attribute(name)
+    except AttributeError:  # E.g. <str>.get_attribute
+      # TODO: Support for some native objects - str, int, list perhaps.
       debug(f'Failed to access {name} from {self._object}')
       return self._dynamic_container.get_attribute(name)
 
@@ -225,6 +240,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   def call(self, args, kwargs, curr_frame):
     if hasattr(self._object, 'call'):
       return self._object.call(args, kwargs, curr_frame)
+    _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
   def _get_item_processed(self, indicies):
@@ -232,8 +248,10 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
       return self._object._get_item_processed(indicies)
     elif hasattr(self._object, '__getitem__'):
       try:
+        # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
         return AugmentedObject(self._object.__getitem__(indicies))
-      except (KeyError, IndexError, TypeError):
+      except (KeyError, IndexError, TypeError, SourceAttributeError,
+              LoadingModuleAttributeError):
         pass
     return UnknownObject(f'{self._object}[{indicies}]')
 
@@ -250,6 +268,10 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
 
   def __repr__(self):
     return str(self)
+
+
+class EmptyFuzzyValueError(Exception):
+  ...
 
 
 @attr.s(str=False, repr=False)
@@ -392,7 +414,9 @@ class FuzzyObject(PObject):
       return FuzzyObject(out)
     elif out:  # len(out) == 1
       return out[0]
-    return UnknownObject(f'FV({args}, {kwargs})')
+    raise EmptyFuzzyValueError()
+    # _process_args_kwargs(args, kwargs, curr_frame)  # No children means we
+    # return UnknownObject(f'FV({args}, {kwargs})')
 
   def _get_item_processed(self, indicies):
     out = []

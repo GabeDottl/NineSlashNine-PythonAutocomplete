@@ -16,8 +16,11 @@ from typing import Dict
 
 from autocomplete.code_understanding.typing import api, collector, frame
 from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.language_objects import (
-    LazyModule, Module, ModuleType)
+from autocomplete.code_understanding.typing.errors import (
+    LoadingModuleAttributeError, SourceAttributeError)
+from autocomplete.code_understanding.typing.language_objects import (LazyModule,
+                                                                     Module,
+                                                                     ModuleType)
 from autocomplete.code_understanding.typing.pobjects import (PObject,
                                                              UnknownObject)
 from autocomplete.nsn_logging import (debug, error, pop_context, push_context,
@@ -43,7 +46,7 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
       return UnknownObject(full_pobject_name)
   try:
     return module[pobject_name]
-  except AttributeError:
+  except (SourceAttributeError, LoadingModuleAttributeError):
     return UnknownObject(full_pobject_name)
 
 
@@ -79,7 +82,7 @@ def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
   # os.chdir(new_dir)
   push_context(os.path.basename(filename))
   with FileContext(filename):
-    a_frame = frame.Frame(namespace=module)
+    a_frame = frame.Frame(namespace=module, locals=module._members)
     graph = api.graph_from_source(source)
     graph.process(a_frame)
   pop_context()
@@ -161,7 +164,7 @@ def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
       else:  # System module
         # TODO.
         warning(f'System modules not implemented.')
-  except AttributeError as e:
+  except (AttributeError, ModuleNotFoundError) as e:
     # find_spec can break for sys modules unexpectedly.
     warning(f'Exception while getting spec for {name}')
     warning(e)

@@ -1,16 +1,17 @@
 import argparse
 
 import parso
-from autocomplete.code_understanding.typing import (
-    collector, control_flow_graph, frame, module_loader)
-from autocomplete.code_understanding.typing.collector import Collector
+
+from autocomplete.code_understanding.typing import (collector,
+                                                    control_flow_graph, frame,
+                                                    module_loader)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    CfgNode, FunctionImpl, Klass)
+    CfgNode, Function, Klass)
 from autocomplete.code_understanding.typing.expressions import (
     UnknownExpression)
 from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
                                                              UnknownObject)
-from autocomplete.nsn_logging import debug
+from autocomplete.nsn_logging import debug, info
 
 
 def graph_from_source(source: str):
@@ -31,18 +32,17 @@ def analyze_file(filename):
   #       return collector_from_source(source)
 
   # def collector_from_source(source: str):
-  collector = Collector()  # TODO: Drop
-  CfgNode.collector = collector
-  module_loader.load_module_from_filename(
+  module = module_loader.load_module_from_filename(
       '', filename, is_package=False, lazy=False)
   # graph = graph_from_source(source)
   # a_frame = frame.Frame()
   # graph.process(a_frame)
-  debug(f'len(collector.functions): {len(collector.functions)}')
-  for key, member in a_frame._locals.items():
-    _process(member, a_frame)
-  CfgNode.collector = None  # Cleanup.
-  return collector
+  with collector.FileContext(filename):
+    debug(f'len(collector.functions): {len(collector._functions)}')
+    a_frame = frame.Frame(namespace=module)
+    for key, member in module.items():
+      _process(member, a_frame)
+    return collector._functions  # TODO: ????
 
 
 def _process(member, a_frame):
@@ -50,9 +50,9 @@ def _process(member, a_frame):
     instance = member.value().new([], {}, a_frame)
     for _, value in instance.items():
       _process(value, a_frame)
-  elif member.value_is_a(FunctionImpl) == FuzzyBoolean.TRUE:
+  elif member.value_is_a(Function) == FuzzyBoolean.TRUE:
     func = member.value()
-    debug(f'Calling {func.name}')
+    info(f'Calling {func.name}')
     kwargs = {param.name: UnknownExpression('') for param in func.parameters}
     func.call([], kwargs, a_frame)
 

@@ -3,10 +3,13 @@ import os
 from glob import glob
 
 import parso
+
 from autocomplete.code_understanding.typing import control_flow_graph
 from autocomplete.code_understanding.typing.api import frame_from_source
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, Instance, Klass, Module)
+from autocomplete.code_understanding.typing.language_objects import (Function,
+                                                                     Instance,
+                                                                     Klass,
+                                                                     Module)
 from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
 from autocomplete.nsn_logging import debug
 
@@ -33,7 +36,7 @@ from x.y.z import (q, r as s)'''
   assert 'blob' in frame_ and isinstance(frame_['blob'].value(), Module)
   assert frame_['blob'].value().path() == 'hob.dob'
   assert 'wraps' in frame_
-  assert frame_['wraps'].name == 'functools.wraps'
+  assert frame_['wraps'].value().name == 'functools.wraps'
   assert 'c' in frame_
   assert frame_['c'].name == 'a.b.c'
   assert 'q' in frame_

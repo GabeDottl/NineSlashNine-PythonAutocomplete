@@ -1,18 +1,21 @@
 import os
 
+from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.project_analysis import (
-    symbol_exports)
+    find_missing_symbols)
 
 
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   unresolved_imports_filename = os.path.join(typing_dir, 'examples',
                                              'unresolved_symbols.py')
-  missing_symbols = symbol_exports.scan_missing_symbols(
-      unresolved_imports_filename)
+  missing_symbols = find_missing_symbols.scan_missing_symbols(
+      unresolved_imports_filename, include_context=False)
+  print('Used symbols:',
+        collector._referenced_symbols[unresolved_imports_filename])
   # Should be missing unresolved 1 - 4.
-  assert len(missing_symbols) == 4, missing_symbols
-  for i in range(1, 5):
+  assert len(missing_symbols) == 5, missing_symbols
+  for i in range(1, 6):
     assert f'unresolved{i}' in missing_symbols
 
 

@@ -19,11 +19,16 @@ from typing import Dict
 
 import attr
 
+from autocomplete.code_understanding.typing.errors import (
+    LoadingModuleAttributeError, SourceAttributeError)
 from autocomplete.code_understanding.typing.expressions import (
     AnonymousExpression, LiteralExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
+                                                             AugmentedObject,
+                                                             FuzzyBoolean,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -47,11 +52,12 @@ class Namespace:
   def __contains__(self, name):
     return name in self._members
 
+  # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
   def __getitem__(self, name):
     try:
-      return self._members[name]
+      return self._members[name]  # TODO: Re-raise as SourceAttributeError
     except KeyError as e:
-      raise AttributeError(e)
+      raise SourceAttributeError(e)
 
   def __setitem__(self, name, value):
     self._members[name] = value
@@ -88,7 +94,8 @@ class Module(Namespace):
 
   def __attrs_post_init__(self):
     if self.module_type == ModuleType.UNKNOWN:
-      self.dynamic_creation_func = lambda name: UnknownObject(name='.'.join([self.path(), name]))
+      self.dynamic_creation_func = lambda name: UnknownObject(name='.'.join(
+          [self.path(), name]))
 
   def path(self):
     return f'{self.containing_package.path()}.{self.name}' if self.containing_package else self.name
@@ -101,7 +108,7 @@ class Module(Namespace):
   def __getitem__(self, name):
     try:
       return super().__getitem__(name)
-    except AttributeError:
+    except SourceAttributeError:
       if self.module_type != ModuleType.UNKNOWN:
         warning(f'Failed to get {name} from {self.name}')
       raise
@@ -129,7 +136,8 @@ class LazyModule(Module):
           debug(
               f'Already lazy-loading module... dependency cycle? {self.path()}. Or From import?'
           )
-          return func(self, *args, **kwargs)
+          raise LoadingModuleAttributeError()
+          # return func(self, *args, **kwargs)
         self._loading = True
         try:
           self._members = self.load_module_exports_from_filename(
@@ -170,6 +178,7 @@ class LazyModule(Module):
 @attr.s(str=False, repr=False)
 class Klass(Namespace):
   name: str = attr.ib()
+  context: Namespace = attr.ib()
   _members: Dict[str, PObject] = attr.ib(factory=dict)
 
   def __str__(self):
@@ -246,6 +255,17 @@ class Function(Namespace):
 
 @attr.s(str=False, repr=False)
 class FunctionImpl(Function):
+  '''FunctionImpl is a Function with it's inner CFG included.
+
+  The trickiest thing in this are closures - which are nicely demonstrated within Python here:
+  https://gist.github.com/DmitrySoshnikov/700292
+
+  Lexical scoping with Python can be somewhat difficult to get working because of closures.
+  Here's another article:
+  https://medium.com/@dannymcwaves/a-python-tutorial-to-understanding-scopes-and-closures-c6a3d3ba0937
+
+
+  '''
   name = attr.ib()
   context = attr.ib()
   parameters = attr.ib()
@@ -257,6 +277,16 @@ class FunctionImpl(Function):
   def bind(self, args, kwargs) -> 'BoundFunction':
     return BoundFunction(self, args, kwargs)
 
+  def _get_containing_module(self):
+    namespace = self.context
+    while namespace:
+      if isinstance(namespace, Module):
+        return namespace
+      elif hasattr(namespace, 'context'):
+        namespace = namespace.context
+      else:
+        return None
+
   def call(self, args, kwargs, curr_frame):
     debug(f'Calling {self.name}')
     if curr_frame.contains_namespace_on_stack(self):
@@ -265,8 +295,14 @@ class FunctionImpl(Function):
       )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
+    containing_module = self._get_containing_module()
+    if containing_module:
+      info(f'{self.name} in {containing_module.name}')
+      globals_ = containing_module._members
+    else:
+      globals_ = None
     new_frame = curr_frame.make_child(
-        frame_type=FrameType.FUNCTION, namespace=self)
+        frame_type=FrameType.FUNCTION, namespace=self, globals=globals_)
     self._process_args(args, kwargs, new_frame)
     self.graph.process(new_frame)
 
@@ -323,9 +359,16 @@ class BoundFunction(Function):
   _bound_locals = attr.ib(factory=dict)  # For nested functions.
   _members = attr.ib(factory=dict)
 
+  def __attrs_post_init__(self):
+    self.name = self._function.name
+    container_parameters = self._function.parameters
+    remaining_parameters = container_parameters[len(self._bound_args):]
+    self.parameters = filter(lambda param: param.name not in self._bound_kwargs,
+                             remaining_parameters)
+
   # @_function.validator
   # def _function_validator(self, attribute, value):
-  #   assert isinstance(value, Function)
+  #   assert isinstance(value, Function)v
 
   # TODO: Cell vars.
   def bind(self, args, kwargs) -> 'BoundFunction':

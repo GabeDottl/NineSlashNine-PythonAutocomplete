@@ -8,9 +8,9 @@ from autocomplete.code_understanding.typing import (api, collector,
 from autocomplete.nsn_logging import info
 
 
-def scan_missing_symbols(filename):
+def scan_missing_symbols(filename, include_context=False):
   api.analyze_file(filename)
-  return collector.get_missing_symbols_in_file(filename)
+  return collector.get_missing_symbols_in_file(filename, include_context=False)
 
 
 if __name__ == "__main__":

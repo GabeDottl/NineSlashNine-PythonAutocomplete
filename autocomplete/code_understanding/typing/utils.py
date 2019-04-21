@@ -17,6 +17,35 @@ from autocomplete.code_understanding.typing.language_objects import (
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
+def _assert_returns_type(type_):
+
+  def wrapper(func):
+
+    @wraps(func)
+    def inner_wrapper(*args, **kwargs):
+      cfg_node = func(*args, **kwargs)
+      assert isinstance(cfg_node, type_)
+      return cfg_node
+
+    return inner_wrapper
+
+  return wrapper
+
+
+def variables_from_node(node):
+  if node.type == 'testlist_star_expr':
+    return expressions_from_testlist_comp(node)
+  else:  # Illegal per the grammar, but this includes things like 'name'.
+    variable = expression_from_node(node)
+    if isinstance(variable, (ListExpression, TupleExpression)):
+      return variable
+    assert isinstance(
+        variable,
+        (SubscriptExpression, AttributeExpression, VariableExpression))
+    return [variable]
+
+
+@_assert_returns_type(CfgNode)
 def statement_node_from_expr_stmt(node):
   # expr_stmt: testlist_star_expr (annassign | augassign (yield_expr|testlist) |
   #                   ('=' (yield_expr|testlist_star_expr))*)
@@ -32,11 +61,7 @@ def statement_node_from_expr_stmt(node):
   # and possibly ignore a type hint in the assignment.
   child = node.children[0]
 
-  if child.type == 'testlist_star_expr':
-    variables = expressions_from_testlist_comp(child)
-  else:  # Illegal per the grammar, but this includes things like 'name'.
-    variables = [expression_from_node(child)]
-
+  variables = variables_from_node(child)
   if len(node.children) == 2:  # a += b - augmented assignment.
     annasign = node.children[1]
     assert_unexpected_parso(annasign.type == 'annassign', node_info(node))
@@ -44,7 +69,12 @@ def statement_node_from_expr_stmt(node):
     assert_unexpected_parso(operator.type == 'operator', node_info(node))
     value_node = annasign.children[-1]
     result_expression = expression_from_node(value_node)
-
+    return AssignmentStmtCfgNode(
+        variables,
+        '=',
+        result_expression,
+        value_node=value_node,
+        parso_node=node)
   else:
     value_node = node.children[-1]
     result_expression = expression_from_node(value_node)
@@ -81,6 +111,7 @@ def statement_node_from_expr_stmt(node):
     return GroupCfgNode(assignments, parso_node=node)
 
 
+@_assert_returns_type(List)
 def create_expression_node_tuples_from_if_stmt(
     cfg_builder, node) -> List[Tuple[Expression, CfgNode]]:
   expression_node_tuples = []
@@ -113,33 +144,6 @@ def create_expression_node_tuples_from_if_stmt(
   return expression_node_tuples
 
 
-#
-# def reference_from_node(node) -> Variable:
-#   if node.type == 'name':  # Simplest case - a=1
-#     return VariableExpression
-#   elif node.type == 'atom':
-#     # atom: ('(' [yield_expr|testlist_comp] ')' |
-#     #       '[' [testlist_comp] ']' |
-#     #       '{' [dictorsetmaker] '}' |
-#     #       NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
-#     child = node.children[0]
-#     if child.type == 'operator':
-#       assert_unexpected_parso(len(node.children) == 3, node_info(node))
-#       if child.value == '(' or child.value == '[':
-#         return reference_from_node(node.children[1])
-#       else:
-#         assert_unexpected_parso(False, node_info(child))
-#     else:
-#       assert_unexpected_parso(len(node.children) == 1 and child.type == 'name', node_info(child))
-#       return reference_from_node(child)
-#   elif node.type == 'atom_expr':
-#     return reference_from_atom_expr(node)
-#   elif node.type == 'testlist_comp':
-#     return references_from_testlist_comp(node)
-#   else:
-#     assert_unexpected_parso(False, node_info(node))
-
-
 def _param_name_from_param_child(param_child):
   if param_child.type == 'name':
     return param_child.value
@@ -147,6 +151,7 @@ def _param_name_from_param_child(param_child):
   return param_child.children[0].value
 
 
+@_assert_returns_type(List)
 def parameters_from_parameters(node) -> List[Parameter]:
   assert_unexpected_parso(node.children[0].type == 'operator',
                           node_info(node))  # paran)
@@ -193,6 +198,7 @@ def parameters_from_parameters(node) -> List[Parameter]:
   return out
 
 
+@_assert_returns_type(List)
 def expressions_from_testlist_comp(node) -> List[Variable]:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
@@ -211,6 +217,7 @@ def expressions_from_testlist_comp(node) -> List[Variable]:
     return out
 
 
+@_assert_returns_type(Expression)
 def expression_from_testlist_comp(node) -> TupleExpression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
@@ -237,6 +244,7 @@ def expression_from_testlist_comp(node) -> TupleExpression:
     return TupleExpression(out)
 
 
+@_assert_returns_type(Expression)
 def expression_from_testlist(node) -> TupleExpression:
   out = []
   for child in node.children:
@@ -247,11 +255,7 @@ def expression_from_testlist(node) -> TupleExpression:
   return TupleExpression(out)
 
 
-# def reference_from_atom_expr(node):
-#   expression = expression_from_atom_expr(node)
-#   assert_unexpected_parso(False, node_info(node))
-
-
+@_assert_returns_type(Expression)
 def expression_from_atom_expr(node) -> Expression:
   # atom_expr: ['await'] atom trailer*
   # atom: ('(' [yield_expr|testlist_comp] ')' |j
@@ -302,6 +306,7 @@ def _unimplmented_expression(func):
   return wrapper
 
 
+@_assert_returns_type(Tuple)
 @_unimplmented_expression
 def expressions_from_subscriptlist(node) -> Tuple[Expression]:
   try:
@@ -315,9 +320,9 @@ def expressions_from_subscriptlist(node) -> Tuple[Expression]:
     elif node.type == 'subscriptlist':
       values = tuple(
           itertools.chain(
-              expressions_from_subscriptlist(node) for node in filter(
-                  lambda x: x.type != 'operator' or x.value != ',', node
-                  .children)))
+              expressions_from_subscriptlist(node) for node in
+              filter(lambda x: x.type != 'operator' or x.value != ',',
+                     node.children)))
       assert all(isinstance(value, Expression) for value in values)
       return values
     else:  # subscript
@@ -330,6 +335,7 @@ def expressions_from_subscriptlist(node) -> Tuple[Expression]:
 
 
 # @_unimplmented_expression
+@_assert_returns_type(Tuple)
 def args_and_kwargs_from_arglist(node):
   try:
     if node.type != 'arglist' and node.type != 'argument':
@@ -374,6 +380,7 @@ def args_and_kwargs_from_arglist(node):
     return [UnknownExpression(node.get_code())], {}
 
 
+@_assert_returns_type(Expression)
 def expression_from_node(node):
   if node.type == 'number':
     return LiteralExpression(num(node.value))
@@ -396,7 +403,7 @@ def expression_from_node(node):
     return expression_from_atom_expr(node)
   if node.type == 'testlist_comp':
     return expression_from_testlist_comp(node)
-  if node.type == 'testlist':
+  if node.type == 'testlist' or node.type == 'exprlist':
     return expression_from_testlist(node)
   if node.type == 'comparison':
     return expression_from_comparison(node)
@@ -419,6 +426,7 @@ def expression_from_node(node):
   # assert_unexpected_parso(False, node_info(node))
 
 
+@_assert_returns_type(Expression)
 @_unimplmented_expression
 def expression_from_atom(node):
   # atom: ('(' [yield_expr|testlist_comp] ')' |
@@ -447,6 +455,7 @@ def expression_from_atom(node):
     raise ValueError(node_info(node))
 
 
+@_assert_returns_type(Expression)
 def expression_from_comparison(node):
   # comparison: expr (comp_op expr)*
   # <> isn't actually a valid comparison operator in Python. It's here for the
@@ -461,6 +470,7 @@ def expression_from_comparison(node):
   return ComparisonExpression(left=left, operator=operator, right=right)
 
 
+@_assert_returns_type(Expression)
 def expression_from_test(node):
   # a if b else c
   assert_unexpected_parso(len(node.children) == 5, node_info(node))
@@ -470,6 +480,7 @@ def expression_from_test(node):
   return IfElseExpression(true_result, conditional_expression, false_result)
 
 
+@_assert_returns_type(Expression)
 @_unimplmented_expression
 def expression_from_math_expr(node):
   # expr: xor_expr ('|' xor_expr)*

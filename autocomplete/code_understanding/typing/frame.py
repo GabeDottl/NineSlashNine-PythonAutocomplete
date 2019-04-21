@@ -9,8 +9,11 @@ import attr
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, SubscriptExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
+                                                             AugmentedObject,
+                                                             FuzzyObject,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -44,27 +47,29 @@ class Frame:
   # ALL_BUILTINS = set(dir(__builtin__)) | set(GLOBALS) | set(PYTHON3_BUILTINS)
 
   # Symbol tables.
-  # _globals: Dict = attr.ib(factory=dict)  # Instead of 'globals' we use _root.locals. Falls apart with imports?
+  _globals: Dict = attr.ib(factory=dict)
   _locals: Dict = attr.ib(factory=dict)
   _builtins: Dict = attr.ib(None)  # TODO
   # _nonlocals: Dict = attr.ib(factory=dict)
   _returns: List[PObject] = attr.ib(factory=list)
   _frame_type: FrameType = attr.ib(FrameType.NORMAL)
-  _namespace = attr.ib(None)
+  namespace = attr.ib(None)
   _back: 'Frame' = attr.ib(None)
-  _root: 'Frame' = attr.ib(None)
+  # _root: 'Frame' = attr.ib(None)
   _collector = None  # class variable
 
   def __attrs_post_init__(self):
     if not self._builtins:
       self._builtins = {key: UnknownObject(key) for key in __builtins__.keys()}
+    # if self._globals is None:
+    #   self._globals = self._locals  # Explicitly sharing the same list, not copying.
 
   # TODO: nonlocal_names and global_names
   # _frame_type = attr.ib(FrameType.NORMAL)
   # TODO: Block stack?
 
   def contains_namespace_on_stack(self, namespace):
-    if self._namespace == namespace:
+    if self.namespace == namespace:
       return True
     if self._back:
       return self._back.contains_namespace_on_stack(namespace)
@@ -75,14 +80,20 @@ class Frame:
     # self._nonlocals.update(other_frame._nonlocals)
     self._locals.update(other_frame._locals)
 
-  def make_child(self, namespace, frame_type) -> 'Frame':
+  def make_child(self, namespace, frame_type, *, globals=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
+    if globals is None:
+      if self._back is None:
+        globals = self._locals
+      else:
+        globals = self._globals
     return Frame(
         frame_type=frame_type,
         back=self,
-        root=self._root,
+        # root=self._root,
         namespace=namespace,
-        builtins=self._builtins)
+        builtins=self._builtins,
+        globals=globals)
 
   def to_module(self) -> 'Module':
     raise NotImplementedError()
@@ -107,17 +118,11 @@ class Frame:
       pobject = variable.base_expression.evaluate(self)
       pobject.set_attribute(variable.attribute, value)
 
-  # def _path_upto_module_namespace(self):
-  #   if isinstance(self.namespace, Module):
-  #     name = self.namespace.name if self.namespace and hasattr(self.namespace, 'name') else ''
-  #   if self.back:
-  #     return
-
   def _get_current_filename(self):
     if hasattr(self.namespace, 'filename'):
       return self.namespace.filename
-    if self.back:
-      return self.back._get_current_filename()
+    if self._back:
+      return self._back._get_current_filename()
     return ''
 
   def __getitem__(self,
@@ -149,19 +154,23 @@ class Frame:
         pobject = pobject.get_attribute(attribute_name)
       return pobject
 
+    collector.add_referenced_symbol(self._get_current_filename(), name)
     # Given a.b.c, Python will take the most-local definition of a and
     # search from there.
     # TODO: This hackishly makes nested functions sorta work. FIXME. == NORMAL + cells.
     if (not nested or
         self._frame_type == FrameType.KLASS) and name in self._locals:
       return self._locals[name]
-    if self._back:
-      return self._back[name]
+    # if self._back:
+    #   return self._back[name]
+    if name in self._globals:
+      return self._globals[name]
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.
     context_str = collector.get_code_context_string()
-    collector.add_missing_symbol(name, context_str)
+    collector.add_missing_symbol(self._get_current_filename(), name,
+                                 context_str)
     if context_str:
       warning(f'At: {context_str}')
     warning(

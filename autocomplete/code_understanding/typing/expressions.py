@@ -3,8 +3,11 @@ from wsgiref.validate import validator
 
 import attr
 
-from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, FuzzyObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
+                                                             FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import debug, warning
 
 
