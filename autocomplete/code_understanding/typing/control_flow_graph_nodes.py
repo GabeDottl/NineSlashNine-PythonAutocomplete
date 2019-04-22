@@ -2,18 +2,21 @@ import itertools
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from functools import wraps
-from typing import Iterable, List, Tuple, Union, Set
+from typing import Iterable, List, Set, Tuple, Union
 
 import attr
 
 from autocomplete.code_understanding.typing import collector
-from autocomplete.code_understanding.typing.errors import ParsingError, assert_unexpected_parso
+from autocomplete.code_understanding.typing.errors import (
+    ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
     Expression, StarExpression, SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionImpl, FunctionType, Klass, Module, Parameter)
-from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean, FuzzyObject, UnknownObject
+from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
@@ -343,6 +346,7 @@ class WithCfgNode(CfgNode):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
 
+@attr.s
 class TryCfgNode(CfgNode):
   suite: CfgNode = attr.ib()
   except_nodes: List['ExceptCfgNode'] = attr.ib()
@@ -375,12 +379,45 @@ class TryCfgNode(CfgNode):
     return out + f'\n{self.finally_suite.pretty_print(indent+"  ")}'
 
 
+@attr.s
 class ExceptCfgNode(CfgNode):
-  exceptions: Expression = attr.ib()
-  exception_variable: VariableExpression = attr.ib()
+  exceptions: Expression = attr.ib()  # TODO: ???
+  exception_variable: Union[VariableExpression, None] = attr.ib()
   suite: CfgNode = attr.ib()
 
+  def _process_impl(self, curr_frame):
+    '''Except clauses scope is bizarre.
 
+    Essentially, they are not scoped blocks - but, the except variable is scoped to the block.
+    so in:
+
+    except Exception as e:
+      b = 2
+
+    `b` will be visible outside the block whereas `e` won't be.
+
+    For this reason, we do a bit of weird finagling here in which we create a new frame, and merge
+    it into the current frame after deleting `e` from it.'''
+
+    new_frame = curr_frame.make_child(curr_frame.namespace, FrameType.EXCEPT)
+    if self.exception_variable:
+      new_frame[self.exception_variable] = UnknownObject(
+          f'{self.exception_variable}')
+    self.suite.process(new_frame)
+    if self.exception_variable:
+      del new_frame[self.exception_variable]
+    curr_frame.merge(new_frame)
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    out = set(self.suite.get_non_local_symbols())
+    out.discard(self.exception_variable.name)
+    return out
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return self.suite.get_defined_and_exported_symbols()
+
+  def pretty_print(self, indent=''):
+    return f'{indent}except {self.exceptions} as {self.exception_variable}\n{self.suite.pretty_print(indent+"  ")}'
 
 
 @attr.s

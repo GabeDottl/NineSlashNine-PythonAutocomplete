@@ -25,13 +25,14 @@ import attr
 import parso
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    AssignmentStmtCfgNode, CfgNode, ExpressionCfgNode, ForCfgNode,
-    FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode,
-    KlassCfgNode, NoOpCfgNode, ReturnCfgNode, WhileCfgNode, WithCfgNode)
+    AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
+    ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
+    ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode, TryCfgNode,
+    WhileCfgNode, WithCfgNode)
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
-    UnknownExpression)
+    UnknownExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.utils import (
     _assert_returns_type, create_expression_node_tuples_from_if_stmt,
@@ -454,27 +455,46 @@ class ControlFlowGraphBuilder:
     suite = self.create_cfg_node(node.children[-1])
     return ForCfgNode(loop_variables, loop_expression, suite, parso_node=node)
 
-  @_assert_returns_type(CfgNode)
+  @_assert_returns_type(TryCfgNode)
   def create_cfg_node_for_try_stmt(self, node):
     try_suite = self.create_cfg_node(node.children[2])
 
-    except_exceptions, except_as_name, except_suite, finally_suite = None
-    next_clause = node.children[3]
-    
-    if next_clause.type == 'except_clause':
-      except_exceptions = expression_from_node(next_clause.children[1])
-      if len(next_clause.children) > 2:
-        except_as_name = variables_from_node(next_clause.children[-1])
-      
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
+    # Example: try: suite finally: finally_suite
+    if len(node.children) == 6 and node.children[
+        4].type == 'keyword' and node.children[4].value == 'finally':
+      finally_suite = self.create_cfg_node(node.children[-1])
+      return TryCfgNode(try_suite, except_nodes=[], finally_suite=finally_suite)
 
-  d
+    except_nodes = []
+    for i in range(3, len(node.children), 3):
+      keyword = node.children[i]
+      suite_node = self.create_cfg_node(node.children[i + 2])
+      if keyword.type == 'keyword':
+        if keyword.value == 'finally':
+          break
+        assert keyword.value == 'except'
+        except_nodes.append(ExceptCfgNode([], None, suite_node))
+      else:
+        assert keyword.type == 'except_clause'
+        except_clause = keyword
+        exceptions = variables_from_node(except_clause.children[1])
+        if len(except_clause.children) == 4:
+          exception_variable = VariableExpression(except_clause.children[-1])
+        else:
+          exception_variable = None
+        except_nodes.append(
+            ExceptCfgNode(exceptions, exception_variable, suite_node))
+    if node.children[-3].type == 'keyword' and node.children[
+        -3].value == 'finally':
+      finally_suite = self.create_cfg_node(node.children[-1])
+    else:
+      finally_suite = NoOpCfgNode(node)
+
+    return TryCfgNode(try_suite, except_nodes, finally_suite)
 
   @_assert_returns_type(CfgNode)
   def create_cfg_node_for_except_clause(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
+    assert False
 
   @_assert_returns_type(CfgNode)
   def create_cfg_node_for_with_stmt(self, node):

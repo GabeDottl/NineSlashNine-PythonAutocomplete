@@ -5,14 +5,16 @@ from typing import Dict, List, Tuple, Union
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode, GroupCfgNode)
-from autocomplete.code_understanding.typing.errors import ParsingError, assert_unexpected_parso
+from autocomplete.code_understanding.typing.errors import (
+    ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, CallExpression, ComparisonExpression, Expression,
     FactorExpression, ForComprehensionExpression, IfElseExpression,
     ItemListExpression, ListExpression, LiteralExpression, MathExpression,
     NotExpression, StarExpression, SubscriptExpression, TupleExpression,
     UnknownExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.language_objects import Parameter, ParameterType
+from autocomplete.code_understanding.typing.language_objects import (
+    Parameter, ParameterType)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 

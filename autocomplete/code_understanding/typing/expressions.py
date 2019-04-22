@@ -5,8 +5,11 @@ from wsgiref.validate import validator
 
 import attr
 
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean,
-                                                             FuzzyObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
+                                                             FuzzyBoolean,
+                                                             FuzzyObject,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import debug, warning
 
 
@@ -53,6 +56,7 @@ class UnknownExpression(Expression):
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
+
 @attr.s
 class NotExpression(Expression):
   expression: Expression = attr.ib()
@@ -63,7 +67,6 @@ class NotExpression(Expression):
 
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
-
 
 
 @attr.s
@@ -80,9 +83,11 @@ class ListExpression(Expression):
   def get_used_free_symbols(self) -> Iterable[str]:
     return source_expression.get_used_free_symbols()
 
+
 @attr.s
 class TupleExpression(ListExpression):
   ...
+
 
 @attr.s
 class ItemListExpression(Expression):
@@ -100,8 +105,8 @@ class ItemListExpression(Expression):
   def get_used_free_symbols(self) -> Iterable[str]:
     # TODO: set
     return list(
-        itertools.chain(*[expr.get_used_free_symbols()
-                        for expr in self.expressions]))
+        itertools.chain(
+            *[expr.get_used_free_symbols() for expr in self.expressions]))
 
 
 @attr.s
@@ -139,8 +144,8 @@ class CallExpression(Expression):
     out += set(
         itertools.chain(*[expr.get_used_free_symbols() for expr in self.args]))
     out += set(
-        itertools.chain(*[
-            expr.get_used_free_symbols() for expr in self.kwargs.values()]))
+        itertools.chain(
+            *[expr.get_used_free_symbols() for expr in self.kwargs.values()]))
     return out
 
 
@@ -238,8 +243,6 @@ class IfElseExpression(Expression):
                                      self.false_expression)))
 
 
-
-
 @attr.s
 class FactorExpression(Expression):
   operator = attr.ib()
@@ -256,7 +259,7 @@ class FactorExpression(Expression):
     if self.operator == '~':
       debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
-  
+
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
 
@@ -315,10 +318,10 @@ class MathExpression(Expression):
       ...
     warning(f'MathExpression failed: {l}{self.operator}{r}')
     return UnknownObject(f'{self.parso_node.get_code()}')
-  
 
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols() + self.right_expression.get_used_free_symbols())
+    return set(self.left_expression.get_used_free_symbols() +
+               self.right_expression.get_used_free_symbols())
 
 
 @attr.s
@@ -357,10 +360,10 @@ class ComparisonExpression(Expression):
       return l is not r
 
     assert False, f'Cannot handle {self.operator} yet.'
-  
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols() + self.right_expression.get_used_free_symbols())
 
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(self.left_expression.get_used_free_symbols() +
+               self.right_expression.get_used_free_symbols())
 
 
 Variable = Expression

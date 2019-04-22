@@ -21,6 +21,7 @@ class FrameType(Enum):
   NORMAL = 1
   KLASS = 2
   FUNCTION = 3
+  EXCEPT = 4
 
 
 @attr.s(str=False, repr=False)
@@ -124,6 +125,10 @@ class Frame:
     if self._back:
       return self._back._get_current_filename()
     return ''
+
+  def __delitem__(self, variable):
+    assert isinstance(variable, VariableExpression)
+    del self._locals[variable.name]
 
   def __getitem__(self,
                   variable: Variable,
