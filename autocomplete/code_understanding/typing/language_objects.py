@@ -257,12 +257,12 @@ class Function(Namespace):
 class FunctionImpl(Function):
   '''FunctionImpl is a Function with it's inner CFG included.
 
-  The trickiest thing in this are closures - which are nicely demonstrated within Python here:
+  The trickiest thing in this are closure - which are nicely demonstrated within Python here:
   https://gist.github.com/DmitrySoshnikov/700292
 
-  Lexical scoping with Python can be somewhat difficult to get working because of closures.
+  Lexical scoping with Python can be somewhat difficult to get working because of closure.
   Here's another article:
-  https://medium.com/@dannymcwaves/a-python-tutorial-to-understanding-scopes-and-closures-c6a3d3ba0937
+  https://medium.com/@dannymcwaves/a-python-tutorial-to-understanding-scopes-and-closure-c6a3d3ba0937
 
 
   '''

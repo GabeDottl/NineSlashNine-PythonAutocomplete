@@ -17,7 +17,7 @@ from autocomplete.nsn_logging import debug, info
 def graph_from_source(source: str):
   basic_node = parso.parse(source)
   builder = control_flow_graph.ControlFlowGraphBuilder(module_loader)
-  return builder.create_cfg_node(basic_node)
+  return builder.graph_from_parso_node(basic_node)
 
 
 def frame_from_source(source: str, filename: str) -> frame.Frame:

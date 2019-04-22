@@ -22,6 +22,20 @@ from autocomplete.nsn_logging import error, info, warning
 # from autocomplete.code_understanding.typing.collector import Collector
 
 
+def instance_memoize(func):
+
+  @wraps(func)
+  def _wrapper(self):
+    memoized_name = f'_{func.__name__}_memoized'
+    if hasattr(self, memoized_name):
+      return getattr(self, memoized_name)
+    out = func(self)
+    setattr(self, memoized_name, out)
+    return out
+
+  return _wrapper
+
+
 class CfgNode(ABC):
   parso_node = attr.ib()
 
@@ -55,8 +69,8 @@ class CfgNode(ABC):
 
 @attr.s
 class GroupCfgNode(CfgNode):
-  children: List[CfgNode] = attr.ib()
-  parso_node = attr.ib()
+  children: List[CfgNode] = attr.ib(factory=list)
+  parso_node = attr.ib(None)
 
   # Convenience
   def __getitem__(self, index) -> CfgNode:
@@ -78,11 +92,16 @@ class GroupCfgNode(CfgNode):
   def __str__(self):
     return '\n'.join([str(child) for child in self.children])
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    return set(
+    out = set(
         itertools.chain(
             *[node.get_non_local_symbols() for node in self.children]))
+    for symbol in self.get_defined_and_exported_symbols():
+      out.discard(symbol)
+    return out
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     chained = list(
         itertools.chain(*[
@@ -104,9 +123,11 @@ class ExpressionCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     self.expression.evaluate(curr_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    return self.expression.get_used_free_symbols(self)
+    return self.expression.get_used_free_symbols()
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
 
@@ -131,9 +152,11 @@ class ImportCfgNode(CfgNode):
     # info(f'Importing {module.path()} as {name}')  # Logs *constantly*
     collector.add_module_import(module.path(), self.as_name)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     return []
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     if self.as_name:
       return [self.as_name]
@@ -167,9 +190,11 @@ class FromImportCfgNode(CfgNode):
         self.module_path, self.from_import_name)
     curr_frame[name] = pobject
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     return []
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     if self.as_name:
       return [self.as_name]
@@ -183,9 +208,11 @@ class NoOpCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     pass
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     return []
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
 
@@ -214,9 +241,11 @@ class AssignmentStmtCfgNode(CfgNode):
       out.append(f'{self.__class__.__name__}: {self.parso_node.get_code()}')
     return '\n'.join(out)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     return self.right_expression.get_used_free_symbols()
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.left_variables.get_used_free_symbols()
 
@@ -266,12 +295,14 @@ class ForCfgNode(CfgNode):
                                  self.parso_node)
     self.suite.process(curr_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     loop_symbols = set(self.loop_variables.get_used_free_symbols())
     loop_expression_used_symbols = set(
-        self.loop_expression.get_useed_free_symbols())
+        self.loop_expression.get_used_free_symbols())
     return loop_expression_used_symbols - loop_symbols
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.loop_variables.get_used_free_symbols()).union(
         set(self.suite.get_defined_and_exported_symbols()))
@@ -293,14 +324,19 @@ class WhileCfgNode(CfgNode):
     self.suite.process(curr_frame)
     self.else_suite.process(curr_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    return set(
-        itertools.chain(*[
-            node.get_non_local_symbols()
-            for node in (self.condtional_expression, self.suite,
-                         self.else_suite)
-        ]))
+    out = self.suite.get_non_local_symbols().union(
+        self.else_suite.get_non_local_symbols())
+    return out.union(self.conditional_expression.get_used_free_symbols())
+    # return set(
+    #     itertools.chain(*[
+    #         node.get_non_local_symbols()
+    #         for node in (self.conditional_expression, self.suite,
+    #                      self.else_suite)
+    #     ]))
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.suite.get_defined_and_exported_symbols()).union(
         set(self.else_suite.get_defined_and_exported_symbols()))
@@ -327,15 +363,18 @@ class WithCfgNode(CfgNode):
       self.with_item_expression.evaluate(curr_frame)
     self.suite.process(curr_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     with_item_expression_symbols = self.with_item_expression.get_used_free_symbols(
     )
-    as_expression_symbols = set(self.as_expression.get_used_free_symbols())
-    suite_symbols = set(self.suite.get_non_locals_symbols())
+    as_expression_symbols = set(self.as_expression.get_used_free_symbols()
+                               ) if self.as_expression else set()
+    suite_symbols = set(self.suite.get_non_local_symbols())
     return set(
         itertools.chain(with_item_expression_symbols,
                         (suite_symbols - as_expression_symbols)))
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     if self.as_expression:
       return set(self.as_expression.get_used_free_symbols()).union(
@@ -358,6 +397,7 @@ class TryCfgNode(CfgNode):
       except_cfg.process(curr_frame)
     self.finally_suite.process(curr_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     return set(
         itertools.chain(*[
@@ -365,6 +405,7 @@ class TryCfgNode(CfgNode):
                 [self.suite, self.finally_suite], self.except_nodes)
         ]))
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(
         itertools.chain(*[
@@ -408,11 +449,13 @@ class ExceptCfgNode(CfgNode):
       del new_frame[self.exception_variable]
     curr_frame.merge(new_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set(self.suite.get_non_local_symbols())
     out.discard(self.exception_variable.name)
     return out
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.suite.get_defined_and_exported_symbols()
 
@@ -440,6 +483,7 @@ class IfCfgNode(CfgNode):
       else:  # Completely ambiguous / MAYBE.
         node.process(curr_frame)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set()
     for expression, node in self.expression_node_tuples:
@@ -447,6 +491,7 @@ class IfCfgNode(CfgNode):
       out += node.get_non_local_symbols()
     return out
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     out = set()
     for _, node in self.expression_node_tuples:
@@ -492,6 +537,7 @@ class KlassCfgNode(CfgNode):
 
       member.apply_to_values(instance_member)
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set()
     for expression, node in self.expression_node_tuples:
@@ -499,6 +545,7 @@ class KlassCfgNode(CfgNode):
       out += node.get_non_local_symbols()
     return out
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
 
@@ -511,7 +558,16 @@ class FuncCfgNode(CfgNode):
   name = attr.ib()
   parameters = attr.ib()
   suite = attr.ib()
+  module = attr.ib()
   parso_node = attr.ib()
+
+  @instance_memoize
+  def closure(self):
+    closure = set(self.suite.get_non_local_symbols())
+    globals_ = self.module.get_defined_and_exported_symbols()
+    for global_ in globals_:
+      closure.discard(global_)
+    return closure
 
   def _process_impl(self, curr_frame):
     processed_params = []
@@ -535,6 +591,7 @@ class FuncCfgNode(CfgNode):
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set()
     for parameter in self.parameters:
@@ -542,6 +599,7 @@ class FuncCfgNode(CfgNode):
         out.add(parameter.default.get_used_free_symbols())
     return out
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
 
@@ -557,8 +615,10 @@ class ReturnCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     curr_frame.add_return(self.expression.evaluate(curr_frame))
 
+  @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
 
+  @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []

@@ -47,6 +47,31 @@ def test_cfg_symbol_visibility():
       ['c', 'f', 'd', 'e', 'g', 'i', 'h', 'j', 'k', 'foo2'])
 
 
+def test_closure():
+  source = '''
+  def foo():
+    b = a
+    def foo2():
+      c = 3
+      def foo3():
+        print((a,b,c))
+      return foo3
+    return foo2
+  a = 1
+  '''
+  graph = graph_from_source(source)
+  graph = control_flow_graph.condense_graph(graph)
+  foo_func_node = graph[0]
+  assert isinstance(foo_func_node, FuncCfgNode)
+  assert not foo_func_node.closure()  # Should be empty.
+  foo2_func_node = foo_func_node.suite[2]
+  assert isinstance(foo2_func_node, FuncCfgNode)
+  _assert_expected_iterable(foo2_func_node.closure(), ['b'])
+  foo3_func_node = foo2_func_node.suite[2]
+  assert isinstance(foo3_func_node, FuncCfgNode)
+  _assert_expected_iterable(foo3_func_node.closure(), ['b', 'c'])
+
+
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   unresolved_imports_filename = os.path.join(typing_dir, 'examples',
@@ -70,4 +95,5 @@ def _assert_expected_iterable(actual, expected):
 
 if __name__ == "__main__":
   test_cfg_symbol_visibility()
+  test_closure()
   test_missing_symbols()

@@ -72,16 +72,16 @@ class NotExpression(Expression):
 @attr.s
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
-  source_expression: Expression = attr
+  source_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    return source_expression.evalaute(curr_frame)
+    return self.source_expression.evalaute(curr_frame)
 
   def __iter__(self):
     return iter(self.source_expression)
 
   def get_used_free_symbols(self) -> Iterable[str]:
-    return source_expression.get_used_free_symbols()
+    return self.source_expression.get_used_free_symbols()
 
 
 @attr.s
@@ -141,9 +141,9 @@ class CallExpression(Expression):
 
   def get_used_free_symbols(self) -> Iterable[str]:
     out = set(self.function_expression.get_used_free_symbols())
-    out += set(
+    out = out.union(
         itertools.chain(*[expr.get_used_free_symbols() for expr in self.args]))
-    out += set(
+    out = out.union(
         itertools.chain(
             *[expr.get_used_free_symbols() for expr in self.kwargs.values()]))
     return out

@@ -112,39 +112,6 @@ def statement_node_from_expr_stmt(node):
     return GroupCfgNode(assignments, parso_node=node)
 
 
-@_assert_returns_type(List)
-def create_expression_node_tuples_from_if_stmt(
-    cfg_builder, node) -> List[Tuple[Expression, CfgNode]]:
-  expression_node_tuples = []
-  iterator = iter(node.children)
-  for child in iterator:
-    try:
-      # Few cases:
-      # 1) {if/elif} {conditional} : {suite}
-      # 2) else : {suite}
-      assert_unexpected_parso(child.type == 'keyword',
-                              (node_info(node), node_info(child)))
-      conditional_or_op = next(
-          iterator)  # Conditional expression or an operator.
-      if conditional_or_op.type == 'operator':
-        assert_unexpected_parso(
-            child.value == 'else' and conditional_or_op.value == ':',
-            (conditional_or_op, child))
-        expression = LiteralExpression(True)
-      else:
-        expression = expression_from_node(conditional_or_op)
-        assert_unexpected_parso(expression, node_info(child))
-        n = next(iterator)  # Skip past the operator
-        assert_unexpected_parso(n.type == 'operator', node_info(n))
-      content = next(iterator)
-      cfg_node = cfg_builder.create_cfg_node(content)
-
-      expression_node_tuples.append((expression, cfg_node))
-    except StopIteration:
-      pass
-  return expression_node_tuples
-
-
 def _param_name_from_param_child(param_child):
   if param_child.type == 'name':
     return param_child.value
