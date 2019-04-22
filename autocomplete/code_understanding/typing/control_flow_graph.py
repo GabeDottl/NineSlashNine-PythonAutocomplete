@@ -63,11 +63,6 @@ def condense_graph(graph):
   return GroupCfgNode(children, parso_node=graph.parso_node)
 
 
-# def handle_error(e, node):
-# traceback.print_tb(e.tb)
-# raise e
-
-
 class TypingException(Exception):
   ...
 
@@ -76,6 +71,7 @@ class TypingException(Exception):
 class ControlFlowGraphBuilder:
   module_loader = attr.ib()
   root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
+  _current_containing_func = None
 
   def graph_from_parso_node(self, parso_node):
     self.root.children.append(self._create_cfg_node(parso_node))
@@ -206,9 +202,18 @@ class ControlFlowGraphBuilder:
     # Children are: def name params : suite
     name = node.children[1].value
     parameters = parameters_from_parameters(node.children[2])
+    old_containing_func = self._current_containing_func
+    out = FuncCfgNode(
+        name,
+        parameters,
+        suite=None,
+        containing_func_node=old_containing_func,
+        parso_node=node)
+    self._current_containing_func = out
     suite = self._create_cfg_node(node.children[-1])
-    return FuncCfgNode(
-        name, parameters, suite, module=self.root, parso_node=node)
+    out.suite = suite
+    self._current_containing_func = old_containing_func
+    return out
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_expr_stmt(self, node):

@@ -219,14 +219,14 @@ def expression_from_testlist_comp(node) -> TupleExpression:
 
 
 @_assert_returns_type(Expression)
-def expression_from_testlist(node) -> TupleExpression:
+def expression_from_testlist(node) -> ItemListExpression:
   out = []
   for child in node.children:
     if child.type == 'operator':
       assert_unexpected_parso(child.value == ',')
       continue
     out.append(expression_from_node(child))
-  return TupleExpression(out)
+  return ItemListExpression(out)
 
 
 @_assert_returns_type(Expression)

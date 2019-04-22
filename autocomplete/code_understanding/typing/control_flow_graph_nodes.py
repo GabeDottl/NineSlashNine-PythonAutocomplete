@@ -539,11 +539,7 @@ class KlassCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    out = set()
-    for expression, node in self.expression_node_tuples:
-      out += expression.get_used_free_symbols()
-      out += node.get_non_local_symbols()
-    return out
+    return self.suite.get_non_local_symbols()
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -558,16 +554,23 @@ class FuncCfgNode(CfgNode):
   name = attr.ib()
   parameters = attr.ib()
   suite = attr.ib()
-  module = attr.ib()
+  _containing_func_node = attr.ib()
   parso_node = attr.ib()
 
   @instance_memoize
-  def closure(self):
-    closure = set(self.suite.get_non_local_symbols())
-    globals_ = self.module.get_defined_and_exported_symbols()
-    for global_ in globals_:
-      closure.discard(global_)
-    return closure
+  def _get_local_and_ancestor_func_symbol_defs(self) -> Set[str]:
+    out = self.suite.get_defined_and_exported_symbols()
+    if self._containing_func_node:
+      return out.union(
+          self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
+    return out
+
+  @instance_memoize
+  def closure(self) -> Iterable[str]:
+    if not self._containing_func_node:
+      return []
+    return set(self.suite.get_non_local_symbols()).intersection(
+        self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
 
   def _process_impl(self, curr_frame):
     processed_params = []

@@ -72,7 +72,8 @@ class NotExpression(Expression):
 @attr.s
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
-  source_expression: Expression = attr.ib()
+  source_expression: Expression = attr.ib(
+      validator=attr.validators.instance_of(Expression))
 
   def evaluate(self, curr_frame) -> PObject:
     return self.source_expression.evalaute(curr_frame)

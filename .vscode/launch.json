@@ -12,13 +12,13 @@
     //   "console": "integratedTerminal",
     // },
       
-    {
-      "name": "cfg",
-      "type": "python",
-      "request": "launch",
-      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/test/",
-      "console": "integratedTerminal",
-    },
+    // {
+    //   "name": "cfg",
+    //   "type": "python",
+    //   "request": "launch",
+    //   "program": "${workspaceFolder}/autocomplete/code_understanding/typing/test/",
+    //   "console": "integratedTerminal",
+    // },
     {
       "name": "find_missing_symbols",
       "type": "python",

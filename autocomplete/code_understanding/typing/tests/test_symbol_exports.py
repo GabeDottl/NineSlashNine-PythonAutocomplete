@@ -50,13 +50,19 @@ def test_cfg_symbol_visibility():
 def test_closure():
   source = '''
   def foo():
-    b = a
+    b = a  # global
+    b = undefined
+    q = 1
+    w = 2
     def foo2():
       c = 3
       def foo3():
         print((a,b,c))
-      return foo3
-    return foo2
+      class X:
+        a = w
+        def foo4(self):
+          return c, q
+
   a = 1
   '''
   graph = graph_from_source(source)
@@ -64,12 +70,15 @@ def test_closure():
   foo_func_node = graph[0]
   assert isinstance(foo_func_node, FuncCfgNode)
   assert not foo_func_node.closure()  # Should be empty.
-  foo2_func_node = foo_func_node.suite[2]
+  foo2_func_node = foo_func_node.suite[5]
   assert isinstance(foo2_func_node, FuncCfgNode)
-  _assert_expected_iterable(foo2_func_node.closure(), ['b'])
+  _assert_expected_iterable(foo2_func_node.closure(), ['b', 'w', 'q'])
   foo3_func_node = foo2_func_node.suite[2]
   assert isinstance(foo3_func_node, FuncCfgNode)
   _assert_expected_iterable(foo3_func_node.closure(), ['b', 'c'])
+  x_klass_node = foo2_func_node.suite[3]
+  foo4_func_node = x_klass_node.suite[-1]
+  _assert_expected_iterable(foo4_func_node.closure(), ['c', 'q'])
 
 
 def test_missing_symbols():
