@@ -49,12 +49,12 @@ def run_graph(graph, frame=None):
 
 
 def condense_graph(graph):
-  if not hasattr(graph, 'children'):
+  if not isinstance(graph, GroupCfgNode):
     return graph
 
   children = [condense_graph(child) for child in graph.children]
   children = list(filter(lambda x: not isinstance(x, NoOpCfgNode), children))
-  if children:
+  if not children:
     return NoOpCfgNode(graph.parso_node)
   elif len(children) == 1:
     return children[0]
@@ -438,7 +438,7 @@ class ControlFlowGraphBuilder:
   def create_cfg_node_for_while_stmt(self, node):
     assert len(node.children) == 4 or len(node.children) == 7, node_info(node)
     conditional_expression = expression_from_node(node.children[1])
-    suite = self.create_cfg_node(node.children[1])
+    suite = self.create_cfg_node(node.children[3])
     else_suite = self.create_cfg_node(node.children[-1]) if len(
         node.children) == 7 else NoOpCfgNode(node.children[-1])
 
@@ -456,8 +456,20 @@ class ControlFlowGraphBuilder:
 
   @_assert_returns_type(CfgNode)
   def create_cfg_node_for_try_stmt(self, node):
+    try_suite = self.create_cfg_node(node.children[2])
+
+    except_exceptions, except_as_name, except_suite, finally_suite = None
+    next_clause = node.children[3]
+    
+    if next_clause.type == 'except_clause':
+      except_exceptions = expression_from_node(next_clause.children[1])
+      if len(next_clause.children) > 2:
+        except_as_name = variables_from_node(next_clause.children[-1])
+      
     debug(f'Skipping {node.type}')
     return NoOpCfgNode(node)
+
+  d
 
   @_assert_returns_type(CfgNode)
   def create_cfg_node_for_except_clause(self, node):

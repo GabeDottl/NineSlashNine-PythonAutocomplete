@@ -1,21 +1,19 @@
+import itertools
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from functools import wraps
-from typing import Union
+from typing import Iterable, List, Tuple, Union, Set
 
 import attr
 
 from autocomplete.code_understanding.typing import collector
-from autocomplete.code_understanding.typing.errors import (
-    ParsingError, assert_unexpected_parso)
+from autocomplete.code_understanding.typing.errors import ParsingError, assert_unexpected_parso
 from autocomplete.code_understanding.typing.expressions import (
     Expression, StarExpression, SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import FrameType
 from autocomplete.code_understanding.typing.language_objects import (
     Function, FunctionImpl, FunctionType, Klass, Module, Parameter)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean, FuzzyObject, UnknownObject
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
@@ -33,6 +31,67 @@ class CfgNode(ABC):
   def _process_impl(self, curr_frame):
     ...
 
+  @abstractmethod
+  def get_non_local_symbols(self) -> Iterable[str]:
+    '''Gets all symbols that are going to be nonlocal/locally defined outside this node.
+    
+    This does not include globals.
+    '''
+
+  @abstractmethod
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    '''Symbols that's that are both defined within this node and are visible outside of it.
+
+    For classes and functions, these are just the names of the class/function. For other blocks,
+    this will generally include all of their assignments.
+    '''
+
+  def pretty_print(self, indent=''):
+    return f'{indent}{type(self)}'
+
+
+@attr.s
+class GroupCfgNode(CfgNode):
+  children: List[CfgNode] = attr.ib()
+  parso_node = attr.ib()
+
+  # Convenience
+  def __getitem__(self, index) -> CfgNode:
+    return self.children[index]
+
+  # Convenience
+  def __iter__(self):
+    return iter(self.children)
+
+  @children.validator
+  def _validate_children(self, attribute, children):
+    for child in children:
+      assert isinstance(child, CfgNode)
+
+  def _process_impl(self, curr_frame):
+    for child in self.children:
+      child.process(curr_frame)
+
+  def __str__(self):
+    return '\n'.join([str(child) for child in self.children])
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return set(
+        itertools.chain(
+            *[node.get_non_local_symbols() for node in self.children]))
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    chained = list(
+        itertools.chain(*[
+            node.get_defined_and_exported_symbols() for node in self.children
+        ]))
+    return set(chained)
+
+  def pretty_print(self, indent=''):
+    out = f'{super().pretty_print(indent)}\n'
+    return out + "\n".join(
+        child.pretty_print(indent + "  ") for child in self.children)
+
 
 @attr.s
 class ExpressionCfgNode(CfgNode):
@@ -41,6 +100,12 @@ class ExpressionCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     self.expression.evaluate(curr_frame)
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return self.expression.get_used_free_symbols(self)
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return []
 
 
 @attr.s
@@ -53,9 +118,25 @@ class ImportCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
     module = self.module_loader.get_module(self.module_path)
+
+    if self.as_name:
+      curr_frame[name] = module
+    else:
+      root_module = module.root()
+      curr_frame[root_module.name] = root_module
+
     # info(f'Importing {module.path()} as {name}')  # Logs *constantly*
     collector.add_module_import(module.path(), self.as_name)
-    curr_frame[name] = module
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return []
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    if self.as_name:
+      return [self.as_name]
+    if '.' in self.module_path:
+      return [self.module_path[:self.module_path.index('.')]]
+    return [self.module_path]
 
 
 @attr.s
@@ -83,17 +164,13 @@ class FromImportCfgNode(CfgNode):
         self.module_path, self.from_import_name)
     curr_frame[name] = pobject
 
-    # info(f'{name} from {module.path}')  # Logs *constantly*
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return []
 
-    # try:
-    #   curr_frame[name] = module.get_attribute(self.from_import_name)
-    # except AttributeError as e:
-    #   warning(
-    #       f'from_import_name {self.from_import_name} not found in {self.module_path}. {e}'
-    #   )
-    #   curr_frame[name] = UnknownObject(name='.'.join(
-    #       [self.module_path,
-    #        self.from_import_name]))  # TODO: Extra fuzzy value / unknown?
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    if self.as_name:
+      return [self.as_name]
+    return [self.from_import_name]
 
 
 @attr.s
@@ -102,6 +179,12 @@ class NoOpCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     pass
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return []
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return []
 
 
 @attr.s
@@ -127,6 +210,18 @@ class AssignmentStmtCfgNode(CfgNode):
     if self.parso_node.get_code():
       out.append(f'{self.__class__.__name__}: {self.parso_node.get_code()}')
     return '\n'.join(out)
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return self.right_expression.get_used_free_symbols()
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return self.left_variables.get_used_free_symbols()
+
+
+# def _extract_free_symbols_from_variables(variables) -> Set[str]:
+#   if hasattr(variables, '__iter__'):
+#     return set(itertools.chain(_extract_free_symbols_from_variables(var) for var in variables))
+#   return set([variables.get_used_free_symbols()])
 
 
 def _assign_variables_to_results(curr_frame, variable, result, parso_node):
@@ -168,10 +263,23 @@ class ForCfgNode(CfgNode):
                                  self.parso_node)
     self.suite.process(curr_frame)
 
+  def get_non_local_symbols(self) -> Iterable[str]:
+    loop_symbols = set(self.loop_variables.get_used_free_symbols())
+    loop_expression_used_symbols = set(
+        self.loop_expression.get_useed_free_symbols())
+    return loop_expression_used_symbols - loop_symbols
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return set(self.loop_variables.get_used_free_symbols()).union(
+        set(self.suite.get_defined_and_exported_symbols()))
+
+  def pretty_print(self, indent=''):
+    return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
+
 
 @attr.s
 class WhileCfgNode(CfgNode):
-  # Example for loop_variables in loop_expression: suite
+  # Example while conditional_expression: suite else: else_suite
   conditional_expression: Expression = attr.ib()
   suite: 'CfgNode' = attr.ib()
   else_suite: 'CfgNode' = attr.ib()
@@ -182,12 +290,28 @@ class WhileCfgNode(CfgNode):
     self.suite.process(curr_frame)
     self.else_suite.process(curr_frame)
 
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return set(
+        itertools.chain(*[
+            node.get_non_local_symbols()
+            for node in (self.condtional_expression, self.suite,
+                         self.else_suite)
+        ]))
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return set(self.suite.get_defined_and_exported_symbols()).union(
+        set(self.else_suite.get_defined_and_exported_symbols()))
+
+  def pretty_print(self, indent=''):
+    return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}\n{indent}Else\n{self.else_suite.pretty_print(indent=indent+"  ")}'
+
 
 @attr.s
 class WithCfgNode(CfgNode):
   # For 'else', (True, node).
   with_item_expression: Expression = attr.ib()
-  as_expression: Union[Expression, None] = attr.ib()
+  as_expression: Union[Expression, None] = attr.ib(
+  )  # TODO: NoOpExpression instead?
   suite: 'GroupCfgNode' = attr.ib()
   parso_node = attr.ib()
 
@@ -200,11 +324,69 @@ class WithCfgNode(CfgNode):
       self.with_item_expression.evaluate(curr_frame)
     self.suite.process(curr_frame)
 
+  def get_non_local_symbols(self) -> Iterable[str]:
+    with_item_expression_symbols = self.with_item_expression.get_used_free_symbols(
+    )
+    as_expression_symbols = set(self.as_expression.get_used_free_symbols())
+    suite_symbols = set(self.suite.get_non_locals_symbols())
+    return set(
+        itertools.chain(with_item_expression_symbols,
+                        (suite_symbols - as_expression_symbols)))
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    if self.as_expression:
+      return set(self.as_expression.get_used_free_symbols()).union(
+          set(self.suite.get_defined_and_exported_symbols()))
+    return set(self.suite.get_defined_and_exported_symbols())
+
+  def pretty_print(self, indent=''):
+    return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
+
+
+class TryCfgNode(CfgNode):
+  suite: CfgNode = attr.ib()
+  except_nodes: List['ExceptCfgNode'] = attr.ib()
+  finally_suite: CfgNode = attr.ib()
+
+  def _process_impl(self, curr_frame):
+    self.suite.process(curr_frame)
+    for except_cfg in self.except_nodes:
+      except_cfg.process(curr_frame)
+    self.finally_suite.process(curr_frame)
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return set(
+        itertools.chain(*[
+            node.get_non_local_symbols() for node in itertools.chain(
+                [self.suite, self.finally_suite], self.except_nodes)
+        ]))
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return set(
+        itertools.chain(*[
+            node.get_defined_and_exported_symbols() for node in itertools.chain(
+                [self.suite, self.finally_suite], self.except_nodes)
+        ]))
+
+  def pretty_print(self, indent=''):
+    out = f'{indent}Try\n{self.suite.pretty_print(indent+"  ")}'
+    out += "\n".join(
+        node.pretty_print(indent + "  ") for node in self.except_nodes)
+    return out + f'\n{self.finally_suite.pretty_print(indent+"  ")}'
+
+
+class ExceptCfgNode(CfgNode):
+  exceptions: Expression = attr.ib()
+  exception_variable: VariableExpression = attr.ib()
+  suite: CfgNode = attr.ib()
+
+
+
 
 @attr.s
 class IfCfgNode(CfgNode):
   # For 'else', (True, node).
-  expression_node_tuples = attr.ib()
+  expression_node_tuples: List[Tuple[Expression, CfgNode]] = attr.ib()
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):
@@ -220,6 +402,25 @@ class IfCfgNode(CfgNode):
         continue
       else:  # Completely ambiguous / MAYBE.
         node.process(curr_frame)
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    out = set()
+    for expression, node in self.expression_node_tuples:
+      out += expression.get_used_free_symbols()
+      out += node.get_non_local_symbols()
+    return out
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    out = set()
+    for _, node in self.expression_node_tuples:
+      out += node.get_defined_and_exported_symbols()
+    return out
+
+  def pretty_print(self, indent=''):
+    out = f'{indent}{type(self)}\n'
+    return out + "\n".join(
+        node.pretty_print(indent + "  ")
+        for _, node in self.expression_node_tuples)
 
 
 def _search_for_module(frame):
@@ -254,23 +455,18 @@ class KlassCfgNode(CfgNode):
 
       member.apply_to_values(instance_member)
 
+  def get_non_local_symbols(self) -> Iterable[str]:
+    out = set()
+    for expression, node in self.expression_node_tuples:
+      out += expression.get_used_free_symbols()
+      out += node.get_non_local_symbols()
+    return out
 
-@attr.s
-class GroupCfgNode(CfgNode):
-  children = attr.ib()
-  parso_node = attr.ib()
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return [self.name]
 
-  @children.validator
-  def _validate_children(self, attribute, children):
-    for child in children:
-      assert isinstance(child, CfgNode)
-
-  def _process_impl(self, curr_frame):
-    for child in self.children:
-      child.process(curr_frame)
-
-  def __str__(self):
-    return '\n'.join([str(child) for child in self.children])
+  def pretty_print(self, indent=''):
+    return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
 
 @attr.s
@@ -302,6 +498,19 @@ class FuncCfgNode(CfgNode):
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'
 
+  def get_non_local_symbols(self) -> Iterable[str]:
+    out = set()
+    for parameter in self.parameters:
+      if parameter.default:
+        out.add(parameter.default.get_used_free_symbols())
+    return out
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return [self.name]
+
+  def pretty_print(self, indent=''):
+    return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
+
 
 @attr.s
 class ReturnCfgNode(CfgNode):
@@ -310,3 +519,9 @@ class ReturnCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     curr_frame.add_return(self.expression.evaluate(curr_frame))
+
+  def get_non_local_symbols(self) -> Iterable[str]:
+    return self.expression.get_used_free_symbols()
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return []

@@ -414,9 +414,9 @@ class StubFunction(Function):
 
 @attr.s(str=False, repr=False)
 class Parameter:
-  name = attr.ib()
-  type = attr.ib()
-  default = attr.ib(LiteralExpression(None))
+  name: str = attr.ib()
+  type: 'ParameterType' = attr.ib()
+  default: 'Expression' = attr.ib(None)  # TODO: Rename default_expression
 
   def __str__(self):
     if self.type == ParameterType.SINGLE:

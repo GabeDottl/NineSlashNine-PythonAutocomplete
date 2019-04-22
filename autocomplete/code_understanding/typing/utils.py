@@ -1,19 +1,18 @@
 import itertools
 import sys
 from functools import wraps
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode, GroupCfgNode)
-from autocomplete.code_understanding.typing.errors import (
-    ParsingError, assert_unexpected_parso)
+from autocomplete.code_understanding.typing.errors import ParsingError, assert_unexpected_parso
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, CallExpression, ComparisonExpression, Expression,
-    FactorExpression, IfElseExpression, ListExpression, LiteralExpression,
-    MathExpression, NotExpression, StarExpression, SubscriptExpression,
-    TupleExpression, UnknownExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.language_objects import (
-    Parameter, ParameterType)
+    FactorExpression, ForComprehensionExpression, IfElseExpression,
+    ItemListExpression, ListExpression, LiteralExpression, MathExpression,
+    NotExpression, StarExpression, SubscriptExpression, TupleExpression,
+    UnknownExpression, Variable, VariableExpression)
+from autocomplete.code_understanding.typing.language_objects import Parameter, ParameterType
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -42,7 +41,7 @@ def variables_from_node(node):
     assert isinstance(
         variable,
         (SubscriptExpression, AttributeExpression, VariableExpression))
-    return [variable]
+    return ItemListExpression([variable])
 
 
 @_assert_returns_type(CfgNode)
@@ -223,9 +222,15 @@ def expression_from_testlist_comp(node) -> TupleExpression:
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     debug(f'Processing comp_for - throwing in unknown.')
-    return TupleExpression([UnknownExpression(node.get_code())])
-    # return ForComprehensionExpression(
-    #     names=node.children[1], source=expression_from_node(node.children[-1]))
+    # return TupleExpression([UnknownExpression(node.get_code())])
+    generator_expression = expression_from_node(node.children[0])
+    comp_for = node.children[1]
+    assert len(comp_for.children) == 4
+    target_variables = variables_from_node(comp_for.children[1])
+    iterable_expression = expression_from_node(comp_for.children[-1])
+    return TupleExpression(
+        ForComprehensionExpression(generator_expression, target_variables,
+                                   iterable_expression))
 
   # expr(x) for x in b
   if len(node.children) == 2 and node.children[1].type == 'comp_for':
@@ -241,7 +246,7 @@ def expression_from_testlist_comp(node) -> TupleExpression:
         assert_unexpected_parso(child.value == ',')
         continue
       out.append(expression_from_node(child))
-    return TupleExpression(out)
+    return TupleExpression(ItemListExpression(out))
 
 
 @_assert_returns_type(Expression)
@@ -444,9 +449,9 @@ def expression_from_atom(node):
     if len(node.children) == 3:
       inner_expr = expression_from_node(node.children[1])
       if hasattr(inner_expr, 'expressions'):
-        return ListExpression(inner_expr.expressions)
-      return ListExpression([inner_expr])
-    return ListExpression([])
+        return ItemListExpression(inner_expr.expressions)
+      return ItemListExpression([inner_expr])
+    return ItemListExpression([])
   elif node.children[0].value == '{':
     # info(f'Doing dumb logic for dict.')
     # return LiteralExpression({})
@@ -474,10 +479,11 @@ def expression_from_comparison(node):
 def expression_from_test(node):
   # a if b else c
   assert_unexpected_parso(len(node.children) == 5, node_info(node))
-  true_result = expression_from_node(node.children[0])
+  true_expression = expression_from_node(node.children[0])
   conditional_expression = expression_from_node(node.children[2])
-  false_result = expression_from_node(node.children[-1])
-  return IfElseExpression(true_result, conditional_expression, false_result)
+  false_expression = expression_from_node(node.children[-1])
+  return IfElseExpression(true_expression, conditional_expression,
+                          false_expression)
 
 
 @_assert_returns_type(Expression)

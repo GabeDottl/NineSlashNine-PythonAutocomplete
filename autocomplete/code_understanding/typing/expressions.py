@@ -1,13 +1,12 @@
+import itertools
 from abc import ABC, abstractmethod
+from typing import Dict, Iterable, List
 from wsgiref.validate import validator
 
 import attr
 
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
-                                                             FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean,
+                                                             FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, warning
 
 
@@ -17,6 +16,10 @@ class Expression(ABC):
   def evaluate(self, curr_frame) -> PObject:
     raise NotImplementedError()  # abstract
 
+  @abstractmethod
+  def get_used_free_symbols(self) -> Iterable[str]:
+    ''' Gets symbols used in a free context - i.e. not as attributes.'''
+
 
 @attr.s
 class AnonymousExpression(Expression):
@@ -24,6 +27,9 @@ class AnonymousExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     return self.pobject
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return []
 
 
 @attr.s
@@ -33,6 +39,9 @@ class LiteralExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return AugmentedObject(self.literal)
 
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return []
+
 
 @attr.s
 class UnknownExpression(Expression):
@@ -41,16 +50,8 @@ class UnknownExpression(Expression):
   def evaluate(self, curr_frame):
     return UnknownObject(self.string)
 
-
-# @attr.s
-# class ForComprehensionExpression(Expression):
-#   names = attr.ib()
-#   source = attr.ib()
-
-#   def evaluate(self, curr_frame) -> PObject:
-#     pobject = self.expression.evaluate(curr_frame)
-#     return AugmentedObject(pobject.bool_value().invert())
-
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return []
 
 @attr.s
 class NotExpression(Expression):
@@ -60,22 +61,32 @@ class NotExpression(Expression):
     pobject = self.expression.evaluate(curr_frame)
     return AugmentedObject(pobject.bool_value().invert())
 
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return self.expression.get_used_free_symbols()
 
-@attr.s
-class TupleExpression(Expression):
-  expressions = attr.ib()
-
-  def evaluate(self, curr_frame) -> PObject:
-    return AugmentedObject(
-        tuple(e.evaluate(curr_frame) for e in self.expressions))
-
-  def __iter__(self):
-    for expression in self.expressions:
-      yield expression
 
 
 @attr.s
 class ListExpression(Expression):
+  # May be an ItemListExpression or a ForComprehensionExpression.
+  source_expression: Expression = attr
+
+  def evaluate(self, curr_frame) -> PObject:
+    return source_expression.evalaute(curr_frame)
+
+  def __iter__(self):
+    return iter(self.source_expression)
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return source_expression.get_used_free_symbols()
+
+@attr.s
+class TupleExpression(ListExpression):
+  ...
+
+@attr.s
+class ItemListExpression(Expression):
+  '''Used for cased like: 1,2,3 - as in a tuple (1,2,3) or a list [1,2,3] or an arg list.'''
   expressions = attr.ib(validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
@@ -86,17 +97,51 @@ class ListExpression(Expression):
     for expression in self.expressions:
       yield expression
 
+  def get_used_free_symbols(self) -> Iterable[str]:
+    # TODO: set
+    return list(
+        itertools.chain(*[expr.get_used_free_symbols()
+                        for expr in self.expressions]))
+
+
+@attr.s
+class ForComprehensionExpression(Expression):
+  ''' As in: ` for x in func2(y)` - not to be confused with a for-block.'''
+  # generator_expression for target_variables in iterable_expression
+  generator_expression: Expression = attr.ib()
+  target_variables: Expression = attr.ib()
+  iterable_expression: Expression = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    return self.generator_expression.evaluate(curr_frame)
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    generator_free_symbols = self.generator_expression.get_used_free_symbols()
+    target_symbols = self.target_variables.get_used_free_symbols()
+    iterable_symbols = self.iterable_symbols.get_used_free_symbols()
+    generator_non_locals = set(generator_free_symbols) - set(target_symbols)
+    return set(itertools.chain(generator_non_locals, iterable_symbols))
+
 
 @attr.s
 class CallExpression(Expression):
   function_expression = attr.ib(
       validator=[attr.validators.instance_of(Expression)])
-  args = attr.ib(factory=list)
-  kwargs = attr.ib(factory=dict)
+  args: List[Expression] = attr.ib(factory=list)
+  kwargs: Dict[str, Expression] = attr.ib(factory=dict)
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.function_expression.evaluate(curr_frame)
     return pobject.call(self.args, self.kwargs, curr_frame)
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    out = set(self.function_expression.get_used_free_symbols())
+    out += set(
+        itertools.chain(*[expr.get_used_free_symbols() for expr in self.args]))
+    out += set(
+        itertools.chain(*[
+            expr.get_used_free_symbols() for expr in self.kwargs.values()]))
+    return out
 
 
 @attr.s
@@ -105,6 +150,9 @@ class VariableExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     return curr_frame[self]
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return [self.name]
 
 
 @attr.s
@@ -115,6 +163,9 @@ class StarExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     raise NotImplementedError(f'*({self.base_expression})')
 
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return self.base_expression.get_used_free_symbols()
+
 
 @attr.s
 class AttributeExpression(Expression):
@@ -124,6 +175,9 @@ class AttributeExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     value: PObject = self.base_expression.evaluate(curr_frame)
     return value.get_attribute(self.attribute)
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return self.base_expression.get_used_free_symbols()
 
 
 @attr.s
@@ -154,34 +208,36 @@ class SubscriptExpression(Expression):
       values.append(e.evaluate(curr_frame))
     return pobject.set_item(tuple(values), value)
 
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return self.base_expression.get_used_free_symbols()
+
 
 @attr.s
 class IfElseExpression(Expression):
-  true_result: Expression = attr.ib()
+  true_expression: Expression = attr.ib()
   conditional_expression: Expression = attr.ib()
-  false_result: Expression = attr.ib()
+  false_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     conditional = self.conditional_expression.evaluate(curr_frame)
     fuzzy_bool = conditional.bool_value()
     if fuzzy_bool == FuzzyBoolean.TRUE:
-      return self.false_result.evaluate(curr_frame)
+      return self.false_expression.evaluate(curr_frame)
     if fuzzy_bool == FuzzyBoolean.MAYBE:
       return FuzzyObject([
-          self.true_result.evaluate(curr_frame),
-          self.false_result.evaluate(curr_frame)
+          self.true_expression.evaluate(curr_frame),
+          self.false_expression.evaluate(curr_frame)
       ])
-    return self.true_result.evaluate(curr_frame)
+    return self.true_expression.evaluate(curr_frame)
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(
+        itertools.chain(expr.get_used_free_symbols()
+                        for expr in (self.true_expression,
+                                     self.conditional_expression,
+                                     self.false_expression)))
 
 
-@attr.s
-class ForExpression(Expression):
-  generator_expression: Expression = attr.ib()
-  conditional_expression: Expression = attr.ib()
-  iterable_expression: Expression = attr.ib()
-
-  def evaluate(self, curr_frame) -> PObject:
-    return self.generator_expression.evaluate(curr_frame)
 
 
 @attr.s
@@ -200,13 +256,16 @@ class FactorExpression(Expression):
     if self.operator == '~':
       debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
+  
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return self.expression.get_used_free_symbols()
 
 
 @attr.s
 class MathExpression(Expression):
-  left = attr.ib()
+  left_expression: Expression = attr.ib()
   operator = attr.ib()
-  right = attr.ib()
+  right_expression: Expression = attr.ib()
   parso_node = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
@@ -219,8 +278,8 @@ class MathExpression(Expression):
     # factor: ('+'|'-'|'~') factor | power
     # power: atom_expr ['**' factor]
     # TODO: handle options...
-    l = self.left.evaluate(curr_frame)
-    r = self.right.evaluate(curr_frame)
+    l = self.left_expression.evaluate(curr_frame)
+    r = self.right_expression.evaluate(curr_frame)
     try:
       if self.operator == '|':
         return l | r
@@ -256,18 +315,22 @@ class MathExpression(Expression):
       ...
     warning(f'MathExpression failed: {l}{self.operator}{r}')
     return UnknownObject(f'{self.parso_node.get_code()}')
+  
+
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(self.left_expression.get_used_free_symbols() + self.right_expression.get_used_free_symbols())
 
 
 @attr.s
 class ComparisonExpression(Expression):
-  left = attr.ib()
+  left_expression: Expression = attr.ib()
   operator = attr.ib()
-  right = attr.ib()
+  right_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
-    l = self.left.evaluate(curr_frame)
-    r = self.right.evaluate(curr_frame)
+    l = self.left_expression.evaluate(curr_frame)
+    r = self.right_expression.evaluate(curr_frame)
     # TODO
     return UnknownObject(f'{l}{self.operator}{r}')
 
@@ -294,6 +357,10 @@ class ComparisonExpression(Expression):
       return l is not r
 
     assert False, f'Cannot handle {self.operator} yet.'
+  
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(self.left_expression.get_used_free_symbols() + self.right_expression.get_used_free_symbols())
+
 
 
 Variable = Expression

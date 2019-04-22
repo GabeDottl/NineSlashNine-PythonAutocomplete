@@ -1,0 +1,132 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    // {
+    //   "name": "exception_weird",
+    //   "type": "python",
+    //   "request": "launch",
+    //   "program": "${workspaceFolder}/autocomplete/code_understanding/typing/test_exception_weirdness.py",
+    //   "console": "integratedTerminal",
+    // },
+      
+    {
+      "name": "cfg",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/test/",
+      "console": "integratedTerminal",
+    },
+    {
+      "name": "find_missing_symbols",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/project_analysis/find_missing_symbols.py",
+      "console": "integratedTerminal",
+      "args": [
+        // "/home/gabe/code/autocomplete/autocomplete/nsn_logging.py",
+        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/api.py",
+        // "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/project_analysis/find_missing_symbols.py",
+      ],
+    },
+    {
+      "name": "test_symbol_exports",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/tests/test_symbol_exports.py",
+      "console": "integratedTerminal",
+    },
+    {
+      "name": "symbol_index",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/project_analysis/symbol_exports.py",
+      "console": "integratedTerminal",
+      "args": [
+        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing",
+      ],
+    },
+    {
+      "name": "api_cfg",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/api.py",
+      "console": "integratedTerminal",
+      "args": [
+        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py",
+      ],
+    },    
+    {
+      "name": "test_main",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/tests/test_main.py",
+      "console": "integratedTerminal"
+      "env": {"PYDEVD_USE_FRAME_EVAL":"NO"}
+    },    
+    {
+      "name": "Python: Current File (Integrated Terminal)",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Remote Attach",
+      "type": "python",
+      "request": "attach",
+      "port": 5678,
+      "host": "localhost",
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "."
+        }
+      ]
+    },
+    {
+      "name": "Python: Module",
+      "type": "python",
+      "request": "launch",
+      "module": "enter-your-module-name-here",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Django",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "console": "integratedTerminal",
+      "args": [
+        "runserver",
+        "--noreload",
+        "--nothreading"
+      ],
+      "django": true
+    },
+    {
+      "name": "Python: Flask",
+      "type": "python",
+      "request": "launch",
+      "module": "flask",
+      "env": {
+        "FLASK_APP": "app.py"
+      },
+      "args": [
+        "run",
+        "--no-debugger",
+        "--no-reload"
+      ],
+      "jinja": true
+    },
+    {
+      "name": "Python: Current File (External Terminal)",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "externalTerminal"
+    }
+  ]
+}
