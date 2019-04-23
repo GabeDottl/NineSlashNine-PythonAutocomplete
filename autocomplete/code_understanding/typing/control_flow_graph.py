@@ -80,8 +80,7 @@ class ControlFlowGraphBuilder:
         return getattr(self, f'_create_cfg_node_for_{node.type}')(node)
       debug(f'Unhandled type: {node.type}')
     except (
-        NotImplementedError,
-        ParsingError
+        NotImplementedError, ParsingError
     ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
       # handle_error(e, node)
       error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')

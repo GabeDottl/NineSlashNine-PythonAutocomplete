@@ -9,8 +9,9 @@ import attr
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (_assign_variables_to_results,
-    Expression, StarExpression, SubscriptExpression, VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (
+    Expression, StarExpression, SubscriptExpression, VariableExpression,
+    _assign_variables_to_results)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.language_objects import (
     BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module,
@@ -42,7 +43,6 @@ class CfgNode(ABC):
 
   def process(self, curr_frame):
     with collector.ParsoNodeContext(self.parso_node):
-      # info(f'Processing: {collector.get_code_context_string()}')
       self._process_impl(curr_frame)
 
   @abstractmethod

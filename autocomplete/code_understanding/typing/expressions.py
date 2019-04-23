@@ -6,9 +6,11 @@ from wsgiref.validate import validator
 import attr
 
 from autocomplete.code_understanding.typing import collector
-from autocomplete.code_understanding.typing.errors import assert_unexpected_parso
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean,
-                                                             FuzzyObject, PObject, UnknownObject, NativeObject)
+from autocomplete.code_understanding.typing.errors import (
+    assert_unexpected_parso)
+from autocomplete.code_understanding.typing.pobjects import (
+    AugmentedObject, FuzzyBoolean, FuzzyObject, NativeObject, PObject,
+    UnknownObject)
 from autocomplete.nsn_logging import debug, warning
 
 
@@ -96,8 +98,7 @@ class ItemListExpression(Expression):
       validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
-    return NativeObject(
-        list(e.evaluate(curr_frame) for e in self.expressions))
+    return NativeObject(list(e.evaluate(curr_frame) for e in self.expressions))
 
   def __len__(self):
     return len(self.expressions)
@@ -161,7 +162,8 @@ def _assign_variables_to_results(curr_frame, variable, result):
     # Recursively process variables.
     for i, variable_item in enumerate(variable):
       if isinstance(variable_item, StarExpression):
-        debug(f'Mishandling star assignment')# - {parso_node.get_code().strip()}')
+        debug(f'Mishandling star assignment'
+             )  # - {parso_node.get_code().strip()}')
         # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
         _assign_variables_to_results(curr_frame, variable_item.base_expression,
                                      result._get_item_processed(i))

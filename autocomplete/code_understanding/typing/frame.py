@@ -10,11 +10,11 @@ import attr
 
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
-from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
-                                                                SubscriptExpression, Variable,
-                                                                VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, object_to_pobject,
-                                                             FuzzyObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.expressions import (
+    AttributeExpression, SubscriptExpression, Variable, VariableExpression)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject,
+    object_to_pobject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -52,11 +52,13 @@ def dereference_cell_object_returns(func):
     return out
 
   return wrapper
+
+
 PYTHON2_EXCLUSIVE_BUILTINS = [
-          'intern', 'unichr', 'StandardError', 'reduce', 'exit', 'reload',
-          'file', 'execfile', 'basestring', 'long', 'apply', 'quit', 'coerce',
-          'raw_input', 'cmp', 'xrange', 'unicode', 'buffer'
-      ]
+    'intern', 'unichr', 'StandardError', 'reduce', 'exit', 'reload', 'file',
+    'execfile', 'basestring', 'long', 'apply', 'quit', 'coerce', 'raw_input',
+    'cmp', 'xrange', 'unicode', 'buffer'
+]
 
 
 @attr.s(str=False, repr=False)
@@ -96,7 +98,10 @@ class Frame:
 
   def __attrs_post_init__(self):
     if not self._builtins:
-      self._builtins = {key: UnknownObject(key) for key in itertools.chain(__builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)}
+      self._builtins = {
+          key: UnknownObject(key) for key in itertools.chain(
+              __builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)
+      }
 
     for symbol in self._cell_symbols:
       self[symbol] = CellObject()
@@ -112,7 +117,11 @@ class Frame:
       return self._back.contains_namespace_on_stack(namespace)
     return False
 
-  def make_child(self, namespace, frame_type=FrameType.NORMAL, *, module=None,
+  def make_child(self,
+                 namespace,
+                 frame_type=FrameType.NORMAL,
+                 *,
+                 module=None,
                  cell_symbols=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     if module is None:
@@ -204,8 +213,7 @@ class Frame:
     if name in self._locals:
       return self._locals[name]
 
-    if (not nested or
-        self._frame_type == FrameType.NORMAL) and self._back:
+    if (not nested or self._frame_type == FrameType.NORMAL) and self._back:
       return self._back.__getitem__(name, nested=True)
 
     if name in self._module._members:
@@ -214,7 +222,7 @@ class Frame:
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.
-    context_str = collector.get_code_context_string()
+    context_str = self.get_code_context_string()
     collector.add_missing_symbol(self._get_current_filename(), name,
                                  context_str)
     if context_str:
@@ -246,3 +254,16 @@ class Frame:
 
   def __repr__(self):
     return str(self)
+
+  def get_code_context_string(self):
+    filename = self._get_current_filename()
+    node = collector.get_current_parso_node()
+    if node:
+      code = node.get_code().strip()
+      line = node.start_pos[0]
+      # f-string doesn't like \n.
+      code = code if '\n' not in code else code[:code.index("\n")] + '[Trimmed]'
+      if filename:
+        return f'File: "{filename}", line {line}, ({code})'
+      return f'line {line}, ({code})'
+    return filename

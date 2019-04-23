@@ -16,12 +16,15 @@ from typing import Dict, Tuple
 
 from autocomplete.code_understanding.typing import api, collector, frame
 from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
-                                                           SourceAttributeError,
-                                                           UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.language_objects import (LazyModule, Module, ModuleType,
-                                                                     create_main_module)
-from autocomplete.code_understanding.typing.pobjects import PObject, UnknownObject
+from autocomplete.code_understanding.typing.errors import (
+    LoadingModuleAttributeError, SourceAttributeError,
+    UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.expressions import NativeObject
+from autocomplete.code_understanding.typing.language_objects import (
+    LazyModule, Module, ModuleImpl, ModuleType, NativeModule,
+    create_main_module)
+from autocomplete.code_understanding.typing.pobjects import (PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import debug, error, warning
 
 __module_dict: dict = {}
@@ -44,29 +47,14 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   # because it will cause headaches. So try getting full_object_name as a package instead.
   if (not isinstance(module, LazyModule) or
       not module._loading) and pobject_name in module:
-    try:
-      return module[pobject_name]
-    except (SourceAttributeError, LoadingModuleAttributeError,
-            UnableToReadModuleFileError):
-      pass
+    # try:
+    return module[pobject_name]
+    # except (SourceAttributeError, LoadingModuleAttributeError,
+    #         UnableToReadModuleFileError):
+    #   pass
 
-  # See if there's a module we can read that'd correspond to the full name.
-  path, is_package, module_type = _module_info_from_name(full_pobject_name)
-  if module_type == ModuleType.UNKNOWN:
-    return UnknownObject(full_pobject_name)
-
-  # If a module is unreadable - e.g. built-in or unknown, we give it the benefit of the doubt. If
-  # it is unreadable, it can't be a package and thus we shouldn't try importing anyway.
-  # if not module.module_type.should_be_readable():
-  #   return UnknownObject(full_pobject_name)
-
-  # # pobject_name may correspond to a module - try getting it.
-  # full_pobject_name = f'{module_name}.{pobject_name}'
-  # try:
-  #   return get_module(full_pobject_name, unknown_fallback=False)
-  # except InvalidModuleError:
-  #   debug(f'Failed to import pobject from module: {full_pobject_name}')
-  # return UnknownObject(full_pobject_name)
+  # # See if there's a module we can read that'd correspond to the full name.
+  return load_module(full_pobject_name)
 
 
 def get_module(name: str, unknown_fallback=True) -> Module:
@@ -78,10 +66,13 @@ def get_module(name: str, unknown_fallback=True) -> Module:
       return _create_empty_module(name, ModuleType.UNKNOWN)
     return module
   __module_dict[name] = None
+  path, is_package, module_type = _module_info_from_name(name)
+  module = _load_module_from_module_info(name, path, is_package, module_type)
   module = load_module(name)
-  assert module
+  assert module is not None
   __module_dict[name] = module
-  __path_module_dict[os.path.abspath(module.filename)] = module
+  if path and os.path.exists(path):
+    __path_module_dict[path] = module
   return module
 
 
@@ -95,10 +86,6 @@ def get_module_from_filename(name, filename, is_package=False) -> Module:
 
 
 def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
-  # old_cwd = os.getcwd()
-  # new_dir = os.path.dirname(filename)
-  # debug(f'new_dir: {new_dir}')
-  # os.chdir(new_dir)
   try:
     with FileContext(filename):
       a_frame = frame.Frame(
@@ -109,10 +96,7 @@ def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
     import traceback
     traceback.print_tb(e.__traceback__)
     print(e)
-    # traceback.print_exc(e)
     raise e
-  # debug(f'old_cwd: {old_cwd}')
-  # os.chdir(old_cwd)
   return dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
 
 
@@ -162,13 +146,15 @@ def load_module_exports_from_filename(module, filename):
     warning(f'{filename}: {e}')
     raise UnableToReadModuleFileError(e)
 
+
 def _module_type_from_path(path) -> ModuleType:
   for third_party in ('dist-packages', 'site-packages'):
     if third_party in path:
       return ModuleType.PUBLIC
   return ModuleType.SYSTEM
 
-def _module_info_from_name(name: str)-> Tuple[str, bool, ModuleType]:
+
+def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   try:
     stub_path, is_package = _get_module_stub_source_filename(name)
     module_type = ModuleType.PUBLIC if 'third_party' in stub_path else ModuleType.SYSTEM
@@ -200,8 +186,6 @@ def _module_info_from_name(name: str)-> Tuple[str, bool, ModuleType]:
         return path, _is_init(path), _module_type_from_path(path)
       else:  # System module
         return None, False, ModuleType.BUILTIN
-        # TODO.
-        # debug(f'System modules not implemented.')
   except (AttributeError, ModuleNotFoundError) as e:
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')
@@ -209,16 +193,38 @@ def _module_info_from_name(name: str)-> Tuple[str, bool, ModuleType]:
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN
 
+
 def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
   debug(f'Loading module: {name}')
   path, is_package, module_type = _module_info_from_name(name)
+  return _load_module_from_module_info(name, path, is_package, module_type,
+                                       unknown_fallback, lazy)
+
+
+NATIVE_LOAD_FILE_WHITELIST = set(['/usr/lib/python3/dist-packages/six.py'])
+
+
+def _load_module_from_module_info(name: str,
+                                  path,
+                                  is_package,
+                                  module_type,
+                                  unknown_fallback=True,
+                                  lazy=True) -> Module:
   if module_type == ModuleType.UNKNOWN:
     if unknown_fallback:
       return _create_empty_module(name, module_type)
     else:
       raise InvalidModuleError(name)
-  if module_type == ModuleType.BUILTIN:
-    return _create_empty_module(name, module_type)
+
+  if module_type == ModuleType.BUILTIN or path in NATIVE_LOAD_FILE_WHITELIST:
+    # TODO: Cache.
+    spec = importlib.util.find_spec(name)
+    python_module = spec.loader.load_module(name)
+    return NativeModule(
+        name,
+        module_type,
+        filename=path,
+        native_module=NativeObject(python_module))
   return load_module_from_filename(
       name, path, is_package=is_package, module_type=module_type, lazy=lazy)
 
@@ -241,11 +247,12 @@ def load_module_from_filename(name,
     else:
       return _create_empty_module(name, ModuleType.UNKNOWN)
   if lazy:
-    return _create_lazy_module(name, filename, is_package=is_package)
+    return _create_lazy_module(
+        name, filename, is_package=is_package, module_type=module_type)
 
-  module = Module(
-      module_type=module_type,
+  module = ModuleImpl(
       name=name,
+      module_type=module_type,
       filename=filename,
       members={},
       containing_package=None,
@@ -256,26 +263,25 @@ def load_module_from_filename(name,
   return module
 
 
-def _create_lazy_module(name, filename, is_package) -> LazyModule:
+def _create_lazy_module(name, filename, is_package, module_type) -> LazyModule:
   return LazyModule(
-      module_type=ModuleType.LOCAL,  # TODO
       name=name,
-      members={},
+      module_type=module_type,
       filename=filename,
       load_module_exports_from_filename=load_module_exports_from_filename,
       containing_package=None,
       is_package=is_package)
 
 
-def _create_empty_module(name, type):
+def _create_empty_module(name, module_type):
   parts = name.split('.')
   containing_package = None
   for part in parts:
-    containing_package = Module(
-        module_type=ModuleType.UNKNOWN,
+    containing_package = ModuleImpl(
         name=part,
-        members={},
+        module_type=module_type,
         filename=name,  # TODO
+        members={},
         containing_package=containing_package,
         is_package=False)
   return containing_package

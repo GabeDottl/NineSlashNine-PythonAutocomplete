@@ -62,16 +62,8 @@ class ParsoNodeContext:
     _parso_node_context.pop()
 
 
-def get_code_context_string():
-  filename = _filename_context[-1] if _filename_context else ''
-  if _parso_node_context:
-    node = _parso_node_context[-1]
-    code = node.get_code().strip()
-    line = node.start_pos[0]
-    if filename:
-      return f'File: "{filename}", line {line}, ({code})'
-    return f'line {line}, ({code})'
-  return filename
+def get_current_parso_node():
+  return _parso_node_context[-1]
 
 
 def add_missing_symbol(filename, name, context):

@@ -20,7 +20,10 @@ class SourceAttributeError(Exception):
 class LoadingModuleAttributeError(Exception):
   ...
 
-class AmbiguousFuzzyValueDoesntHaveSingleValueError(Exception): ...
+
+class AmbiguousFuzzyValueDoesntHaveSingleValueError(Exception):
+  ...
+
 
 def assert_unexpected_parso(assertion, *error):
   if not assertion:

@@ -16,7 +16,7 @@ from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
 from autocomplete.nsn_logging import debug, info
 
 
-def graph_from_source(source: str, module=None):
+def graph_from_source(source: str, module=None) -> CfgNode:
   basic_node = parso.parse(source)
   if not module:
     module = create_main_module()

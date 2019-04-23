@@ -19,15 +19,15 @@ from typing import Dict, Iterable
 
 import attr
 
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
-                                                           SourceAttributeError,
-                                                           UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.expressions import (AnonymousExpression,
-                                                                LiteralExpression,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing.errors import (
+    LoadingModuleAttributeError, SourceAttributeError,
+    UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.expressions import (
+    AnonymousExpression, LiteralExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, object_to_pobject,
-                                                             FuzzyBoolean, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, NativeObject, PObject,
+    UnknownObject, object_to_pobject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -98,22 +98,11 @@ def create_main_module(filename=None):
       is_package=False)
 
 
-@attr.s(str=False, repr=False)
-class Module(Namespace):
+@attr.s
+class Module(Namespace, ABC):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib()
-  containing_package = attr.ib()
-  filename = attr.ib()
-  is_package = attr.ib()
-
-  def __attrs_post_init__(self):
-    # MODULE_GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
-    self._members['__name__'] = object_to_pobject(self.name)
-    self._members['__path__'] = self._members['__file__'] = object_to_pobject(
-        self.filename)
-    self._members['__package__'] = object_to_pobject(self.containing_package)
-    self._members['__loader__'] = UnknownObject('__loader__')
 
   def add_members(self, members):
     self._members.update(members)
@@ -121,12 +110,86 @@ class Module(Namespace):
   def get_members(self):
     return self._members
 
-  def path(self):
-    return f'{self.containing_package.path()}.{self.name}' if self.containing_package else self.name
+  @abstractmethod
+  def path(self) -> str:
+    ...
+
+  @abstractmethod
+  def root(self):
+    ...
+
+
+@attr.s  # (str=False, repr=False)
+class NativeModule(Module):
+  name: str = attr.ib()
+  module_type: ModuleType = attr.ib()
+  filename = attr.ib(kw_only=True)
+  _native_module: NativeObject = attr.ib(kw_only=True)
+  _members: Dict = attr.ib(init=False, default=None)  # TODO: Remove.
+
+  def __contains__(self, name):
+    return self._native_module.has_attribute(name)
+
+  # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
+  def __getitem__(self, index):
+    return self._native_module._get_item_processed(index)
+
+  def __setitem__(self, index, value):
+    assert False, 'Should not __setitem__ on NativeModules...'
+    self._native_module.set_item(index, value)
+
+  def items(self):
+    return self.get_members().items()
+
+  # TODO: delete these?
+  def has_attribute(self, name):
+    return self._native_module.has_attribute(name)
+
+  def get_attribute(self, name):
+    return self._native_module.get_attribute(name)
+
+  def set_attribute(self, name, value):
+    assert False, 'Should not set_attribute on NativeModules...'
+    return self._native_module.set_attribute(name)
+
+  def add_members(self, members):
+    assert False, 'Should not add_members on NativeModules...'
+    # self._members.update(members)
+
+  def get_members(self):
+    return self._native_module.to_dict()
+
+  def path(self) -> str:
+    return self._native_module.value().__name__
 
   def root(self):
-    if self.containing_package:
-      return self.containing_package.root()
+    # TODO
+    return self
+
+
+@attr.s  # (str=False, repr=False)
+class ModuleImpl(Module):
+  name: str = attr.ib()
+  module_type: ModuleType = attr.ib()
+  filename = attr.ib(kw_only=True)
+  _is_package = attr.ib(kw_only=True)
+  _members: Dict = attr.ib(kw_only=True)
+  _containing_package = attr.ib(kw_only=True)
+
+  def __attrs_post_init__(self):
+    # MODULE_GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
+    self._members['__name__'] = object_to_pobject(self.name)
+    self._members['__path__'] = self._members['__file__'] = object_to_pobject(
+        self.filename)
+    self._members['__package__'] = object_to_pobject(self._containing_package)
+    self._members['__loader__'] = UnknownObject('__loader__')
+
+  def path(self) -> str:
+    return f'{self._containing_package.path()}.{self.name}' if self._containing_package else self.name
+
+  def root(self):
+    if self._containing_package:
+      return self._containing_package.root()
     return self
 
   def __getitem__(self, name):
@@ -139,15 +202,15 @@ class Module(Namespace):
 
 
 @attr.s
-class LazyModule(Module):
+class LazyModule(ModuleImpl):
   '''A Module which is lazily loaded with members.
   
   On the first attribute access, this module is loaded from its filename.
   '''
-  load_module_exports_from_filename = attr.ib()
-  _loaded = attr.ib(False)
-  _loading = attr.ib(False)
-  _members: Dict = attr.ib(factory=dict)
+  load_module_exports_from_filename = attr.ib(kw_only=True)
+  _loaded = attr.ib(init=False, default=False)
+  _loading = attr.ib(init=False, default=False)
+  _members: Dict = attr.ib(init=False, factory=dict)
 
   def _lazy_load(func):
 
@@ -168,6 +231,7 @@ class LazyModule(Module):
         except UnableToReadModuleFileError:
           # raise
           error(f'Unable to lazily load {self.filename}')
+          self._loading_failed = True
         finally:
           self._loaded = True
           self._loading = False
