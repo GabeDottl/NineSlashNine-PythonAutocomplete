@@ -439,7 +439,8 @@ class ExceptCfgNode(CfgNode):
     self.suite.process(new_frame)
     if self.exception_variable:
       del new_frame[self.exception_variable]
-    curr_frame.merge(new_frame)
+    for name, pobject in new_frame._locals.items():
+      curr_frame[name] = pobject
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:

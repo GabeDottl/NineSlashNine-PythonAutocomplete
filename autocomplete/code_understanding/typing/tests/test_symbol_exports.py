@@ -1,9 +1,13 @@
 import os
 
-from autocomplete.code_understanding.typing import collector, control_flow_graph, module_loader
+from autocomplete.code_understanding.typing import (collector,
+                                                    control_flow_graph,
+                                                    module_loader)
 from autocomplete.code_understanding.typing.api import graph_from_source
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import FuncCfgNode
-from autocomplete.code_understanding.typing.project_analysis import find_missing_symbols
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
+    FuncCfgNode)
+from autocomplete.code_understanding.typing.project_analysis import (
+    find_missing_symbols)
 
 
 def test_cfg_symbol_visibility():
@@ -77,6 +81,7 @@ def test_closure_scope():
   foo4_func_node = x_klass_node.suite[-1]
   _assert_expected_iterable(foo4_func_node.closure(), ['c', 'q'])
 
+
 def test_closure_values():
   source = '''
   def foo(a):
@@ -104,6 +109,7 @@ def test_closure_values():
   assert module['a'].value() == 3
   assert module['c'].value() == 1
   assert module['d'].value() == 2
+
 
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')

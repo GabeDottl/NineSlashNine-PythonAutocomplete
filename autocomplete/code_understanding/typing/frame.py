@@ -8,12 +8,28 @@ from typing import Dict, List
 import attr
 
 from autocomplete.code_understanding.typing import collector
+from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, SubscriptExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, CellObject, FuzzyObject, PObject,
-    UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
+                                                             AugmentedObject,
+                                                             FuzzyObject,
+                                                             PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import info, warning
+
+
+@attr.s
+class CellObject:
+  '''Cell object's are simply wrappers over PObjects.
+
+  These exist for variables/pobjects that are shared across multiple scopes.
+
+  They are intended as a pretty direct mirror to the Cell Objects in Python used for the same
+  purpose:
+  https://docs.python.org/3.7/c-api/cell.html
+  '''
+  pobject: PObject = attr.ib(None)
 
 
 class FrameType(Enum):
@@ -29,6 +45,10 @@ def dereference_cell_object_returns(func):
   def wrapper(self, *args, **kwargs):
     out = func(self, *args, **kwargs)
     if isinstance(out, CellObject):
+      if not out.pobject:
+        # NameError: free variable 'a' referenced before assignment in enclosing scope
+        # raise CellValueNotSetError()
+        return UnknownObject('CellValueNotSetError')
       return out.pobject
     return out
 
@@ -54,16 +74,14 @@ class Frame:
   an underscore. This form may only be used at the module level.`
   '''
   # https://github.com/alecthomas/importmagic/blob/master/importmagic/symbols.py
-  # GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
+
   # PYTHON3_BUILTINS = ['PermissionError']
   # ALL_BUILTINS = set(dir(__builtin__)) | set(GLOBALS) | set(PYTHON3_BUILTINS)
 
   # Symbol tables.
   _module = attr.ib()
-  _globals: Dict = attr.ib(factory=dict)
   _locals: Dict = attr.ib(factory=dict)
   _builtins: Dict = attr.ib(None)  # TODO
-  # _nonlocals: Dict = attr.ib(factory=dict)
   _returns: List[PObject] = attr.ib(factory=list)
   _frame_type: FrameType = attr.ib(FrameType.NORMAL)
   namespace = attr.ib(None)
@@ -78,8 +96,6 @@ class Frame:
 
     for symbol in self._cell_symbols:
       self[symbol] = CellObject()
-    # if self._globals is None:
-    #   self._globals = self._locals  # Explicitly sharing the same list, not copying.
 
   # TODO: nonlocal_names and global_names
   # _frame_type = attr.ib(FrameType.NORMAL)
@@ -92,24 +108,9 @@ class Frame:
       return self._back.contains_namespace_on_stack(namespace)
     return False
 
-  def merge(self, other_frame):
-    # self._globals.update(other_frame._globals)
-    # self._nonlocals.update(other_frame._nonlocals)
-    self._locals.update(other_frame._locals)
-
-  def make_child(self,
-                 namespace,
-                 frame_type,
-                 *,
-                 module=None,
-                 globals=None,
+  def make_child(self, namespace, frame_type, *, module=None,
                  cell_symbols=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
-    if globals is None:
-      if self._back is None:
-        globals = self._locals
-      else:
-        globals = self._globals
     if module is None:
       module = self._module
     if cell_symbols is None:
@@ -121,11 +122,7 @@ class Frame:
         module=module,
         namespace=namespace,
         builtins=self._builtins,
-        globals=globals,
         cell_symbols=cell_symbols)
-
-  def to_module(self) -> 'Module':
-    raise NotImplementedError()
 
   def _set_free_variable(self, name, value):
     if name in self._locals:
@@ -207,10 +204,6 @@ class Frame:
     if self._back:
       return self._back.__getitem__(name, nested=True)
 
-    # if name in self._globals:
-    #   return self._globals[name]
-
-    # TODO: globals?
     if name in self._module._members:
       return self._module._members[name]
 
@@ -243,13 +236,6 @@ class Frame:
 
   def get_returns(self):
     return FuzzyObject(self._returns) if self._returns else NONE_POBJECT
-
-  def get_variables(self):
-    out = []
-    for group in (self._locals, self._globals, self._builtins):
-      for key in group.keys():
-        out.append(key)
-    return out
 
   def __str__(self):
     return f'{[self._locals, self._builtins]} + {self._root}\n'

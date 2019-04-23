@@ -104,9 +104,18 @@ class Module(Namespace):
   is_package = attr.ib()
 
   def __attrs_post_init__(self):
-    if self.module_type == ModuleType.UNKNOWN:
-      self.dynamic_creation_func = lambda name: UnknownObject(name='.'.join(
-          [self.path(), name]))
+    # MODULE_GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
+    self._members['__name__'] = LiteralExpression(self.name)
+    self._members['__path__'] = self._members['__file__'] = LiteralExpression(
+        self.filename)
+    self._members['__package__'] = AugmentedObject(self.containing_package)
+    self._members['__loader__'] = UnknownObject('__loader__')
+
+  def add_members(self, members):
+    self._members.update(members)
+
+  def get_members(self):
+    return self._members
 
   def path(self):
     return f'{self.containing_package.path()}.{self.name}' if self.containing_package else self.name
@@ -134,16 +143,15 @@ class LazyModule(Module):
   load_module_exports_from_filename = attr.ib()
   _loaded = attr.ib(False)
   _loading = attr.ib(False)
-  _members: Dict = attr.ib(None)
+  _members: Dict = attr.ib(factory=dict)
 
   def _lazy_load(func):
 
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
       if not self._loaded:
-        # info(f'Lazily loading from: {self.filename}')
+        debug(f'Lazily loading from: {self.filename}')
         if self._loading:
-          #
           debug(
               f'Already lazy-loading module... dependency cycle? {self.path()}. Or From import?'
           )
@@ -178,14 +186,6 @@ class LazyModule(Module):
     return super().items()
 
 
-# class CallableInterface(ABC):
-#   @abstractmethod
-#   def call(self, args, kwargs, args, kwargs, curr_frame): ...
-
-#   @abstractmethod
-#   def get_parameters(self): ...
-
-
 @attr.s(str=False, repr=False)
 class Klass(Namespace):
   name: str = attr.ib()
@@ -213,14 +213,6 @@ class Klass(Namespace):
         value = member.value(
         )  # TODO: This can raise an exception for FuzzyObjects
         new_func = value.bind([AnonymousExpression(self)], {})
-        # new_func = copy(value)
-        # bound_frame = new_func.get_or_create_bound_frame()
-        # try:
-        #   self_param = new_func.parameters.pop(0)
-        #   info(f'self_param: {self_param} for {new_func}')
-        #   bound_frame._locals[self_param.name] = pobject
-        # except IndexError:
-        #   warning(f'No self param in {new_func}')
         new_func.function_type = FunctionType.BOUND_INSTANCE_METHOD
         instance[name] = AugmentedObject(new_func)
       else:
@@ -303,7 +295,6 @@ class FunctionImpl(Function):
         frame_type=FrameType.FUNCTION,
         namespace=self,
         module=self._module,
-        globals=self._module._members,
         cell_symbols=self._cell_symbols)
     self._process_args(args, kwargs, new_frame)
     self.graph.process(new_frame)
