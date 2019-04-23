@@ -6,6 +6,7 @@ components.
 The rationale for doing this is a few:
 * Allows some consistent customization over abseil logging.
 * Allows swapping out Abseil easily across the board - e.g. for logging to disk."""
+
 import inspect
 
 from absl import logging

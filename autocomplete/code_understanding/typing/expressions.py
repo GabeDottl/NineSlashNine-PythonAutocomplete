@@ -5,11 +5,10 @@ from wsgiref.validate import validator
 
 import attr
 
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject,
-                                                             FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing import collector
+from autocomplete.code_understanding.typing.errors import assert_unexpected_parso
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean,
+                                                             FuzzyObject, PObject, UnknownObject, NativeObject)
 from autocomplete.nsn_logging import debug, warning
 
 
@@ -40,7 +39,7 @@ class LiteralExpression(Expression):
   literal = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    return AugmentedObject(self.literal)
+    return NativeObject(self.literal)
 
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
@@ -97,7 +96,7 @@ class ItemListExpression(Expression):
       validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
-    return AugmentedObject(
+    return NativeObject(
         list(e.evaluate(curr_frame) for e in self.expressions))
 
   def __len__(self):
@@ -127,7 +126,12 @@ class ForComprehensionExpression(Expression):
   comp_iter: Union[Expression, None] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    return self.generator_expression.evaluate(curr_frame)
+    # TODO: Fill out proper.
+    new_frame = curr_frame.make_child(curr_frame.namespace)
+    _assign_variables_to_results(new_frame, self.target_variables,
+                                 self.iterable_expression.evaluate(new_frame))
+    out = self.generator_expression.evaluate(new_frame)
+    return out
 
   def get_used_free_symbols(self) -> Iterable[str]:
     generator_free_symbols = self.generator_expression.get_used_free_symbols()
@@ -139,6 +143,31 @@ class ForComprehensionExpression(Expression):
     for symbol in itertools.chain(target_symbols, comp_iter_symbols):
       non_locals.discard(symbol)
     return non_locals
+
+
+def _assign_variables_to_results(curr_frame, variable, result):
+  if (hasattr(variable, '__len__') and len(variable) == 1):
+    variable = variable[0]
+  if not hasattr(variable, '__iter__'):
+    # collector.add_variable_assignment(variable,
+    #                                   f'({parso_node.get_code().strip()})')
+    assert_unexpected_parso(isinstance(variable, Expression), variable)
+    if isinstance(variable, SubscriptExpression):
+      variable.set(curr_frame, result)
+    else:
+      # TODO: Handle this properly...
+      curr_frame[variable] = result
+  else:
+    # Recursively process variables.
+    for i, variable_item in enumerate(variable):
+      if isinstance(variable_item, StarExpression):
+        debug(f'Mishandling star assignment')# - {parso_node.get_code().strip()}')
+        # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
+        _assign_variables_to_results(curr_frame, variable_item.base_expression,
+                                     result._get_item_processed(i))
+      else:
+        _assign_variables_to_results(curr_frame, variable_item,
+                                     result._get_item_processed(i))
 
 
 @attr.s
@@ -250,10 +279,11 @@ class IfElseExpression(Expression):
 
   def get_used_free_symbols(self) -> Iterable[str]:
     return set(
-        itertools.chain(expr.get_used_free_symbols()
-                        for expr in (self.true_expression,
-                                     self.conditional_expression,
-                                     self.false_expression)))
+        itertools.chain(*[
+            expr.get_used_free_symbols()
+            for expr in (self.true_expression, self.conditional_expression,
+                         self.false_expression)
+        ]))
 
 
 @attr.s
@@ -329,12 +359,12 @@ class MathExpression(Expression):
         return l * r
     except TypeError:
       ...
-    warning(f'MathExpression failed: {l}{self.operator}{r}')
+    debug(f'MathExpression failed: {l}{self.operator}{r}')
     return UnknownObject(f'{self.parso_node.get_code()}')
 
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols().union(
-        self.right_expression.get_used_free_symbols()))
+    return set(self.left_expression.get_used_free_symbols()).union(
+        self.right_expression.get_used_free_symbols())
 
 
 @attr.s

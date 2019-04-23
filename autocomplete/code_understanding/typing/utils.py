@@ -126,6 +126,10 @@ def parameters_from_parameters(node) -> List[Parameter]:
                           node_info(node))  # paran)
   out = []
   for param in node.children[1:-1]:  # Skip parens.
+    if param.type == 'operator':
+      # Either '*' or ',' - if *, is used, both will be given as children here.
+      # All subsequent things are positional - don't care right now.
+      continue
     assert_unexpected_parso(param.type == 'param', node_info(param))
     if len(param.children) == 1:  # name
       param_child = param.children[0]
@@ -425,6 +429,8 @@ def expression_from_atom(node):
     # yield_expr|testlist_comp
     if node.children[1].type == 'keyword' and node.children[1].value == 'yield':
       raise NotImplementedError('Not yet handling yield_expr')
+    elif len(node.children) == 2:
+      return ItemListExpression([])
     else:
       assert_unexpected_parso(len(node.children) == 3, node_info(node))
       return expression_from_node(node.children[1])
@@ -504,18 +510,13 @@ def children_contains_operator(node, operator_str):
 
 
 def path_to_name(node, name):
-  try:
-    if node.value == name:
-      return (node,)
-  except AttributeError:
-    pass
-  try:
+  if hasattr(node, 'value') and node.value == name:
+    return (node,)
+  if hasattr(node, 'children'):
     for child in node.children:
       x = path_to_name(child, name)
       if x is not None:
         return (node, *x)
-  except AttributeError:
-    pass
   return None
 
 
@@ -528,11 +529,9 @@ def extract_nodes_of_type(node, type_, out=None):
     out = []
   if node.type == type_:
     out.append(node)
-  try:
+  if hasattr(node, 'children'):
     for child in node.children:
       extract_nodes_of_type(child, type_, out)
-  except AttributeError:
-    pass
   return out
 
 
@@ -557,8 +556,6 @@ def keyword_eval(keyword_str):
 
 def print_tree(node, indent='', file=sys.stdout):
   print(f'{indent}{node.type}', file=file)
-  try:
+  if hasattr(node, 'children'):
     for c in node.children:
       print_tree(c, indent + '  ', file=file)
-  except AttributeError:
-    pass

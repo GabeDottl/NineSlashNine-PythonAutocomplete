@@ -1,13 +1,11 @@
 import os
+from glob import glob
 
-from autocomplete.code_understanding.typing import (collector,
-                                                    control_flow_graph,
-                                                    module_loader)
+from autocomplete.code_understanding.typing import collector, control_flow_graph, module_loader
 from autocomplete.code_understanding.typing.api import graph_from_source
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    FuncCfgNode)
-from autocomplete.code_understanding.typing.project_analysis import (
-    find_missing_symbols)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import FuncCfgNode
+from autocomplete.code_understanding.typing.project_analysis import find_missing_symbols
+from autocomplete.nsn_logging import debug, info
 
 
 def test_cfg_symbol_visibility():
@@ -132,8 +130,24 @@ def _assert_expected_iterable(actual, expected):
   assert not difference, difference  # Should be empty set.
 
 
+def test_no_missing_symbols_in_typing_package():
+  typing_dir = os.path.join(os.path.dirname(__file__), '..')
+  filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
+  for filename in filenames:
+    info(f'filename: {filename}')
+    if os.path.basename(filename) == 'grammar.py':
+      debug(f'Skipping {filename}')
+      continue
+    name = os.path.splitext(os.path.basename(filename))[0]
+    module_loader.get_module_from_filename(name, filename)
+    missing_symbols = find_missing_symbols.scan_missing_symbols(
+        filename, include_context=False)
+    assert not missing_symbols
+
+
 if __name__ == "__main__":
   test_closure_values()
   test_cfg_symbol_visibility()
   test_closure_scope()
   test_missing_symbols()
+  test_no_missing_symbols_in_typing_package()

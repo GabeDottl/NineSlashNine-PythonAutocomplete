@@ -69,7 +69,7 @@ def get_code_context_string():
     code = node.get_code().strip()
     line = node.start_pos[0]
     if filename:
-      return f'"{filename}", line {line}, ({code})'
+      return f'File: "{filename}", line {line}, ({code})'
     return f'line {line}, ({code})'
   return filename
 

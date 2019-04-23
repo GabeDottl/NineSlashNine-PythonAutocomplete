@@ -9,7 +9,7 @@ import attr
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (
+from autocomplete.code_understanding.typing.expressions import (_assign_variables_to_results,
     Expression, StarExpression, SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.language_objects import (
@@ -231,8 +231,7 @@ class AssignmentStmtCfgNode(CfgNode):
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
     result = self.right_expression.evaluate(curr_frame)
-    _assign_variables_to_results(curr_frame, self.left_variables, result,
-                                 self.parso_node)
+    _assign_variables_to_results(curr_frame, self.left_variables, result)
 
   def __str__(self):
     return self._to_str()
@@ -252,31 +251,6 @@ class AssignmentStmtCfgNode(CfgNode):
     return self.left_variables.get_used_free_symbols()
 
 
-def _assign_variables_to_results(curr_frame, variable, result, parso_node):
-  if (hasattr(variable, '__len__') and len(variable) == 1):
-    variable = variable[0]
-  if not hasattr(variable, '__iter__'):
-    collector.add_variable_assignment(variable,
-                                      f'({parso_node.get_code().strip()})')
-    assert_unexpected_parso(isinstance(variable, Expression), variable)
-    if isinstance(variable, SubscriptExpression):
-      variable.set(curr_frame, result)
-    else:
-      # TODO: Handle this properly...
-      curr_frame[variable] = result
-  else:
-    # Recursively process variables.
-    for i, variable_item in enumerate(variable):
-      if isinstance(variable_item, StarExpression):
-        info(f'Mishandling star assignment - {parso_node.get_code().strip()}')
-        # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
-        _assign_variables_to_results(curr_frame, variable_item.base_expression,
-                                     result._get_item_processed(i), parso_node)
-      else:
-        _assign_variables_to_results(curr_frame, variable_item,
-                                     result._get_item_processed(i), parso_node)
-
-
 @attr.s
 class ForCfgNode(CfgNode):
   # Example for loop_variables in loop_expression: suite
@@ -287,8 +261,7 @@ class ForCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     _assign_variables_to_results(curr_frame, self.loop_variables,
-                                 self.loop_expression.evaluate(curr_frame),
-                                 self.parso_node)
+                                 self.loop_expression.evaluate(curr_frame))
     self.suite.process(curr_frame)
 
   @instance_memoize
@@ -348,7 +321,7 @@ class WithCfgNode(CfgNode):
     if self.as_expression:
       _assign_variables_to_results(
           curr_frame, self.as_expression,
-          self.with_item_expression.evaluate(curr_frame), self.parso_node)
+          self.with_item_expression.evaluate(curr_frame))
     else:
       self.with_item_expression.evaluate(curr_frame)
     self.suite.process(curr_frame)

@@ -1,7 +1,7 @@
 from inspect import getframeinfo, stack
 
 
-class CellObjectUsageError(Exception):
+class UnableToReadModuleFileError(Exception):
   ...
 
 
@@ -20,6 +20,7 @@ class SourceAttributeError(Exception):
 class LoadingModuleAttributeError(Exception):
   ...
 
+class AmbiguousFuzzyValueDoesntHaveSingleValueError(Exception): ...
 
 def assert_unexpected_parso(assertion, *error):
   if not assertion:

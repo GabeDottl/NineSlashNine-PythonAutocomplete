@@ -1,6 +1,7 @@
 '''This module defines a Frame type and related types for simulating execution.
 
 https://tech.blog.aknin.name/2010/07/22/pythons-innards-interpreter-stacks/'''
+import itertools
 from enum import Enum
 from functools import wraps
 from typing import Dict, List
@@ -9,13 +10,11 @@ import attr
 
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
-from autocomplete.code_understanding.typing.expressions import (
-    AttributeExpression, SubscriptExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             AugmentedObject,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.expressions import (AttributeExpression,
+                                                                SubscriptExpression, Variable,
+                                                                VariableExpression)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, object_to_pobject,
+                                                             FuzzyObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -53,6 +52,11 @@ def dereference_cell_object_returns(func):
     return out
 
   return wrapper
+PYTHON2_EXCLUSIVE_BUILTINS = [
+          'intern', 'unichr', 'StandardError', 'reduce', 'exit', 'reload',
+          'file', 'execfile', 'basestring', 'long', 'apply', 'quit', 'coerce',
+          'raw_input', 'cmp', 'xrange', 'unicode', 'buffer'
+      ]
 
 
 @attr.s(str=False, repr=False)
@@ -92,7 +96,7 @@ class Frame:
 
   def __attrs_post_init__(self):
     if not self._builtins:
-      self._builtins = {key: UnknownObject(key) for key in __builtins__.keys()}
+      self._builtins = {key: UnknownObject(key) for key in itertools.chain(__builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)}
 
     for symbol in self._cell_symbols:
       self[symbol] = CellObject()
@@ -108,7 +112,7 @@ class Frame:
       return self._back.contains_namespace_on_stack(namespace)
     return False
 
-  def make_child(self, namespace, frame_type, *, module=None,
+  def make_child(self, namespace, frame_type=FrameType.NORMAL, *, module=None,
                  cell_symbols=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     if module is None:
@@ -135,7 +139,7 @@ class Frame:
   def __setitem__(self, variable: Variable, value: PObject):
     # https://stackoverflow.com/questions/38937721/global-frame-vs-stack-frame
     if not isinstance(value, PObject):
-      value = AugmentedObject(value)  # Wrap everything in FuzzyObjects.
+      value = object_to_pobject(value)  # Wrap everything in FuzzyObjects.
     # TODO: Handle nonlocal & global keyword states and cells.
     if isinstance(value, FuzzyObject):
       value.validate()
@@ -197,11 +201,11 @@ class Frame:
     # Given a.b.c, Python will take the most-local definition of a and
     # search from there.
     # TODO: This hackishly makes nested functions sorta work. FIXME. == NORMAL + cells.
-    if (not nested or
-        self._frame_type == FrameType.NORMAL) and name in self._locals:
+    if name in self._locals:
       return self._locals[name]
 
-    if self._back:
+    if (not nested or
+        self._frame_type == FrameType.NORMAL) and self._back:
       return self._back.__getitem__(name, nested=True)
 
     if name in self._module._members:
@@ -216,9 +220,9 @@ class Frame:
     if context_str:
       warning(f'At: {context_str}')
     warning(
-        f'{name} doesn\'t exist in current context! Returning UnknownObject.')
+        f'`{name}` doesn\'t exist in current context! Returning UnknownObject.')
     if raise_error_if_missing:
-      raise ValueError(f'{variable} doesn\'t exist in current context!')
+      raise KeyError(f'{variable} doesn\'t exist in current context!')
     else:
       return UnknownObject(f'frame[{name}]')
 
@@ -226,12 +230,12 @@ class Frame:
     try:
       self.__getitem__(variable, raise_error_if_missing=True)
       return True
-    except ValueError:
+    except KeyError:
       return False
 
   def add_return(self, value):
     if not isinstance(value, PObject):
-      value = AugmentedObject(value)
+      value = object_to_pobject(value)
     self._returns.append(value)
 
   def get_returns(self):

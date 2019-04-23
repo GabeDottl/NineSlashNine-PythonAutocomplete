@@ -57,7 +57,7 @@ def _process(member, a_frame):
       _process(value, a_frame)
   elif member.value_is_a(Function) == FuzzyBoolean.TRUE:
     func = member.value()
-    info(f'Calling {func.name}')
+    debug(f'Calling {func.name}')
     kwargs = {param.name: UnknownExpression('') for param in func.parameters}
     func.call([], kwargs, a_frame)
 

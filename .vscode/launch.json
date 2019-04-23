@@ -27,7 +27,7 @@
       "console": "integratedTerminal",
       "args": [
         // "/home/gabe/code/autocomplete/autocomplete/nsn_logging.py",
-        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/api.py",
+        "/home/gabe/code/autocomplete/autocomplete/nsn_logging.py",
         // "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/project_analysis/find_missing_symbols.py",
       ],
     },

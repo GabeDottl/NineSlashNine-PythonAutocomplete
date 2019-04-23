@@ -3,13 +3,14 @@ from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from enum import Enum
 from functools import partialmethod, wraps
+import types
 from typing import List
 
 import attr
 
-from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, SourceAttributeError)
-from autocomplete.nsn_logging import debug, info, warning
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
+                                                           SourceAttributeError, AmbiguousFuzzyValueDoesntHaveSingleValueError)
+from autocomplete.nsn_logging import debug, info, warning, error
 
 _OPERATORS = [
     '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__',
@@ -185,10 +186,102 @@ def _process_args_kwargs(args, kwargs, curr_frame):
     arg.evaluate(curr_frame)
 
 
+NATIVE_TYPES = (int, str, list, dict, type(None))
+
+@attr.s(str=False, repr=False)
+class NativeObject(PObject):
+  _native_object = attr.ib()
+  _dynamic_container = attr.ib(factory=DynamicContainer)
+
+  def has_attribute(self, name):
+    return hasattr(self._native_object, name) or self._dynamic_container.has_attribute(name)
+
+  def get_attribute(self, name):
+    try:
+      native_object = getattr(self._native_object, name)
+      if isinstance(native_object, NATIVE_TYPES):
+        return NativeObject(native_object)
+      elif isinstance(native_object, PObject):
+        return native_object
+      elif isinstance(native_object, types.FunctionType):
+        pass  # TODO.
+    except AttributeError as e:  # E.g. <str>.get_attribute
+      # TODO: Support for some native objects - str, int, list perhaps.
+      debug(f'Failed to access {name} from {self._native_object}. {e}')
+    return self._dynamic_container.get_attribute(name)
+
+  def set_attribute(self, name, value):
+    self._dynamic_container.set_attribute(name, value)
+
+  def apply_to_values(self, func):
+    func(self._native_object)
+
+  def value_equals(self, other) -> FuzzyBoolean:
+    try:
+      value = other.value()
+      if value == self.value:
+        return FuzzyBoolean.TRUE
+    except AmbiguousFuzzyValueDoesntHaveSingleValueError: 
+      return FuzzyBoolean.MAYBE  # TODO
+    return FuzzyBoolean.FALSE
+
+  def value_is_a(self, type_) -> FuzzyBoolean:
+    return FuzzyBoolean.TRUE if isinstance(self._native_object,
+                                           type_) else FuzzyBoolean.FALSE
+
+  def value(self) -> object:
+    return self._native_object
+
+  def bool_value(self) -> FuzzyBoolean:
+    return FuzzyBoolean.TRUE if self._native_object else FuzzyBoolean.FALSE
+
+  def call(self, args, kwargs, curr_frame):
+    # TODO: Function support?
+    return UnknownObject(f'Call on {type(self._native_object)}')
+
+  def _get_item_processed(self, indicies):
+    try:
+      value = self._native_object.__getitem__(indicies)
+      if isinstance(value, NATIVE_TYPES):
+        return NativeObject(value)
+      if isinstance(value, PObject):
+        return value
+      assert False
+    except (KeyError, IndexError, AttributeError):
+      return UnknownObject(f'{self._native_object}[{indicies}]')
+    except Exception as e:
+      error(e)
+
+  def get_item(self, args):
+    return self._get_item_processed(_process_indicies(args))
+
+  def set_item(self, index, value):
+    # TODO: item_dynamic_container?
+    if hasattr(self._native_object, '__setitem__'):
+      try:
+        self._native_item.__setitem__(_process_indicies(index), value)
+      except KeyError:
+        pass
+      except Exception as e:
+        error(f'While setting {self._native_object}[{index}] = {value}')
+        error(e)
+
+  def __str__(self):
+    return f'NO({self._native_object})'
+
+  def __repr__(self):
+    return str(self)
+
+def object_to_pobject(obj):
+  if isinstance(obj, NATIVE_TYPES):
+    return NativeObject(obj)
+  return AugmentedObject(obj)
+
 @attr.s(str=False, repr=False)
 class AugmentedObject(PObject):  # TODO: CallableInterface
   _object = attr.ib()
   _dynamic_container = attr.ib(factory=DynamicContainer)
+
 
   def has_attribute(self, name):
     return self._object.has_attribute(
@@ -196,23 +289,22 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
 
   def get_attribute(self, name):
     try:
-
       return self._object.get_attribute(name)
     except (SourceAttributeError, LoadingModuleAttributeError):
       # TODO: Log
       debug(f'Failed to access {name} from {self._object}')
       return self._dynamic_container.get_attribute(name)
-    except AttributeError:  # E.g. <str>.get_attribute
+    except AttributeError as e:  # E.g. <str>.get_attribute
       # TODO: Support for some native objects - str, int, list perhaps.
       debug(f'Failed to access {name} from {self._object}')
       return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):
     # Can this get messy at all?
-    # if self._object.has_attribute(name):
-    self._object.set_attribute(name, value)
-    # else:
-    #   self._dynamic_container.set_attribute(name, value)
+    if self._object.has_attribute(name):
+      self._object.set_attribute(name, value)
+    else:
+      self._dynamic_container.set_attribute(name, value)
 
   def apply_to_values(self, func):
     func(self._object)
@@ -249,7 +341,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     elif hasattr(self._object, '__getitem__'):
       try:
         # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
-        return AugmentedObject(self._object.__getitem__(indicies))
+        return object_to_pobject(self._object.__getitem__(indicies))
       except (KeyError, IndexError, TypeError, SourceAttributeError,
               LoadingModuleAttributeError):
         pass
@@ -264,7 +356,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     warning(f'Skipping setting {self._object}[{index}] = {value}')
 
   def __str__(self):
-    return f'AV({self._object}):[{self._dynamic_container}]'
+    return f'AO({self._object}):[{self._dynamic_container}]'
 
   def __repr__(self):
     return str(self)
@@ -303,7 +395,7 @@ class FuzzyObject(PObject):
       if isinstance(val, FuzzyObject):
         new_values += val._values
       elif not isinstance(val, PObject):
-        new_values.append(AugmentedObject(val))
+        new_values.append(object_to_pobject(val))
       else:
         new_values.append(val)
     self._values = new_values
@@ -327,7 +419,7 @@ class FuzzyObject(PObject):
 
   def value(self) -> object:
     if not self.has_single_value():
-      raise ValueError(f'Does not have a single value: {self._values}')
+      raise AmbiguousFuzzyValueDoesntHaveSingleValueError(f'Does not have a single value: {self._values}')
     if isinstance(self._values[0], PObject):  # Follow the rabbit hole.
       return self._values[0].value()
     return self._values[0]
@@ -474,5 +566,5 @@ def _process_indicies(args):
   return tuple(x.value() for x in args) if len(args) > 1 else args[0].value()
 
 
-NONE_POBJECT = AugmentedObject(None)
+NONE_POBJECT = NativeObject(None)
 # UNKNOWN_POBJECT = FuzzyObject()

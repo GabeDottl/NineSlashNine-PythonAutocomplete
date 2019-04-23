@@ -12,18 +12,17 @@ module.
 '''
 import importlib
 import os
-from typing import Dict
+from typing import Dict, Tuple
 
 from autocomplete.code_understanding.typing import api, collector, frame
 from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, SourceAttributeError)
-from autocomplete.code_understanding.typing.language_objects import (
-    LazyModule, Module, ModuleType, create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (PObject,
-                                                             UnknownObject)
-from autocomplete.nsn_logging import (debug, error, pop_context, push_context,
-                                      warning)
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
+                                                           SourceAttributeError,
+                                                           UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.language_objects import (LazyModule, Module, ModuleType,
+                                                                     create_main_module)
+from autocomplete.code_understanding.typing.pobjects import PObject, UnknownObject
+from autocomplete.nsn_logging import debug, error, warning
 
 __module_dict: dict = {}
 __path_module_dict: dict = {}
@@ -34,19 +33,40 @@ class InvalidModuleError(Exception):
 
 
 def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
-  module = get_module(module_name)
-  # pobject_name may correspond to a module - try getting it.
   full_pobject_name = f'{module_name}.{pobject_name}'
-  if module.is_package and pobject_name not in module:
+  if full_pobject_name in __module_dict:
+    return __module_dict[full_pobject_name]
+
+  module = get_module(module_name)
+
+  # Try to get pobject_name as a member of module if module is a package.
+  # If the module is already loading, then we don't want to check if pobject_name is in module
+  # because it will cause headaches. So try getting full_object_name as a package instead.
+  if (not isinstance(module, LazyModule) or
+      not module._loading) and pobject_name in module:
     try:
-      return get_module(full_pobject_name, unknown_fallback=False)
-    except InvalidModuleError:
-      warning(f'Failed to import pobject from module: {full_pobject_name}')
-      return UnknownObject(full_pobject_name)
-  try:
-    return module[pobject_name]
-  except (SourceAttributeError, LoadingModuleAttributeError):
+      return module[pobject_name]
+    except (SourceAttributeError, LoadingModuleAttributeError,
+            UnableToReadModuleFileError):
+      pass
+
+  # See if there's a module we can read that'd correspond to the full name.
+  path, is_package, module_type = _module_info_from_name(full_pobject_name)
+  if module_type == ModuleType.UNKNOWN:
     return UnknownObject(full_pobject_name)
+
+  # If a module is unreadable - e.g. built-in or unknown, we give it the benefit of the doubt. If
+  # it is unreadable, it can't be a package and thus we shouldn't try importing anyway.
+  # if not module.module_type.should_be_readable():
+  #   return UnknownObject(full_pobject_name)
+
+  # # pobject_name may correspond to a module - try getting it.
+  # full_pobject_name = f'{module_name}.{pobject_name}'
+  # try:
+  #   return get_module(full_pobject_name, unknown_fallback=False)
+  # except InvalidModuleError:
+  #   debug(f'Failed to import pobject from module: {full_pobject_name}')
+  # return UnknownObject(full_pobject_name)
 
 
 def get_module(name: str, unknown_fallback=True) -> Module:
@@ -55,7 +75,7 @@ def get_module(name: str, unknown_fallback=True) -> Module:
     module = __module_dict[name]
     if module is None:
       error('Circular dep.')
-      return _create_unknown_module(name)
+      return _create_empty_module(name, ModuleType.UNKNOWN)
     return module
   __module_dict[name] = None
   module = load_module(name)
@@ -79,13 +99,18 @@ def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
   # new_dir = os.path.dirname(filename)
   # debug(f'new_dir: {new_dir}')
   # os.chdir(new_dir)
-  push_context(os.path.basename(filename))
-  with FileContext(filename):
-    a_frame = frame.Frame(
-        module=module, namespace=module, locals=module._members)
-    graph = api.graph_from_source(source, module)
-    graph.process(a_frame)
-  pop_context()
+  try:
+    with FileContext(filename):
+      a_frame = frame.Frame(
+          module=module, namespace=module, locals=module._members)
+      graph = api.graph_from_source(source, module)
+      graph.process(a_frame)
+  except Exception as e:
+    import traceback
+    traceback.print_tb(e.__traceback__)
+    print(e)
+    # traceback.print_exc(e)
+    raise e
   # debug(f'old_cwd: {old_cwd}')
   # os.chdir(old_cwd)
   return dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
@@ -135,15 +160,19 @@ def load_module_exports_from_filename(module, filename):
     return _module_exports_from_source(module, source, filename)
   except UnicodeDecodeError as e:
     warning(f'{filename}: {e}')
-    raise ValueError(e)
+    raise UnableToReadModuleFileError(e)
 
+def _module_type_from_path(path) -> ModuleType:
+  for third_party in ('dist-packages', 'site-packages'):
+    if third_party in path:
+      return ModuleType.PUBLIC
+  return ModuleType.SYSTEM
 
-def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
-  debug(f'Loading module: {name}')
+def _module_info_from_name(name: str)-> Tuple[str, bool, ModuleType]:
   try:
     stub_path, is_package = _get_module_stub_source_filename(name)
-    return load_module_from_filename(
-        name, stub_path, is_package=is_package, lazy=lazy)
+    module_type = ModuleType.PUBLIC if 'third_party' in stub_path else ModuleType.SYSTEM
+    return stub_path, is_package, module_type
   except ValueError:
     pass
   is_package = False
@@ -160,25 +189,38 @@ def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
       else:
         path = f'{path}.py'
 
-    load_module_from_filename(name, path, is_package=is_package, lazy=lazy)
+    if not os.path.exists(path):
+      return '', False, ModuleType.UNKNOWN
+    return path, is_package, _module_type_from_path(path)
   try:
     spec = importlib.util.find_spec(name)
     if spec:
       if spec.has_location:
         path = spec.loader.get_filename()
-        return load_module_from_filename(
-            name, path, is_package=_is_init(path), lazy=lazy)
+        return path, _is_init(path), _module_type_from_path(path)
       else:  # System module
+        return None, False, ModuleType.BUILTIN
         # TODO.
-        warning(f'System modules not implemented.')
+        # debug(f'System modules not implemented.')
   except (AttributeError, ModuleNotFoundError) as e:
     # find_spec can break for sys modules unexpectedly.
-    warning(f'Exception while getting spec for {name}')
-    warning(e)
-  if not unknown_fallback:
-    raise InvalidModuleError(name)
-  warning(f'Could not find Module {name} - falling back to Unknown.')
-  return _create_unknown_module(name)
+    debug(f'Exception while getting spec for {name}')
+    debug(e)
+  debug(f'Could not find Module {name} - falling back to Unknown.')
+  return None, False, ModuleType.UNKNOWN
+
+def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
+  debug(f'Loading module: {name}')
+  path, is_package, module_type = _module_info_from_name(name)
+  if module_type == ModuleType.UNKNOWN:
+    if unknown_fallback:
+      return _create_empty_module(name, module_type)
+    else:
+      raise InvalidModuleError(name)
+  if module_type == ModuleType.BUILTIN:
+    return _create_empty_module(name, module_type)
+  return load_module_from_filename(
+      name, path, is_package=is_package, module_type=module_type, lazy=lazy)
 
 
 def _is_init(path):
@@ -190,18 +232,19 @@ def load_module_from_filename(name,
                               filename,
                               *,
                               is_package,
+                              module_type=ModuleType.SYSTEM,
                               unknown_fallback=False,
                               lazy=True) -> Module:
   if not os.path.exists(filename):
     if not unknown_fallback:
       raise InvalidModuleError(filename)
     else:
-      return _create_unknown_module(name)
+      return _create_empty_module(name, ModuleType.UNKNOWN)
   if lazy:
     return _create_lazy_module(name, filename, is_package=is_package)
 
   module = Module(
-      module_type=ModuleType.LOCAL,  # TODO
+      module_type=module_type,
       name=name,
       filename=filename,
       members={},
@@ -224,7 +267,7 @@ def _create_lazy_module(name, filename, is_package) -> LazyModule:
       is_package=is_package)
 
 
-def _create_unknown_module(name):
+def _create_empty_module(name, type):
   parts = name.split('.')
   containing_package = None
   for part in parts:

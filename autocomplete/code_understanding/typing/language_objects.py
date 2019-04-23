@@ -19,16 +19,15 @@ from typing import Dict, Iterable
 
 import attr
 
-from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, SourceAttributeError)
-from autocomplete.code_understanding.typing.expressions import (
-    AnonymousExpression, LiteralExpression, VariableExpression)
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
+                                                           SourceAttributeError,
+                                                           UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.expressions import (AnonymousExpression,
+                                                                LiteralExpression,
+                                                                VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             AugmentedObject,
-                                                             FuzzyBoolean,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, object_to_pobject,
+                                                             FuzzyBoolean, PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -60,6 +59,7 @@ class Namespace:
       raise SourceAttributeError(e)
 
   def __setitem__(self, name, value):
+    assert isinstance(value, PObject)
     self._members[name] = value
 
   def items(self):
@@ -81,7 +81,11 @@ class ModuleType(Enum):
   PUBLIC = 1
   LOCAL = 2
   MAIN = 3
-  UNKNOWN = 4
+  BUILTIN = 4
+  UNKNOWN = 5
+
+  def should_be_readable(self):
+    return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN
 
 
 def create_main_module(filename=None):
@@ -105,10 +109,10 @@ class Module(Namespace):
 
   def __attrs_post_init__(self):
     # MODULE_GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
-    self._members['__name__'] = LiteralExpression(self.name)
-    self._members['__path__'] = self._members['__file__'] = LiteralExpression(
+    self._members['__name__'] = object_to_pobject(self.name)
+    self._members['__path__'] = self._members['__file__'] = object_to_pobject(
         self.filename)
-    self._members['__package__'] = AugmentedObject(self.containing_package)
+    self._members['__package__'] = object_to_pobject(self.containing_package)
     self._members['__loader__'] = UnknownObject('__loader__')
 
   def add_members(self, members):
@@ -129,7 +133,7 @@ class Module(Namespace):
     try:
       return super().__getitem__(name)
     except SourceAttributeError:
-      if self.module_type != ModuleType.UNKNOWN:
+      if self.module_type.should_be_readable():
         warning(f'Failed to get {name} from {self.name}')
       raise
 
@@ -152,7 +156,7 @@ class LazyModule(Module):
       if not self._loaded:
         debug(f'Lazily loading from: {self.filename}')
         if self._loading:
-          debug(
+          warning(
               f'Already lazy-loading module... dependency cycle? {self.path()}. Or From import?'
           )
           raise LoadingModuleAttributeError()
@@ -161,10 +165,12 @@ class LazyModule(Module):
         try:
           self._members = self.load_module_exports_from_filename(
               self, self.filename)
-        except ValueError:
-          raise
+        except UnableToReadModuleFileError:
+          # raise
           error(f'Unable to lazily load {self.filename}')
-        self._loaded = True
+        finally:
+          self._loaded = True
+          self._loading = False
       return func(self, *args, **kwargs)
 
     return _wrapper
@@ -202,7 +208,7 @@ class Klass(Namespace):
     return AugmentedObject(self.new(args, kwargs, curr_frame))
 
   def new(self, args, kwargs, curr_frame):
-    info(f'Creating instance of {self.name}')
+    debug(f'Creating instance of {self.name}')
     # TODO: Handle params.
     # TODO: __init__
     instance = Instance(self)
@@ -332,7 +338,7 @@ class FunctionImpl(Function):
       for key, value in kwargs.items():
         if key not in curr_frame:
           in_dict[key] = value
-      curr_frame[kwargs_name] = AugmentedObject(in_dict)
+      curr_frame[kwargs_name] = object_to_pobject(in_dict)  # NativeObject.
 
   def __str__(self):
     return f'def {self.name}({tuple(self.parameters)})'
@@ -354,7 +360,7 @@ class BoundFunction(Function):
 
   def __attrs_post_init__(self):
     self.name = self._function.name
-    container_parameters = self._function.parameters
+    container_parameters = list(self._function.parameters)
     remaining_parameters = container_parameters[len(self._bound_args):]
     self.parameters = filter(lambda param: param.name not in self._bound_kwargs,
                              remaining_parameters)

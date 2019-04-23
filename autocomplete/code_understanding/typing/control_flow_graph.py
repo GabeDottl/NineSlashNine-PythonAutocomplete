@@ -81,7 +81,7 @@ class ControlFlowGraphBuilder:
       debug(f'Unhandled type: {node.type}')
     except (
         NotImplementedError,
-        ParsingError  # AttributeError, ValueError
+        ParsingError
     ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
       # handle_error(e, node)
       error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')
@@ -141,8 +141,11 @@ class ControlFlowGraphBuilder:
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_keyword(self, node):
-    assert_unexpected_parso(node.value == 'pass', node_info)
-    return NoOpCfgNode(node)
+    if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield':
+      return NoOpCfgNode(node)
+    if node.value == 'return':
+      return ReturnCfgNode(LiteralExpression(None), parso_node=node)
+    assert_unexpected_parso(False, node_info)
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_string(self, node):
@@ -275,6 +278,13 @@ class ControlFlowGraphBuilder:
           as_name=as_name,
           parso_node=node,
           module_loader=self.module_loader)
+
+    # Example: import a.b
+    if child.type == 'dotted_name':
+      dotted_name = child
+      path = ''.join([child.value for child in dotted_name.children])
+      return ImportCfgNode(
+          path, parso_node=node, module_loader=self.module_loader)
 
     assert_unexpected_parso(child.type == 'dotted_as_names', node_info(child))
     # Some combination of things.
