@@ -4,8 +4,9 @@ from glob import glob
 
 import parso
 
-from autocomplete.code_understanding.typing import control_flow_graph
-from autocomplete.code_understanding.typing.api import frame_from_source
+from autocomplete.code_understanding.typing import (control_flow_graph,
+                                                    module_loader)
+# from autocomplete.code_understanding.typing.api import modulefrom_source
 from autocomplete.code_understanding.typing.language_objects import (Function,
                                                                      Instance,
                                                                      Klass,
@@ -16,8 +17,8 @@ from autocomplete.nsn_logging import debug
 
 def test_simple_assignment():
   source = 'a=1'
-  frame_ = frame_from_source(source, None)
-  assert frame_['a'].value() == 1
+  module = module_loader.load_module_from_source(source)
+  assert module['a'].value() == 1
 
 
 def test_imports():
@@ -28,21 +29,21 @@ import hob.dob as blob
 from functools import wraps
 from a.b import c
 from x.y.z import (q, r as s)'''
-  frame_ = frame_from_source(source, None)
-  assert 'numpy' in frame_ and isinstance(frame_['numpy'].value(), Module)
-  assert frame_['numpy'].value().path() == 'numpy'
-  assert 'whatever' in frame_ and isinstance(frame_['whatever'].value(), Module)
-  assert frame_['whatever'].value().path() == 'os'
-  assert 'blob' in frame_ and isinstance(frame_['blob'].value(), Module)
-  assert frame_['blob'].value().path() == 'hob.dob'
-  assert 'wraps' in frame_
-  assert frame_['wraps'].value().name == 'functools.wraps'
-  assert 'c' in frame_
-  assert frame_['c'].name == 'a.b.c'
-  assert 'q' in frame_
-  assert frame_['q'].name == 'x.y.z.q'
-  assert 's' in frame_
-  assert frame_['s'].name == 'x.y.z.r'
+  module = module_loader.load_module_from_source(source)
+  assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
+  assert module['numpy'].value().path() == 'numpy'
+  assert 'whatever' in module and isinstance(module['whatever'].value(), Module)
+  assert module['whatever'].value().path() == 'os'
+  assert 'blob' in module and isinstance(module['blob'].value(), Module)
+  assert module['blob'].value().path() == 'hob.dob'
+  assert 'wraps' in module
+  assert module['wraps'].value().name == 'functools.wraps'
+  assert 'c' in module
+  assert module['c'].name == 'a.b.c'
+  assert 'q' in module
+  assert module['q'].name == 'x.y.z.q'
+  assert 's' in module
+  assert module['s'].name == 'x.y.z.r'
 
 
 def test_classes():
@@ -56,15 +57,22 @@ X.b = 2
 z = X()  # 2 at end
 x.b = 0
 '''
-  frame_ = frame_from_source(source, None)
-  assert 'X' in frame_ and isinstance(frame_['X'].value(), Klass)
-  assert 'X.b' in frame_
-  assert frame_['X.b'].value() == 2
-  assert frame_['w.b'].value() == 0
-  assert frame_['x.b'].value() == 0
-  assert frame_['y'].value_is_a(Instance) == FuzzyBoolean.TRUE
-  assert frame_['y.b'].value() == 1
-  assert frame_['z.b'].value() == 2
+  module = module_loader.load_module_from_source(source)
+  assert 'X' in module
+  X = module['X'].value()
+  isinstance(X, Klass)
+  assert 'b' in X
+  assert X['b'].value() == 2
+
+  w = module['w'].value()
+  assert w['b'].value() == 0
+  x = module['x'].value()
+  assert x['b'].value() == 0
+  y = module['y'].value()
+  assert isinstance(y, Instance)
+  assert y['b'].value() == 1
+  z = module['z'].value()
+  assert z['b'].value() == 2
 
 
 def test_stubs():
@@ -76,15 +84,18 @@ class X:
 x = X()
 a = x.foo(0, None)
 '''
-  frame_ = frame_from_source(source, None)
-  assert 'X' in frame_ and isinstance(frame_['X'].value(), Klass)
-  assert 'X.b' in frame_
+  module = module_loader.load_module_from_source(source)
+  assert 'X' in module
+  x = module['X'].value()
+  isinstance(x, Klass)
+  assert 'b' in x
+  # assert 'X.b' in module  # todo
   # TODO.
-  # assert frame_['X.b'].
-  # assert frame_['w.b'].value() == 0
-  # assert frame_['x.b'].value() == 0
-  # assert frame_['y.b'].value() == 1
-  # assert frame_['z.b'].value() == 2
+  # assert module['X.b'].
+  # assert module['w.b'].value() == 0
+  # assert module['x.b'].value() == 0
+  # assert module['y.b'].value() == 1
+  # assert module['z.b'].value() == 2
 
 
 def test_arrays():
@@ -100,20 +111,14 @@ a2 = 'test'
 b2 = a2[0]
 '''
   # TODO: a = a[0]
-  frame_ = frame_from_source(source, None)
-  assert 'a' in frame_ and isinstance(frame_['a'].value(), list)
-  assert 'b' in frame_
-  assert frame_['b'].value() == 0
-  # assert frame_['w.b'].value() == 0
-  # assert frame_['x.b'].value() == 0
-  # assert frame_['y.b'].value() == 1
-  # assert frame_['z.b'].value() == 2
-
-
-# def test_main_sample():
-#    with open('/Users/gabe/code/autocomplete/autocomplete/code_understanding/typing/examples/test_main_sample_code.py') as f:
-#      basic_source = ''.join(f.readlines())
-#    frame_ = frame_from_source(basic_source)
+  module = module_loader.load_module_from_source(source)
+  assert 'a' in module and isinstance(module['a'].value(), list)
+  assert 'b' in module
+  assert module['b'].value() == 0
+  # assert module['w.b'].value() == 0
+  # assert module['x.b'].value() == 0
+  # assert module['y.b'].value() == 1
+  # assert module['z.b'].value() == 2
 
 
 def generate_test_from_actual(a_frame):
@@ -142,15 +147,14 @@ def test_processing_all_typing_dir():
     if os.path.basename(filename) == 'grammar.py':
       debug(f'Skipping {filename}')
       continue
-    with open(filename) as f:
-      source = ''.join(f.readlines())
-      frame_from_source(source, filename)
+    name = os.path.splitext(os.path.basename(filename))[0]
+    module_loader.get_module_from_filename(name, filename)
 
 
 if __name__ == '__main__':
-  test_stubs()
   test_simple_assignment()
-  test_imports()
+  test_stubs()
   test_classes()
   test_arrays()
+  test_imports()
   test_processing_all_typing_dir()

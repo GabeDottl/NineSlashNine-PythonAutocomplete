@@ -1,16 +1,16 @@
 '''This module has a variety of unresolved symbols to find!'''
 import Q
 
-a = 2  # unresolved1
+a = unresolved1
 
 
 class B:
-  b = 2  # unresolved2
+  b = unresolved2
   c = a
   unresolved3 = 1
 
   def foo(self):
-    c = 2  # unresolved3  # Shouldn't pull in
+    c = unresolved3  # Shouldn't pull in
 
     def boo():
       d = c
@@ -35,12 +35,12 @@ class B:
         f = file
         g = 2
         unresolved4 = 1
-        g = 2  # unresolved5
+        g = unresolved5
 
       boo2(1)
 
     boo()
-    c = 2  # unresolved4
+    c = unresolved4
     c = self
 
 

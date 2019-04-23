@@ -15,8 +15,9 @@ from autocomplete.nsn_logging import (info, pop_context, push_context,
 
 
 def extract_exports(source, filename):
-  frame_ = api.frame_from_source(source)
-  exports = dict(filter(lambda k, v: '_' != k[0], frame_._locals))
+  module = module_loader.get_module_from_filename(filename)
+  # frame_ = api.frame_from_source(source)
+  exports = dict(filter(lambda k, v: '_' != k[0], module.items()))
   return exports
 
 

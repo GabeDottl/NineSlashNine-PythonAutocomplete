@@ -6,23 +6,28 @@ from autocomplete.code_understanding.typing import (collector,
                                                     control_flow_graph, frame,
                                                     module_loader)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    CfgNode, Function, Klass)
+    CfgNode)
 from autocomplete.code_understanding.typing.expressions import (
     UnknownExpression)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, Klass, create_main_module)
 from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
                                                              UnknownObject)
 from autocomplete.nsn_logging import debug, info
 
 
-def graph_from_source(source: str):
+def graph_from_source(source: str, module=None):
   basic_node = parso.parse(source)
-  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader)
+  if not module:
+    module = create_main_module()
+  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader, module)
   return builder.graph_from_parso_node(basic_node)
 
 
-def frame_from_source(source: str, filename: str) -> frame.Frame:
-  with collector.FileContext(filename):
-    return control_flow_graph.run_graph(graph_from_source(source))
+# def frame_from_source(source: str, filename: str) -> frame.Frame:
+#   with collector.FileContext(filename):
+
+#     return control_flow_graph.run_graph(graph_from_source(source))
 
 
 def analyze_file(filename):
@@ -39,7 +44,7 @@ def analyze_file(filename):
   # graph.process(a_frame)
   with collector.FileContext(filename):
     debug(f'len(collector.functions): {len(collector._functions)}')
-    a_frame = frame.Frame(namespace=module)
+    a_frame = frame.Frame(module=module, namespace=module)
     for key, member in module.items():
       _process(member, a_frame)
     return collector._functions  # TODO: ????

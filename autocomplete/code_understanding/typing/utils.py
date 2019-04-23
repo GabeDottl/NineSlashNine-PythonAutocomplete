@@ -35,10 +35,11 @@ def _assert_returns_type(type_):
 
 def variables_from_node(node):
   if node.type == 'testlist_star_expr':
-    return expressions_from_testlist_comp(node)
+    return ItemListExpression(expressions_from_testlist_comp(node))
   else:  # Illegal per the grammar, but this includes things like 'name'.
     variable = expression_from_node(node)
-    if isinstance(variable, (ListExpression, TupleExpression)):
+    if isinstance(variable,
+                  (ItemListExpression, ListExpression, TupleExpression)):
       return variable
     assert isinstance(
         variable,
@@ -95,7 +96,7 @@ def statement_node_from_expr_stmt(node):
       if child.type == 'testlist_star_expr':
         target_repeats.append(expressions_from_testlist_comp(child))
       else:  # Illegal per the grammar, but this includes things like 'name'.
-        target_repeats.append([expression_from_node(child)])
+        target_repeats.append(ItemListExpression([expression_from_node(child)]))
     assignments = []
     # Strictly speaking, this isn't perfectly accurate - i.e. each variable should be assigned
     # to the next variable - but I think it's fine to just skip them all to being assigned to the
@@ -185,21 +186,34 @@ def expressions_from_testlist_comp(node) -> List[Variable]:
     return out
 
 
+def expression_from_comp_for(generator_node,
+                             comp_for) -> ForComprehensionExpression:
+  # comp_iter: comp_for | comp_if
+  # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
+  # comp_for: ['async'] sync_comp_for
+  # comp_if: 'if' test_nocond [comp_iter]
+
+  assert comp_for.type == 'comp_for'
+  generator_expression = expression_from_node(generator_node)
+
+  target_variables = variables_from_node(comp_for.children[1])
+  iterable_expression = expression_from_node(comp_for.children[3])
+
+  assert len(comp_for.children) <= 5
+  if len(comp_for.children) == 5:
+    comp_iter = expression_from_node(comp_for.children[4])
+  else:
+    comp_iter = None
+  return ForComprehensionExpression(generator_expression, target_variables,
+                                    iterable_expression, comp_iter)
+
+
 @_assert_returns_type(Expression)
 def expression_from_testlist_comp(node) -> TupleExpression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
-    debug(f'Processing comp_for - throwing in unknown.')
-    # return TupleExpression([UnknownExpression(node.get_code())])
-    generator_expression = expression_from_node(node.children[0])
-    comp_for = node.children[1]
-    assert len(comp_for.children) == 4
-    target_variables = variables_from_node(comp_for.children[1])
-    iterable_expression = expression_from_node(comp_for.children[-1])
-    return TupleExpression(
-        ForComprehensionExpression(generator_expression, target_variables,
-                                   iterable_expression))
+    return TupleExpression(expression_from_comp_for(*node.children))
 
   # expr(x) for x in b
   if len(node.children) == 2 and node.children[1].type == 'comp_for':
@@ -416,10 +430,11 @@ def expression_from_atom(node):
       return expression_from_node(node.children[1])
   elif node.children[0].value == '[':
     if len(node.children) == 3:
-      inner_expr = expression_from_node(node.children[1])
-      if hasattr(inner_expr, 'expressions'):
-        return ItemListExpression(inner_expr.expressions)
-      return ItemListExpression([inner_expr])
+      return expression_from_node(node.children[1])
+      # if isinstance(inner_expr, ()):
+      #   return inner_expr.expressions)
+      # return ItemListExpression([inner_expr])
+    assert len(node.children) == 2
     return ItemListExpression([])
   elif node.children[0].value == '{':
     # info(f'Doing dumb logic for dict.')
@@ -439,9 +454,12 @@ def expression_from_comparison(node):
   operator = node.children[1].get_code().strip(
   )  # Handles operators & comp_op ('is' 'not')
   assert_unexpected_parso(len(node.children) == 3, node_info(node))
-  left = expression_from_node(node.children[0])
-  right = expression_from_node(node.children[2])
-  return ComparisonExpression(left=left, operator=operator, right=right)
+  left_expression = expression_from_node(node.children[0])
+  right_expression = expression_from_node(node.children[2])
+  return ComparisonExpression(
+      left_expression=left_expression,
+      operator=operator,
+      right_expression=right_expression)
 
 
 @_assert_returns_type(Expression)
@@ -469,10 +487,13 @@ def expression_from_math_expr(node):
   if len(node.children) != 3:
     # TODO: https://docs.python.org/3/reference/expressions.html#operator-precedence
     raise NotImplementedError()
-  left = expression_from_node(node.children[0])
-  right = expression_from_node(node.children[2])
+  left_expression = expression_from_node(node.children[0])
+  right_expression = expression_from_node(node.children[2])
   return MathExpression(
-      left=left, operator=node.children[1].value, right=right, parso_node=node)
+      left_expression,
+      node.children[1].value,
+      right_expression,
+      parso_node=node)
 
 
 def children_contains_operator(node, operator_str):

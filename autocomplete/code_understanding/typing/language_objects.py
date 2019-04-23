@@ -6,7 +6,7 @@ which makes them less practical for exporting. We essentially want stubs for exp
 The fact that this is python wrapping python adds some complexity to things. Namely, things like
 subscripting, getting/setting attributes, or calling with objects could refer to the object
 being represented (e.g. the 'foo' Function in the source we're analyzing) or refer to the pythonic
-operation on the abstraction itself (e.g. Function, Klass, FuzzyObject). 
+operation on the abstraction itself (e.g. Function, Klass, FuzzyObject).
 
 In general, we work around this by using non-dunder methods that match the dunder equivalents.
 So __getitem__, __getattribute__, __call__, etc. translate into get_item, get_attribute, call.
@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from copy import copy
 from enum import Enum
 from functools import wraps
-from typing import Dict
+from typing import Dict, Iterable
 
 import attr
 
@@ -80,14 +80,25 @@ class ModuleType(Enum):
   SYSTEM = 0
   PUBLIC = 1
   LOCAL = 2
-  UNKNOWN = 3
+  MAIN = 3
+  UNKNOWN = 4
+
+
+def create_main_module(filename=None):
+  return Module(
+      '__main__',
+      ModuleType.MAIN,
+      members={},
+      containing_package=None,
+      filename=filename,
+      is_package=False)
 
 
 @attr.s(str=False, repr=False)
 class Module(Namespace):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
-  _members = attr.ib()
+  _members: Dict = attr.ib()
   containing_package = attr.ib()
   filename = attr.ib()
   is_package = attr.ib()
@@ -123,7 +134,7 @@ class LazyModule(Module):
   load_module_exports_from_filename = attr.ib()
   _loaded = attr.ib(False)
   _loading = attr.ib(False)
-  _members = attr.ib(None)
+  _members: Dict = attr.ib(None)
 
   def _lazy_load(func):
 
@@ -210,7 +221,7 @@ class Klass(Namespace):
         #   bound_frame._locals[self_param.name] = pobject
         # except IndexError:
         #   warning(f'No self param in {new_func}')
-        new_func.type = FunctionType.BOUND_INSTANCE_METHOD
+        new_func.function_type = FunctionType.BOUND_INSTANCE_METHOD
         instance[name] = AugmentedObject(new_func)
       else:
         instance[name] = member
@@ -230,7 +241,7 @@ class Klass(Namespace):
 @attr.s(str=False, repr=False)
 class Instance(Namespace):
   klass = attr.ib()
-  _members = attr.ib(factory=dict)
+  _members: Dict = attr.ib(factory=dict)
 
   # TODO: Class member fallback for classmethods?
 
@@ -266,26 +277,18 @@ class FunctionImpl(Function):
 
 
   '''
-  name = attr.ib()
-  context = attr.ib()
-  parameters = attr.ib()
-  graph = attr.ib()
-  type = attr.ib(FunctionType.FREE)
-  _members = attr.ib(factory=dict)
+  name: str = attr.ib()
+  namespace: Namespace = attr.ib()
+  parameters: Iterable['Parameter'] = attr.ib()
+  graph: 'CfgNode' = attr.ib()
+  _module = attr.ib(validator=attr.validators.instance_of(Module))
+  _cell_symbols: Iterable[str] = attr.ib()
+  _type = attr.ib(FunctionType.FREE)
+  _members: Dict = attr.ib(factory=dict)
 
   # TODO: Cell vars.
   def bind(self, args, kwargs) -> 'BoundFunction':
     return BoundFunction(self, args, kwargs)
-
-  def _get_containing_module(self):
-    namespace = self.context
-    while namespace:
-      if isinstance(namespace, Module):
-        return namespace
-      elif hasattr(namespace, 'context'):
-        namespace = namespace.context
-      else:
-        return None
 
   def call(self, args, kwargs, curr_frame):
     debug(f'Calling {self.name}')
@@ -295,14 +298,13 @@ class FunctionImpl(Function):
       )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
-    containing_module = self._get_containing_module()
-    if containing_module:
-      info(f'{self.name} in {containing_module.name}')
-      globals_ = containing_module._members
-    else:
-      globals_ = None
+
     new_frame = curr_frame.make_child(
-        frame_type=FrameType.FUNCTION, namespace=self, globals=globals_)
+        frame_type=FrameType.FUNCTION,
+        namespace=self,
+        module=self._module,
+        globals=self._module._members,
+        cell_symbols=self._cell_symbols)
     self._process_args(args, kwargs, new_frame)
     self.graph.process(new_frame)
 
@@ -312,9 +314,9 @@ class FunctionImpl(Function):
     param_iter = iter(self.parameters)
     arg_iter = iter(args)
     for arg, param in zip(arg_iter, param_iter):
-      if param.type == ParameterType.SINGLE:
+      if param.parameter_type == ParameterType.SINGLE:
         curr_frame[param.name] = arg.evaluate(curr_frame)
-      elif param.type == ParameterType.ARGS:
+      elif param.parameter_type == ParameterType.ARGS:
         curr_frame[param.name] = [arg.evaluate(curr_frame)
                                  ] + [a.evaluate(curr_frame) for a in arg_iter]
       else:  # KWARGS
@@ -327,7 +329,7 @@ class FunctionImpl(Function):
       if param.name in kwargs:
         curr_frame[VariableExpression(
             param.name)] = kwargs[param.name].evaluate(curr_frame)
-      elif param.type == ParameterType.KWARGS:
+      elif param.parameter_type == ParameterType.KWARGS:
         kwargs_name = param.name
       else:
         # Use default. If there's no assignment and no explicit default, this
@@ -357,7 +359,7 @@ class BoundFunction(Function):
   _bound_args = attr.ib(factory=list)
   _bound_kwargs = attr.ib(factory=dict)
   _bound_locals = attr.ib(factory=dict)  # For nested functions.
-  _members = attr.ib(factory=dict)
+  _members: Dict = attr.ib(factory=dict)
 
   def __attrs_post_init__(self):
     self.name = self._function.name
@@ -376,7 +378,9 @@ class BoundFunction(Function):
 
   def call(self, args, kwargs, curr_frame):
     new_frame = curr_frame.make_child(
-        frame_type=FrameType.FUNCTION, namespace=self)
+        frame_type=FrameType.NORMAL,
+        namespace=self,
+        module=self._function._module)
     new_frame._locals = self._bound_locals
     return self._function.call(self._bound_args + args, {
         **kwargs,
@@ -396,7 +400,7 @@ class StubFunction(Function):
   parameters = attr.ib()
   returns = attr.ib()
   type = attr.ib(FunctionType.FREE)
-  _members = attr.ib(factory=dict)
+  _members: Dict = attr.ib(factory=dict)
 
   def call(self, args, kwargs, curr_frame):
     # TODO: Handle parameters?
@@ -415,13 +419,13 @@ class StubFunction(Function):
 @attr.s(str=False, repr=False)
 class Parameter:
   name: str = attr.ib()
-  type: 'ParameterType' = attr.ib()
+  parameter_type: 'ParameterType' = attr.ib()
   default: 'Expression' = attr.ib(None)  # TODO: Rename default_expression
 
   def __str__(self):
-    if self.type == ParameterType.SINGLE:
+    if self.parameter_type == ParameterType.SINGLE:
       prefix = ''
-    elif self.type == ParameterType.ARGS:
+    elif self.parameter_type == ParameterType.ARGS:
       prefix = '*'
     else:
       prefix = '**'

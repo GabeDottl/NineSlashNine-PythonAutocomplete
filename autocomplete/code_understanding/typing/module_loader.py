@@ -18,9 +18,8 @@ from autocomplete.code_understanding.typing import api, collector, frame
 from autocomplete.code_understanding.typing.collector import FileContext
 from autocomplete.code_understanding.typing.errors import (
     LoadingModuleAttributeError, SourceAttributeError)
-from autocomplete.code_understanding.typing.language_objects import (LazyModule,
-                                                                     Module,
-                                                                     ModuleType)
+from autocomplete.code_understanding.typing.language_objects import (
+    LazyModule, Module, ModuleType, create_main_module)
 from autocomplete.code_understanding.typing.pobjects import (PObject,
                                                              UnknownObject)
 from autocomplete.nsn_logging import (debug, error, pop_context, push_context,
@@ -82,8 +81,9 @@ def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
   # os.chdir(new_dir)
   push_context(os.path.basename(filename))
   with FileContext(filename):
-    a_frame = frame.Frame(namespace=module, locals=module._members)
-    graph = api.graph_from_source(source)
+    a_frame = frame.Frame(
+        module=module, namespace=module, locals=module._members)
+    graph = api.graph_from_source(source, module)
     graph.process(a_frame)
   pop_context()
   # debug(f'old_cwd: {old_cwd}')
@@ -119,6 +119,13 @@ def _get_module_stub_source_filename(name) -> str:
           return abs_module_path, os.path.basename(
               module_path) == '__init__.pyi'
   raise ValueError(f'Did not find typeshed for {name}')
+
+
+def load_module_from_source(source):
+  module = create_main_module()
+  module._members = _module_exports_from_source(
+      module, source, filename='__main__')
+  return module
 
 
 def load_module_exports_from_filename(module, filename):

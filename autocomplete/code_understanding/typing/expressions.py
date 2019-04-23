@@ -1,6 +1,6 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Union
 from wsgiref.validate import validator
 
 import attr
@@ -76,7 +76,7 @@ class ListExpression(Expression):
       validator=attr.validators.instance_of(Expression))
 
   def evaluate(self, curr_frame) -> PObject:
-    return self.source_expression.evalaute(curr_frame)
+    return self.source_expression.evaluate(curr_frame)
 
   def __iter__(self):
     return iter(self.source_expression)
@@ -93,11 +93,18 @@ class TupleExpression(ListExpression):
 @attr.s
 class ItemListExpression(Expression):
   '''Used for cased like: 1,2,3 - as in a tuple (1,2,3) or a list [1,2,3] or an arg list.'''
-  expressions = attr.ib(validator=[attr.validators.instance_of(list)])
+  expressions: List[Expression] = attr.ib(
+      validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
     return AugmentedObject(
         list(e.evaluate(curr_frame) for e in self.expressions))
+
+  def __len__(self):
+    return len(self.expressions)
+
+  def __getitem__(self, index):
+    return self.expressions[index]
 
   def __iter__(self):
     for expression in self.expressions:
@@ -117,6 +124,7 @@ class ForComprehensionExpression(Expression):
   generator_expression: Expression = attr.ib()
   target_variables: Expression = attr.ib()
   iterable_expression: Expression = attr.ib()
+  comp_iter: Union[Expression, None] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return self.generator_expression.evaluate(curr_frame)
@@ -125,8 +133,12 @@ class ForComprehensionExpression(Expression):
     generator_free_symbols = self.generator_expression.get_used_free_symbols()
     target_symbols = self.target_variables.get_used_free_symbols()
     iterable_symbols = self.iterable_symbols.get_used_free_symbols()
-    generator_non_locals = set(generator_free_symbols) - set(target_symbols)
-    return set(itertools.chain(generator_non_locals, iterable_symbols))
+    comp_iter_symbols = self.comp_iter.get_used_free_symbols(
+    ) if self.comp_iter else []
+    non_locals = set(itertools.chain(generator_free_symbols, iterable_symbols))
+    for symbol in itertools.chain(target_symbols, comp_iter_symbols):
+      non_locals.discard(symbol)
+    return non_locals
 
 
 @attr.s
@@ -205,7 +217,7 @@ class SubscriptExpression(Expression):
     values = []
     for e in self.subscript_list:
       values.append(e.evaluate(curr_frame))
-    return pobject.get_item(tuple(values))
+    return pobject.get_item(values)
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
@@ -321,8 +333,8 @@ class MathExpression(Expression):
     return UnknownObject(f'{self.parso_node.get_code()}')
 
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols() +
-               self.right_expression.get_used_free_symbols())
+    return set(self.left_expression.get_used_free_symbols().union(
+        self.right_expression.get_used_free_symbols()))
 
 
 @attr.s
@@ -363,8 +375,8 @@ class ComparisonExpression(Expression):
     assert False, f'Cannot handle {self.operator} yet.'
 
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols() +
-               self.right_expression.get_used_free_symbols())
+    return set(self.left_expression.get_used_free_symbols()).union(
+        self.right_expression.get_used_free_symbols())
 
 
 Variable = Expression

@@ -1,6 +1,14 @@
 from inspect import getframeinfo, stack
 
 
+class CellObjectUsageError(Exception):
+  ...
+
+
+class CellValueNotSetError(Exception):
+  ...
+
+
 class ParsingError(Exception):
   ...
 

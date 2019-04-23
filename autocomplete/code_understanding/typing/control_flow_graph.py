@@ -33,21 +33,13 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
-    Expression, UnknownExpression, VariableExpression)
+    Expression, LiteralExpression, UnknownExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.utils import (
     _assert_returns_type, expression_from_node, node_info,
     parameters_from_parameters, statement_node_from_expr_stmt,
     variables_from_node)
 from autocomplete.nsn_logging import debug, error, info, warning
-
-
-def run_graph(graph, frame=None):
-  # TODO: Create proper.
-  if not frame:
-    frame = Frame()
-  graph.process(frame)
-  return frame
 
 
 def condense_graph(graph):
@@ -70,6 +62,7 @@ class TypingException(Exception):
 @attr.s
 class ControlFlowGraphBuilder:
   module_loader = attr.ib()
+  _module: 'Module' = attr.ib()
   root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
   _current_containing_func = None
 
@@ -207,6 +200,7 @@ class ControlFlowGraphBuilder:
         name,
         parameters,
         suite=None,
+        module=self._module,
         containing_func_node=old_containing_func,
         parso_node=node)
     self._current_containing_func = out
@@ -465,18 +459,12 @@ class ControlFlowGraphBuilder:
   def _create_cfg_node_for_try_stmt(self, node):
     try_suite = self._create_cfg_node(node.children[2])
 
-    # Example: try: suite finally: finally_suite
-    if len(node.children) == 6 and node.children[
-        4].type == 'keyword' and node.children[4].value == 'finally':
-      finally_suite = self._create_cfg_node(node.children[-1])
-      return TryCfgNode(try_suite, except_nodes=[], finally_suite=finally_suite)
-
     except_nodes = []
     for i in range(3, len(node.children), 3):
       keyword = node.children[i]
       suite_node = self._create_cfg_node(node.children[i + 2])
       if keyword.type == 'keyword':
-        if keyword.value == 'finally':
+        if keyword.value == 'finally' or keyword.value == 'else':
           break
         assert keyword.value == 'except'
         except_nodes.append(ExceptCfgNode([], None, suite_node))
@@ -490,13 +478,29 @@ class ControlFlowGraphBuilder:
           exception_variable = None
         except_nodes.append(
             ExceptCfgNode(exceptions, exception_variable, suite_node))
-    if node.children[-3].type == 'keyword' and node.children[
-        -3].value == 'finally':
-      finally_suite = self._create_cfg_node(node.children[-1])
-    else:
-      finally_suite = NoOpCfgNode(node)
+    else_suite = NoOpCfgNode(node)
+    finally_suite = NoOpCfgNode(node)
+    if keyword.type == 'keyword' and keyword.value != 'except':
+      if keyword.value == 'else':
+        else_suite = suite_node
+        i += 3
+        if i < len(node.children):
+          keyword = node.children[i]
+          assert keyword.type == 'keyword' and keyword.value == 'finally'
+          finally_suite = self._create_cfg_node(node.children[i + 2])
 
-    return TryCfgNode(try_suite, except_nodes, finally_suite)
+    # if node.children[-3].type == 'keyword' and node.children[
+    #     -3].value == 'finally':
+    #   finally_suite = self._create_cfg_node(node.children[-1])
+    #     # Example: try: suite finally: finally_suite
+    # if len(node.children) == 6 and node.children[
+    #     4].type == 'keyword' and node.children[4].value == 'finally':
+    #   finally_suite = self._create_cfg_node(node.children[-1])
+    return TryCfgNode(
+        try_suite,
+        except_nodes,
+        else_suite=else_suite,
+        finally_suite=finally_suite)
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_except_clause(self, node):
@@ -506,7 +510,7 @@ class ControlFlowGraphBuilder:
   def _create_cfg_node_for_with_stmt(self, node):
     with_item = node.children[1]
     as_name = None
-    if node.type == 'with_item':
+    if with_item.type == 'with_item':
       with_item_expression = expression_from_node(with_item.children[0])
       if len(with_item.children) == 3:
         as_name = expression_from_node(with_item.children[-1])

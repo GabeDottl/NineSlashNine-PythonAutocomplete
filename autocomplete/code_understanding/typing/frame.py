@@ -2,6 +2,7 @@
 
 https://tech.blog.aknin.name/2010/07/22/pythons-innards-interpreter-stacks/'''
 from enum import Enum
+from functools import wraps
 from typing import Dict, List
 
 import attr
@@ -9,11 +10,9 @@ import attr
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, SubscriptExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT,
-                                                             AugmentedObject,
-                                                             FuzzyObject,
-                                                             PObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, CellObject, FuzzyObject, PObject,
+    UnknownObject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -22,6 +21,18 @@ class FrameType(Enum):
   KLASS = 2
   FUNCTION = 3
   EXCEPT = 4
+
+
+def dereference_cell_object_returns(func):
+
+  @wraps(func)
+  def wrapper(self, *args, **kwargs):
+    out = func(self, *args, **kwargs)
+    if isinstance(out, CellObject):
+      return out.pobject
+    return out
+
+  return wrapper
 
 
 @attr.s(str=False, repr=False)
@@ -48,6 +59,7 @@ class Frame:
   # ALL_BUILTINS = set(dir(__builtin__)) | set(GLOBALS) | set(PYTHON3_BUILTINS)
 
   # Symbol tables.
+  _module = attr.ib()
   _globals: Dict = attr.ib(factory=dict)
   _locals: Dict = attr.ib(factory=dict)
   _builtins: Dict = attr.ib(None)  # TODO
@@ -56,12 +68,16 @@ class Frame:
   _frame_type: FrameType = attr.ib(FrameType.NORMAL)
   namespace = attr.ib(None)
   _back: 'Frame' = attr.ib(None)
+  _cell_symbols = attr.ib(factory=set)
   # _root: 'Frame' = attr.ib(None)
   _collector = None  # class variable
 
   def __attrs_post_init__(self):
     if not self._builtins:
       self._builtins = {key: UnknownObject(key) for key in __builtins__.keys()}
+
+    for symbol in self._cell_symbols:
+      self[symbol] = CellObject()
     # if self._globals is None:
     #   self._globals = self._locals  # Explicitly sharing the same list, not copying.
 
@@ -81,23 +97,43 @@ class Frame:
     # self._nonlocals.update(other_frame._nonlocals)
     self._locals.update(other_frame._locals)
 
-  def make_child(self, namespace, frame_type, *, globals=None) -> 'Frame':
+  def make_child(self,
+                 namespace,
+                 frame_type,
+                 *,
+                 module=None,
+                 globals=None,
+                 cell_symbols=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     if globals is None:
       if self._back is None:
         globals = self._locals
       else:
         globals = self._globals
+    if module is None:
+      module = self._module
+    if cell_symbols is None:
+      cell_symbols = self._cell_symbols
     return Frame(
         frame_type=frame_type,
         back=self,
         # root=self._root,
+        module=module,
         namespace=namespace,
         builtins=self._builtins,
-        globals=globals)
+        globals=globals,
+        cell_symbols=cell_symbols)
 
   def to_module(self) -> 'Module':
     raise NotImplementedError()
+
+  def _set_free_variable(self, name, value):
+    if name in self._locals:
+      existing_value = self[name]
+      if isinstance(existing_value, CellObject):
+        existing_value.pobject = value
+        return
+    self._locals[name] = value
 
   def __setitem__(self, variable: Variable, value: PObject):
     # https://stackoverflow.com/questions/38937721/global-frame-vs-stack-frame
@@ -108,9 +144,9 @@ class Frame:
       value.validate()
 
     if isinstance(variable, VariableExpression):
-      self._locals[variable.name] = value
+      self._set_free_variable(variable.name, value)
     elif isinstance(variable, str):
-      self._locals[variable] = value
+      self._set_free_variable(variable, value)
     elif isinstance(variable, SubscriptExpression):
       variable.set(value)
     else:
@@ -130,6 +166,7 @@ class Frame:
     assert isinstance(variable, VariableExpression)
     del self._locals[variable.name]
 
+  @dereference_cell_object_returns
   def __getitem__(self,
                   variable: Variable,
                   raise_error_if_missing=False,
@@ -164,12 +201,19 @@ class Frame:
     # search from there.
     # TODO: This hackishly makes nested functions sorta work. FIXME. == NORMAL + cells.
     if (not nested or
-        self._frame_type == FrameType.KLASS) and name in self._locals:
+        self._frame_type == FrameType.NORMAL) and name in self._locals:
       return self._locals[name]
-    # if self._back:
-    #   return self._back[name]
-    if name in self._globals:
-      return self._globals[name]
+
+    if self._back:
+      return self._back.__getitem__(name, nested=True)
+
+    # if name in self._globals:
+    #   return self._globals[name]
+
+    # TODO: globals?
+    if name in self._module._members:
+      return self._module._members[name]
+
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.

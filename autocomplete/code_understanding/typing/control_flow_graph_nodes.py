@@ -11,9 +11,10 @@ from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
     Expression, StarExpression, SubscriptExpression, VariableExpression)
-from autocomplete.code_understanding.typing.frame import FrameType
+from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.language_objects import (
-    Function, FunctionImpl, FunctionType, Klass, Module, Parameter)
+    BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module,
+    Parameter)
 from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
                                                              FuzzyObject,
                                                              UnknownObject)
@@ -220,7 +221,8 @@ class NoOpCfgNode(CfgNode):
 @attr.s
 class AssignmentStmtCfgNode(CfgNode):
   # https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
-  left_variables = attr.ib()
+  left_variables: Expression = attr.ib(
+      validator=attr.validators.instance_of(Expression))
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression: Expression = attr.ib()
   value_node = attr.ib()  # TODO: Delete.
@@ -248,12 +250,6 @@ class AssignmentStmtCfgNode(CfgNode):
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.left_variables.get_used_free_symbols()
-
-
-# def _extract_free_symbols_from_variables(variables) -> Set[str]:
-#   if hasattr(variables, '__iter__'):
-#     return set(itertools.chain(_extract_free_symbols_from_variables(var) for var in variables))
-#   return set([variables.get_used_free_symbols()])
 
 
 def _assign_variables_to_results(curr_frame, variable, result, parso_node):
@@ -329,12 +325,6 @@ class WhileCfgNode(CfgNode):
     out = self.suite.get_non_local_symbols().union(
         self.else_suite.get_non_local_symbols())
     return out.union(self.conditional_expression.get_used_free_symbols())
-    # return set(
-    #     itertools.chain(*[
-    #         node.get_non_local_symbols()
-    #         for node in (self.conditional_expression, self.suite,
-    #                      self.else_suite)
-    #     ]))
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -389,12 +379,14 @@ class WithCfgNode(CfgNode):
 class TryCfgNode(CfgNode):
   suite: CfgNode = attr.ib()
   except_nodes: List['ExceptCfgNode'] = attr.ib()
+  else_suite: CfgNode = attr.ib()
   finally_suite: CfgNode = attr.ib()
 
   def _process_impl(self, curr_frame):
     self.suite.process(curr_frame)
     for except_cfg in self.except_nodes:
       except_cfg.process(curr_frame)
+    self.else_suite.process(curr_frame)
     self.finally_suite.process(curr_frame)
 
   @instance_memoize
@@ -452,7 +444,8 @@ class ExceptCfgNode(CfgNode):
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set(self.suite.get_non_local_symbols())
-    out.discard(self.exception_variable.name)
+    if self.exception_variable:
+      out.discard(self.exception_variable.name)
     return out
 
   @instance_memoize
@@ -487,15 +480,15 @@ class IfCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set()
     for expression, node in self.expression_node_tuples:
-      out += expression.get_used_free_symbols()
-      out += node.get_non_local_symbols()
+      out = out.union(expression.get_used_free_symbols())
+      out = out.union(node.get_non_local_symbols())
     return out
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     out = set()
     for _, node in self.expression_node_tuples:
-      out += node.get_defined_and_exported_symbols()
+      out = out.union(node.get_defined_and_exported_symbols())
     return out
 
   def pretty_print(self, indent=''):
@@ -533,7 +526,7 @@ class KlassCfgNode(CfgNode):
 
       def instance_member(f):
         if isinstance(f, Function):
-          f.type = FunctionType.UNBOUND_INSTANCE_METHOD
+          f.function_type = FunctionType.UNBOUND_INSTANCE_METHOD
 
       member.apply_to_values(instance_member)
 
@@ -554,12 +547,19 @@ class FuncCfgNode(CfgNode):
   name = attr.ib()
   parameters = attr.ib()
   suite = attr.ib()
-  _containing_func_node = attr.ib()
-  parso_node = attr.ib()
+  _module = attr.ib(kw_only=True)
+  _containing_func_node = attr.ib(kw_only=True)
+  parso_node = attr.ib(kw_only=True)
+  _child_functions = attr.ib(init=False, factory=list)
+
+  def __attrs_post_init__(self):
+    if self._containing_func_node:
+      self._containing_func_node._child_functions.append(self)
 
   @instance_memoize
   def _get_local_and_ancestor_func_symbol_defs(self) -> Set[str]:
     out = self.suite.get_defined_and_exported_symbols()
+    out = out.union([p.name for p in self.parameters])
     if self._containing_func_node:
       return out.union(
           self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
@@ -579,17 +579,39 @@ class FuncCfgNode(CfgNode):
         processed_params.append(param)
       else:  # Process parameter defaults at the time of definition.
         default = param.default.evaluate(curr_frame)
-        processed_params.append(Parameter(param.name, param.type, default))
+        processed_params.append(
+            Parameter(param.name, param.parameter_type, default))
     # Include full name.
     func_name = '.'.join([curr_frame.namespace.name, self.name
                          ]) if curr_frame.namespace else self.name
     func = FunctionImpl(
         name=func_name,
-        context=curr_frame.namespace,
+        namespace=curr_frame.namespace,
         parameters=processed_params,
-        graph=self.suite)
+        module=self._module,
+        graph=self.suite,
+        cell_symbols=self._get_new_cell_symbols())
     collector.add_function_node(func)
+
+    # Handle closures, if any.
+    if self.closure():
+      bound_locals = {}
+      for symbol in self.closure():
+        assert symbol in curr_frame, 'Unbound local issue w/closure...'
+        bound_locals[symbol] = curr_frame[symbol]
+      func = BoundFunction(func, bound_locals=bound_locals)
+
     curr_frame[VariableExpression(self.name)] = func
+
+  @instance_memoize
+  def _get_new_cell_symbols(self):
+    # New symbols are those that are in child closures but not in our own closure because they're
+    # defined locally within this function.
+    out = set(
+        itertools.chain(*[func.closure() for func in self._child_functions]))
+    for closure in self.closure():
+      out.discard(closure)
+    return out
 
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'
@@ -599,7 +621,8 @@ class FuncCfgNode(CfgNode):
     out = set()
     for parameter in self.parameters:
       if parameter.default:
-        out.add(parameter.default.get_used_free_symbols())
+        out = out.union(parameter.default.get_used_free_symbols())
+    out = out.union(self.suite.get_non_local_symbols())
     return out
 
   @instance_memoize

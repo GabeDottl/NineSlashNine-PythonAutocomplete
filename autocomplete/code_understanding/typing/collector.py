@@ -12,9 +12,16 @@ _parso_node_context = []
 _missing_symbols = defaultdict(list)
 _referenced_symbols = defaultdict(set)
 
+_modules_to_aliases = defaultdict(partial(defaultdict, list))
+_module_members = defaultdict(list)
+_class_defs = defaultdict(list)
+_function_defs = defaultdict(list)
+_variable_assignments = defaultdict(list)
+_functions = defaultdict(list)
+
 
 def get_current_context_dir():
-  return os.path.get_dir(_filename_context[-1])
+  return os.path.split(_filename_context[-1])[0]
 
 
 @attr.s
@@ -64,12 +71,10 @@ def get_code_context_string():
     if filename:
       return f'"{filename}", line {line}, ({code})'
     return f'line {line}, ({code})'
-    # out = f'{node.start_pos}:{node.get_code()}'
   return filename
 
 
 def add_missing_symbol(filename, name, context):
-  # assert _filename_context
   _missing_symbols[filename].append((name, context))
 
 
@@ -81,32 +86,14 @@ def get_missing_symbols_in_file(filename, include_context=True):
   if include_context:
     return _missing_symbols[filename]
   else:
-    return list(a[0] for a in _missing_symbols[filename])
+    return set(a[0] for a in _missing_symbols[filename])
 
 
-@attr.s  #(frozen=True)
+@attr.s
 class ModuleMember:
   module: str = attr.ib(validator=[attr.validators.instance_of(str)])
   member: str = attr.ib(validator=[attr.validators.instance_of(str)])
   alias: str = attr.ib(None)
-
-
-# @attr.s(str=False, repr=False)
-# class Collector:
-#   '''Collector collects usage information about a piece of source code.
-
-#   This information is minimalist - it centers around identifying names and object usages. For
-#   example, this would track if the numpy library was imported, what it was aliased as (np), what
-#   functions were called and what were the types or values of the parameters.
-
-#   Ultimately, this collector extracts all the data used for training and making suggestions.'''
-# imported_modules = attr.ib(factory=list)
-_modules_to_aliases = defaultdict(partial(defaultdict, list))
-_module_members = defaultdict(list)
-_class_defs = defaultdict(list)
-_function_defs = defaultdict(list)
-_variable_assignments = defaultdict(list)
-_functions = defaultdict(list)
 
 
 def add_module_import(module, alias):
@@ -127,12 +114,6 @@ def add_variable_assignment(variable_name, code):
 def add_function_node(function_node):
   _functions[_filename_context[-1]].append(function_node)
 
-  # def add_class_def(class_name, member, alias):
-  #   self.module_members.append(ModuleMember(module, member, alias))
-
-  # def add_from_import(module, member, alias):
-  #   self.module_members.append(ModuleMember(module, member, alias))
-
 
 def print_stats(self):
   module_aliases_table = PrettyTable(['Module', 'Aliases'])
@@ -147,7 +128,3 @@ def print_stats(self):
     assignments_table.add_row([name, code])
 
   return f'Imports:\n{module_aliases_table}\nMembers:\n{module_members_table}\nVariables:\n{assignments_table}'
-
-  # def process(cfg_node, curr_frame):
-  #   if isinstance(cfg_node, ImportCfgNode):
-  #     self.imported_modules.append(cfg_node.module_path)

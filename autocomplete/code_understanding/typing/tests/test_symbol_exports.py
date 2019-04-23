@@ -1,12 +1,9 @@
 import os
 
-from autocomplete.code_understanding.typing import (collector,
-                                                    control_flow_graph)
+from autocomplete.code_understanding.typing import collector, control_flow_graph, module_loader
 from autocomplete.code_understanding.typing.api import graph_from_source
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    FuncCfgNode)
-from autocomplete.code_understanding.typing.project_analysis import (
-    find_missing_symbols)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import FuncCfgNode
+from autocomplete.code_understanding.typing.project_analysis import find_missing_symbols
 
 
 def test_cfg_symbol_visibility():
@@ -47,7 +44,7 @@ def test_cfg_symbol_visibility():
       ['c', 'f', 'd', 'e', 'g', 'i', 'h', 'j', 'k', 'foo2'])
 
 
-def test_closure():
+def test_closure_scope():
   source = '''
   def foo():
     b = a  # global
@@ -80,6 +77,33 @@ def test_closure():
   foo4_func_node = x_klass_node.suite[-1]
   _assert_expected_iterable(foo4_func_node.closure(), ['c', 'q'])
 
+def test_closure_values():
+  source = '''
+  def foo(a):
+    def foo2():
+      return a
+    return foo2
+  
+  def foo3(a):
+    def foo4():
+      def foo5():
+        return a
+      return foo5
+    return foo4
+
+  def foo6(a):
+    return foo3(3)()()
+  a = foo6(9)
+  c = foo(1)
+  d = foo(2)
+  c = c()
+  d = d()
+
+  '''
+  module = module_loader.load_module_from_source(source)
+  assert module['a'].value() == 3
+  assert module['c'].value() == 1
+  assert module['d'].value() == 2
 
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
@@ -103,6 +127,7 @@ def _assert_expected_iterable(actual, expected):
 
 
 if __name__ == "__main__":
+  test_closure_values()
   test_cfg_symbol_visibility()
-  test_closure()
+  test_closure_scope()
   test_missing_symbols()

@@ -2,13 +2,14 @@ import itertools
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from enum import Enum
-from functools import partialmethod
+from functools import partialmethod, wraps
 from typing import List
 
 import attr
 
 from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, SourceAttributeError)
+    CellObjectUsageError, CellValueNotSetError, LoadingModuleAttributeError,
+    SourceAttributeError)
 from autocomplete.nsn_logging import debug, info, warning
 
 _OPERATORS = [
@@ -101,6 +102,95 @@ class PObject(ABC):
     raise ValueError(
         'Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.'
     )
+
+
+@attr.s
+class CellObject(PObject):
+  pobject: PObject = attr.ib(None)
+
+  def check_pobject(func):
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+      if self.pobject:
+        return func(self, *args, **kwargs)
+
+      # NameError: free variable 'a' referenced before assignment in enclosing scope
+      raise CellValueNotSetError()
+
+    return wrapper
+
+  @check_pobject
+  def has_attribute(self, name):
+    #  return self.pobject.has_attribute(self, name)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def get_attribute(self, name):
+    #  return self.pobject.get_attribute(self, name)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def set_attribute(self, name, value):
+    #  return self.pobject.set_attribute(self, name, value)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def apply_to_values(self, func):
+    #  return self.pobject.apply_to_values(self, func)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def value_equals(self, other) -> FuzzyBoolean:
+    #  return self.pobject.value_equals(self, other)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def value_is_a(self, type_) -> FuzzyBoolean:
+    #  return self.pobject.value_is_a(self, type_)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def value(self) -> object:
+    #  return self.pobject.value(self)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def bool_value(self) -> FuzzyBoolean:
+    #  return self.pobject.bool_value(self)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def call(self, args, kwargs, curr_frame):
+    #  return self.pobject.call(self, args, kwargs, curr_frame)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def _get_item_processed(self, indicies):
+    #  return self.pobject._get_item_processed(self, indicies)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def get_item(self, args):
+    #  return self.pobject.get_item(self, args)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
+
+  @check_pobject
+  def set_item(self, index, value):
+    #  return self.pobject.set_item(self, index, value)
+    raise CellObjectUsageError(
+        'CellObject\'s should not be interacted with directly.')
 
 
 @attr.s(str=False, repr=False)
