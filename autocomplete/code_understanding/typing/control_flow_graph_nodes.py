@@ -10,7 +10,7 @@ from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
-    Expression, StarExpression, SubscriptExpression, VariableExpression,
+    Expression, StarredExpression, SubscriptExpression, VariableExpression,
     _assign_variables_to_results)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.language_objects import (
@@ -19,23 +19,10 @@ from autocomplete.code_understanding.typing.language_objects import (
 from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
                                                              FuzzyObject,
                                                              UnknownObject)
+from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
-
-
-def instance_memoize(func):
-
-  @wraps(func)
-  def _wrapper(self):
-    memoized_name = f'_{func.__name__}_memoized'
-    if hasattr(self, memoized_name):
-      return getattr(self, memoized_name)
-    out = func(self)
-    setattr(self, memoized_name, out)
-    return out
-
-  return _wrapper
 
 
 class CfgNode(ABC):
@@ -180,7 +167,8 @@ class FromImportCfgNode(CfgNode):
     # Example: from foo import *
     if self.from_import_name == '*':
       module = self.module_loader.get_module(self.module_path)
-      for name, pobject in module.items():
+      # Python does not include private members when importing with star.
+      for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
         curr_frame[name] = pobject
       return
 

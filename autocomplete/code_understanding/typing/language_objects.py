@@ -89,7 +89,7 @@ class ModuleType(Enum):
 
 
 def create_main_module(filename=None):
-  return Module(
+  return ModuleImpl(
       '__main__',
       ModuleType.MAIN,
       members={},
@@ -103,6 +103,7 @@ class Module(Namespace, ABC):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib()
+  filename = attr.ib(kw_only=True)
 
   def add_members(self, members):
     self._members.update(members)

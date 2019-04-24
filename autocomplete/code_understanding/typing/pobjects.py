@@ -87,17 +87,20 @@ class PObject(ABC):
   def call(self, args, kwargs, curr_frame):
     ...
 
-  @abstractmethod
+  # @abstractmethod
   def _get_item_processed(self, indicies):
     ...
 
   @abstractmethod
-  def get_item(self, args):
+  def get_item(self, curr_frame, args):
     ...
 
   @abstractmethod
-  def set_item(self, index, value):
+  def set_item(self, curr_frame, index, value):
     ...
+
+  def hash_value(self):
+    return hash(self.value())
 
   def to_dict(self):
     '''Stand-in for __dict__.'''
@@ -171,11 +174,11 @@ class UnknownObject(PObject):
   def _get_item_processed(self, indicies):
     return UnknownObject('get_item?')
 
-  def get_item(self, args):
+  def get_item(self, curr_frame, args):
     # TODO
     return UnknownObject('get_item?')
 
-  def set_item(self, index, value):
+  def set_item(self, curr_frame, index, value):
     ...
 
   def __str__(self):
@@ -278,20 +281,21 @@ class NativeObject(PObject):
   def _get_item_processed(self, indicies):
     try:
       value = self._native_object.__getitem__(indicies)
-      if isinstance(value, NATIVE_TYPES):
-        return NativeObject(value)
       if isinstance(value, PObject):
         return value
-      assert False
+      return object_to_pobject(value)
     except (KeyError, IndexError, AttributeError):
       return UnknownObject(f'{self._native_object}[{indicies}]')
     except Exception as e:
+      import traceback
+      traceback.print_tb(e.__traceback__)
       error(e)
+    return UnknownObject(f'{self._native_object}[{indicies}]')
 
-  def get_item(self, args):
+  def get_item(self, curr_frame, args):
     return self._get_item_processed(_process_indicies(args))
 
-  def set_item(self, index, value):
+  def set_item(self, curr_frame, index, value):
     # TODO: item_dynamic_container?
     if hasattr(self._native_object, '__setitem__'):
       try:
@@ -378,25 +382,33 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
-  def _get_item_processed(self, indicies):
-    if hasattr(self._object, '_get_item_processed'):
-      return self._object._get_item_processed(indicies)
-    elif hasattr(self._object, '__getitem__'):
-      try:
-        # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
-        return object_to_pobject(self._object.__getitem__(indicies))
-      except (KeyError, IndexError, TypeError, SourceAttributeError,
-              LoadingModuleAttributeError):
-        pass
-    return UnknownObject(f'{self._object}[{indicies}]')
+  # def _get_item_processed(self, indicies):
+  # if isinstance(self._object, PObject):
+  #   return self._object._get_item_processed(indicies)
+  # return self.get_item(AnonymousExpression(indicies))
 
-  def get_item(self, args):
-    if hasattr(self._object, 'get_item'):
+  def get_item(self, curr_frame, args):
+    if isinstance(self._object, PObject):
       return self._object.get_item(args)
-    return self._get_item_processed(_process_indicies(args))
+    if self._object.has_attribute('__getitem__'):
+      getitem = self._object.get_attribute('__getitem__')
+      return getitem.call(curr_frame, args, {})
 
-  def set_item(self, index, value):
-    warning(f'Skipping setting {self._object}[{index}] = {value}')
+    # TODO?
+    # self._object._get_item_processed(indicies)
+    return UnknownObject(f'{self._object}[{args}]')
+
+  def set_item(self, curr_frame, index, value):
+    if isinstance(self._object, PObject):
+      self._object.set_item(index, value)
+    elif self._object.has_attribute('__setitem__'):
+      setitem = self._object.get_attribute('__setitem__')
+      setitem.call(curr_frame, index, value)
+    # index = _process_indicies(index)
+    # self._object.set_item(index, value)
+    else:
+      warning(f'Skipping setting {self._object}[{index}] = {value}')
+    # return self._get_item_processed(_process_indicies(args))
 
   def __str__(self):
     return f'AO({self._object}):[{self._dynamic_container}]'
@@ -554,11 +566,16 @@ class FuzzyObject(PObject):
     # _process_args_kwargs(args, kwargs, curr_frame)  # No children means we
     # return UnknownObject(f'FV({args}, {kwargs})')
 
-  def _get_item_processed(self, indicies):
+  def _get_item_internal(self, curr_frame, args, indicies):
     out = []
     for value in self._values:
       try:
-        result = value._get_item_processed(indicies)
+        if isinstance(value, FuzzyObject):
+          result = value._get_item_internal(curr_frame, args, indicies)
+        elif hasattr(value, '_get_item_processed'):
+          result = value._get_item_processed(indicies)
+        else:  # Default.
+          result = value.get_item(args)
         assert isinstance(result, PObject)
         out.append(result)  # TODO: Add API get_item_processed_args
       except IndexError as e:
@@ -570,11 +587,11 @@ class FuzzyObject(PObject):
       return out[0]
     return UnknownObject(f'FV[{indicies}]')
 
-  def get_item(self, args):
+  def get_item(self, curr_frame, args):
     indicies = _process_indicies(args)
-    return self._get_item_processed(indicies)
+    return self._get_item_internal(curr_frame, args, indicies)
 
-  def set_item(self, index, value):
+  def set_item(self, curr_frame, index, value):
     debug(f'Skipping setting {self._object}[{index}] = {value}')
 
   def _operator(self, other, operator):

@@ -7,11 +7,12 @@ import attr
 
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
-    assert_unexpected_parso)
+    AmbiguousFuzzyValueDoesntHaveSingleValueError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.pobjects import (
     AugmentedObject, FuzzyBoolean, FuzzyObject, NativeObject, PObject,
     UnknownObject)
-from autocomplete.nsn_logging import debug, warning
+from autocomplete.code_understanding.typing.utils import instance_memoize
+from autocomplete.nsn_logging import debug, info, warning
 
 
 class Expression(ABC):
@@ -32,6 +33,7 @@ class AnonymousExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return self.pobject
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
@@ -43,6 +45,7 @@ class LiteralExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(self.literal)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
@@ -54,6 +57,7 @@ class UnknownExpression(Expression):
   def evaluate(self, curr_frame):
     return UnknownObject(self.string)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
@@ -66,6 +70,7 @@ class NotExpression(Expression):
     pobject = self.expression.evaluate(curr_frame)
     return AugmentedObject(pobject.bool_value().invert())
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
 
@@ -82,6 +87,7 @@ class ListExpression(Expression):
   def __iter__(self):
     return iter(self.source_expression)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.source_expression.get_used_free_symbols()
 
@@ -110,40 +116,12 @@ class ItemListExpression(Expression):
     for expression in self.expressions:
       yield expression
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     # TODO: set
     return list(
         itertools.chain(
             *[expr.get_used_free_symbols() for expr in self.expressions]))
-
-
-@attr.s
-class ForComprehensionExpression(Expression):
-  ''' As in: ` for x in func2(y)` - not to be confused with a for-block.'''
-  # generator_expression for target_variables in iterable_expression
-  generator_expression: Expression = attr.ib()
-  target_variables: Expression = attr.ib()
-  iterable_expression: Expression = attr.ib()
-  comp_iter: Union[Expression, None] = attr.ib()
-
-  def evaluate(self, curr_frame) -> PObject:
-    # TODO: Fill out proper.
-    new_frame = curr_frame.make_child(curr_frame.namespace)
-    _assign_variables_to_results(new_frame, self.target_variables,
-                                 self.iterable_expression.evaluate(new_frame))
-    out = self.generator_expression.evaluate(new_frame)
-    return out
-
-  def get_used_free_symbols(self) -> Iterable[str]:
-    generator_free_symbols = self.generator_expression.get_used_free_symbols()
-    target_symbols = self.target_variables.get_used_free_symbols()
-    iterable_symbols = self.iterable_symbols.get_used_free_symbols()
-    comp_iter_symbols = self.comp_iter.get_used_free_symbols(
-    ) if self.comp_iter else []
-    non_locals = set(itertools.chain(generator_free_symbols, iterable_symbols))
-    for symbol in itertools.chain(target_symbols, comp_iter_symbols):
-      non_locals.discard(symbol)
-    return non_locals
 
 
 def _assign_variables_to_results(curr_frame, variable, result):
@@ -161,9 +139,8 @@ def _assign_variables_to_results(curr_frame, variable, result):
   else:
     # Recursively process variables.
     for i, variable_item in enumerate(variable):
-      if isinstance(variable_item, StarExpression):
-        debug(f'Mishandling star assignment'
-             )  # - {parso_node.get_code().strip()}')
+      if isinstance(variable_item, StarredExpression):
+        debug(f'Mishandling star assignment')
         # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
         _assign_variables_to_results(curr_frame, variable_item.base_expression,
                                      result._get_item_processed(i))
@@ -183,6 +160,7 @@ class CallExpression(Expression):
     pobject = self.function_expression.evaluate(curr_frame)
     return pobject.call(self.args, self.kwargs, curr_frame)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     out = set(self.function_expression.get_used_free_symbols())
     out = out.union(
@@ -200,20 +178,149 @@ class VariableExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return curr_frame[self]
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return [self.name]
 
 
 @attr.s
-class StarExpression(Expression):
+class ForComprehension:
+  target_variables: Expression = attr.ib()
+  iterable_expression: Expression = attr.ib()
+  comp_iter: Union[Expression, None] = attr.ib()
+
+  def process_into_new_frame(self, curr_frame) -> 'Frame':
+    # TODO: Fill out proper.
+    new_frame = curr_frame.make_child(curr_frame.namespace)
+    _assign_variables_to_results(new_frame, self.target_variables,
+                                 self.iterable_expression.evaluate(new_frame))
+
+  @instance_memoize
+  def get_defined_symbols(self):
+    target_symbols = self.target_variables.get_used_free_symbols()
+    comp_iter_symbols = self.comp_iter.get_used_free_symbols(
+    ) if self.comp_iter else []
+
+    return itertools.chain(target_symbols, comp_iter_symbols)
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    generator_free_symbols = self.generator_expression.get_used_free_symbols()
+    iterable_symbols = self.iterable_symbols.get_used_free_symbols()
+    non_locals = set(itertools.chain(generator_free_symbols, iterable_symbols))
+    for symbol in self.get_defined_symbols():
+      non_locals.discard(symbol)
+    return non_locals
+
+
+@attr.s
+class ForComprehensionExpression(Expression):
+  ''' As in: ` for x in func2(y)` - not to be confused with a for-block.'''
+  # generator_expression for target_variables in iterable_expression
+  generator_expression: Expression = attr.ib()
+  for_comprehension: ForComprehension = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    new_frame = self.for_comprehension.process_into_new_frame(curr_frame)
+    out = self.generator_expression.evaluate(new_frame)
+    return out
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    generator_free_symbols = self.generator_expression.get_used_free_symbols()
+    for symbol in self.for_comprehension.get_defined_symbols():
+      generator_free_symbols.discard(symbol)
+    return generator_free_symbols.union(
+        self.for_comprehension.get_used_free_symbols())
+
+
+@attr.s
+class StarredExpression(Expression):
   '''E.g. *args - or more meaninglessly, *(a,b)'''
+  operator: str = attr.ib()  # * or **
   base_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     raise NotImplementedError(f'*({self.base_expression})')
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
+
+
+@attr.s
+class KeyValueAssignment:
+  key: Expression = attr.ib()
+  value: Expression = attr.ib()
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return value.get_used_free_symbols()
+
+
+@attr.s
+class KeyValueForComp:
+  key: Expression = attr.ib()
+  value: Expression = attr.ib()
+  for_comp = attr.ib()
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    out = set(self.value.get_used_free_symbols())
+    for symbol in self.for_comp.get_defined_symbols():
+      out.discard(symbol)
+    out.union(self.for_comp.get_used_free_symbols())
+    return out
+
+
+@attr.s
+class SetExpression(Expression):
+  values: List[Union[StarredExpression, Expression,
+                     ForComprehensionExpression]] = attr.ib()
+
+  # TODO
+
+  def evaluate(self, curr_frame) -> PObject:
+    return NativeObject(set())  # TODO
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(value.get_used_free_symbols() for value in self.values)
+
+
+@attr.s
+class DictExpression(Expression):
+  values: List[Union[StarredExpression, KeyValueAssignment,
+                     KeyValueForComp]] = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    out = {}
+    for value in self.values:
+      if isinstance(value, KeyValueAssignment):
+        k = value.key.evaluate(curr_frame)
+        v = value.value.evaluate(curr_frame)
+        try:
+          out[k.value()] = v.value()
+        except (TypeError, AmbiguousFuzzyValueDoesntHaveSingleValueError) as e:
+          # Unhashable.
+          debug(e)
+      elif isinstance(value, StarredExpression):
+        assert value.operator == '**'
+        base_pobject = value.base_expression.evaluate(curr_frame)
+        if isinstance(base_pobject, NativeObject):
+          try:
+            out.update(base_pobject.value())
+          except TypeError as e:
+            info(e)
+            pass
+      else:
+        assert isinstance(value, KeyValueForComp)
+        pass  # TODO
+    return NativeObject(out)
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(value.get_used_free_symbols() for value in self.values)
 
 
 @attr.s
@@ -225,6 +332,7 @@ class AttributeExpression(Expression):
     value: PObject = self.base_expression.evaluate(curr_frame)
     return value.get_attribute(self.attribute)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
 
@@ -248,15 +356,16 @@ class SubscriptExpression(Expression):
     values = []
     for e in self.subscript_list:
       values.append(e.evaluate(curr_frame))
-    return pobject.get_item(values)
+    return pobject.get_item(curr_frame, values)
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
     values = []
     for e in self.subscript_list:
       values.append(e.evaluate(curr_frame))
-    return pobject.set_item(tuple(values), value)
+    return pobject.set_item(curr_frame, tuple(values), value)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
 
@@ -279,6 +388,7 @@ class IfElseExpression(Expression):
       ])
     return self.true_expression.evaluate(curr_frame)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return set(
         itertools.chain(*[
@@ -305,6 +415,7 @@ class FactorExpression(Expression):
       debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
 
@@ -364,6 +475,7 @@ class MathExpression(Expression):
     debug(f'MathExpression failed: {l}{self.operator}{r}')
     return UnknownObject(f'{self.parso_node.get_code()}')
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return set(self.left_expression.get_used_free_symbols()).union(
         self.right_expression.get_used_free_symbols())
@@ -406,6 +518,7 @@ class ComparisonExpression(Expression):
 
     assert False, f'Cannot handle {self.operator} yet.'
 
+  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return set(self.left_expression.get_used_free_symbols()).union(
         self.right_expression.get_used_free_symbols())

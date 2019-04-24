@@ -13,8 +13,8 @@ from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, SubscriptExpression, Variable, VariableExpression)
 from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyObject, PObject, UnknownObject,
-    object_to_pobject)
+    NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject,
+    UnknownObject, object_to_pobject)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -102,6 +102,9 @@ class Frame:
           key: UnknownObject(key) for key in itertools.chain(
               __builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)
       }
+      # self._builtins['globals'] = NativeObject(lambda: return self._module.get_members())
+      # self._builtins['locals'] = NativeObject(lambda: return self._locals)
+      self._builtins['range'] = NativeObject(range)
 
     for symbol in self._cell_symbols:
       self[symbol] = CellObject()
@@ -166,11 +169,7 @@ class Frame:
       pobject.set_attribute(variable.attribute, value)
 
   def _get_current_filename(self):
-    if hasattr(self.namespace, 'filename'):
-      return self.namespace.filename
-    if self._back:
-      return self._back._get_current_filename()
-    return ''
+    return self._module.filename
 
   def __delitem__(self, variable):
     assert isinstance(variable, VariableExpression)
@@ -213,8 +212,15 @@ class Frame:
     if name in self._locals:
       return self._locals[name]
 
-    if (not nested or self._frame_type == FrameType.NORMAL) and self._back:
+    # We only want to dig into the stack up to the point of locals. If |name| isn't within any
+    # frame on the backstack's locals, then we don't want to dig in. This way, if the name isn't
+    # found at all, we are doing the logs from the highest-level frame as desired.
+    if (not nested or self._frame_type == FrameType.NORMAL
+       ) and self._back and self._back.__contains__(name, True):
       return self._back.__getitem__(name, nested=True)
+
+    if nested and raise_error_if_missing:
+      raise KeyError(f'{variable} doesn\'t exist in current context!')
 
     if name in self._module._members:
       return self._module._members[name]
@@ -225,8 +231,7 @@ class Frame:
     context_str = self.get_code_context_string()
     collector.add_missing_symbol(self._get_current_filename(), name,
                                  context_str)
-    if context_str:
-      warning(f'At: {context_str}')
+    warning(f'At: {context_str}')
     warning(
         f'`{name}` doesn\'t exist in current context! Returning UnknownObject.')
     if raise_error_if_missing:
@@ -234,9 +239,9 @@ class Frame:
     else:
       return UnknownObject(f'frame[{name}]')
 
-  def __contains__(self, variable):
+  def __contains__(self, variable, nested=False):
     try:
-      self.__getitem__(variable, raise_error_if_missing=True)
+      self.__getitem__(variable, nested=nested, raise_error_if_missing=True)
       return True
     except KeyError:
       return False

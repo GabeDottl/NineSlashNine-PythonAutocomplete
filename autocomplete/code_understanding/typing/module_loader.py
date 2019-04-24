@@ -97,7 +97,9 @@ def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
     traceback.print_tb(e.__traceback__)
     print(e)
     raise e
-  return dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
+  # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
+  # when running, so we through them in anyway for the heck of it.
+  return a_frame._locals  #dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
 
 
 def _get_module_stub_source_filename(name) -> str:
@@ -201,7 +203,7 @@ def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
                                        unknown_fallback, lazy)
 
 
-NATIVE_LOAD_FILE_WHITELIST = set(['/usr/lib/python3/dist-packages/six.py'])
+NATIVE_MODULE_WHITELIST = set(['six', 're'])
 
 
 def _load_module_from_module_info(name: str,
@@ -216,7 +218,7 @@ def _load_module_from_module_info(name: str,
     else:
       raise InvalidModuleError(name)
 
-  if module_type == ModuleType.BUILTIN or path in NATIVE_LOAD_FILE_WHITELIST:
+  if module_type == ModuleType.BUILTIN or name in NATIVE_MODULE_WHITELIST:
     # TODO: Cache.
     spec = importlib.util.find_spec(name)
     python_module = spec.loader.load_module(name)
