@@ -21,10 +21,10 @@ from autocomplete.code_understanding.typing.errors import (
     UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.expressions import NativeObject
 from autocomplete.code_understanding.typing.language_objects import (
-    LazyModule, Module, ModuleImpl, ModuleType, NativeModule,
-    create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (PObject,
-                                                             UnknownObject)
+    LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module
+)
+from autocomplete.code_understanding.typing.pobjects import (
+    PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, error, warning
 
 __module_dict: dict = {}

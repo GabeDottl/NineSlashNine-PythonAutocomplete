@@ -10,7 +10,7 @@ import attr
 
 from autocomplete.code_understanding.typing.errors import (
     AmbiguousFuzzyValueDoesntHaveSingleValueError, LoadingModuleAttributeError,
-    SourceAttributeError)
+    NoDictImplementationError, SourceAttributeError)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 _OPERATORS = [
@@ -99,12 +99,16 @@ class PObject(ABC):
   def set_item(self, curr_frame, index, value):
     ...
 
+  def iterator(self):
+    return iter([])
+
   def hash_value(self):
     return hash(self.value())
 
   def to_dict(self):
     '''Stand-in for __dict__.'''
-    assert False, 'Not Implemented.'  # Don't want to be caught by normal NotImplementedError logic..
+    raise NoDictImplementationError()
+    # assert False, 'Not Implemented.'  # Don't want to be caught by normal NotImplementedError logic..
 
   def __bool__(self):
     raise ValueError(
@@ -283,8 +287,8 @@ class NativeObject(PObject):
       value = self._native_object.__getitem__(indicies)
       if isinstance(value, PObject):
         return value
-      return object_to_pobject(value)
-    except (KeyError, IndexError, AttributeError):
+      return pobject_from_object(value)
+    except (TypeError, KeyError, IndexError, AttributeError):
       return UnknownObject(f'{self._native_object}[{indicies}]')
     except Exception as e:
       import traceback
@@ -308,9 +312,22 @@ class NativeObject(PObject):
 
   def to_dict(self):
     return {
-        name: object_to_pobject(value)
+        name: pobject_from_object(value)
         for name, value in self._native_object.__dict__.items()
     }
+
+  def iterator(self):
+    if hasattr(self._native_object, '__iter__'):
+      try:
+        iterator = self._native_item.__iter__()
+
+        def wrapper():
+          yield pobject_from_object(next(iterator))
+
+        return wrapper()
+      except Exception as e:
+        error(e)
+    return super().iterator()
 
   def __str__(self):
     return f'NO({self._native_object})'
@@ -319,9 +336,12 @@ class NativeObject(PObject):
     return str(self)
 
 
-def object_to_pobject(obj):
+def pobject_from_object(obj):
   if isinstance(obj, NATIVE_TYPES):
     return NativeObject(obj)
+  if isinstance(obj, PObject):
+    return obj
+  # TODO: if isinstance(obj, Namespace)
   return AugmentedObject(obj)
 
 
@@ -450,7 +470,7 @@ class FuzzyObject(PObject):
       if isinstance(val, FuzzyObject):
         new_values += val._values
       elif not isinstance(val, PObject):
-        new_values.append(object_to_pobject(val))
+        new_values.append(pobject_from_object(val))
       else:
         new_values.append(val)
     self._values = new_values

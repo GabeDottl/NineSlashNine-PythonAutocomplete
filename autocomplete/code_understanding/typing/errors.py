@@ -1,6 +1,10 @@
 from inspect import getframeinfo, stack
 
 
+class NoDictImplementationError(Exception):
+  ...
+
+
 class UnableToReadModuleFileError(Exception):
   ...
 

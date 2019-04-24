@@ -14,7 +14,7 @@ from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, SubscriptExpression, Variable, VariableExpression)
 from autocomplete.code_understanding.typing.pobjects import (
     NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject,
-    UnknownObject, object_to_pobject)
+    UnknownObject, pobject_from_object)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -151,7 +151,7 @@ class Frame:
   def __setitem__(self, variable: Variable, value: PObject):
     # https://stackoverflow.com/questions/38937721/global-frame-vs-stack-frame
     if not isinstance(value, PObject):
-      value = object_to_pobject(value)  # Wrap everything in FuzzyObjects.
+      value = pobject_from_object(value)  # Wrap everything in FuzzyObjects.
     # TODO: Handle nonlocal & global keyword states and cells.
     if isinstance(value, FuzzyObject):
       value.validate()
@@ -228,15 +228,17 @@ class Frame:
     if name in self._builtins:
       return self._builtins[name]
       # TODO: lineno, frame contents.
-    context_str = self.get_code_context_string()
-    collector.add_missing_symbol(self._get_current_filename(), name,
-                                 context_str)
-    warning(f'At: {context_str}')
-    warning(
-        f'`{name}` doesn\'t exist in current context! Returning UnknownObject.')
+
     if raise_error_if_missing:
       raise KeyError(f'{variable} doesn\'t exist in current context!')
     else:
+      context_str = self.get_code_context_string()
+      collector.add_missing_symbol(self._get_current_filename(), name,
+                                   context_str)
+      warning(f'At: {context_str}')
+      warning(
+          f'`{name}` doesn\'t exist in current context! Returning UnknownObject.'
+      )
       return UnknownObject(f'frame[{name}]')
 
   def __contains__(self, variable, nested=False):
@@ -248,7 +250,7 @@ class Frame:
 
   def add_return(self, value):
     if not isinstance(value, PObject):
-      value = object_to_pobject(value)
+      value = pobject_from_object(value)
     self._returns.append(value)
 
   def get_returns(self):

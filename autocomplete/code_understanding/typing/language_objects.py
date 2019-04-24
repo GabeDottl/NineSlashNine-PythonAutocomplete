@@ -11,6 +11,7 @@ operation on the abstraction itself (e.g. Function, Klass, FuzzyObject).
 In general, we work around this by using non-dunder methods that match the dunder equivalents.
 So __getitem__, __getattribute__, __call__, etc. translate into get_item, get_attribute, call.
 '''
+import itertools
 from abc import ABC, abstractmethod
 from copy import copy
 from enum import Enum
@@ -20,14 +21,16 @@ from typing import Dict, Iterable
 import attr
 
 from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, SourceAttributeError,
-    UnableToReadModuleFileError)
+    LoadingModuleAttributeError, NoDictImplementationError,
+    SourceAttributeError, UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.expressions import (
-    AnonymousExpression, LiteralExpression, VariableExpression)
+    AnonymousExpression, LiteralExpression, StarredExpression,
+    VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.pobjects import (
     NONE_POBJECT, AugmentedObject, FuzzyBoolean, NativeObject, PObject,
-    UnknownObject, object_to_pobject)
+    UnknownObject, pobject_from_object)
+from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -163,8 +166,8 @@ class NativeModule(Module):
   def path(self) -> str:
     return self._native_module.value().__name__
 
+  @instance_memoize
   def root(self):
-    # TODO
     return self
 
 
@@ -179,10 +182,10 @@ class ModuleImpl(Module):
 
   def __attrs_post_init__(self):
     # MODULE_GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
-    self._members['__name__'] = object_to_pobject(self.name)
-    self._members['__path__'] = self._members['__file__'] = object_to_pobject(
+    self._members['__package__'] = self._members[
+        '__name__'] = pobject_from_object(self.name)
+    self._members['__path__'] = self._members['__file__'] = pobject_from_object(
         self.filename)
-    self._members['__package__'] = object_to_pobject(self._containing_package)
     self._members['__loader__'] = UnknownObject('__loader__')
 
   def path(self) -> str:
@@ -200,6 +203,16 @@ class ModuleImpl(Module):
       if self.module_type.should_be_readable():
         warning(f'Failed to get {name} from {self.name}')
       raise
+
+
+@attr.s
+class SimplePackageModule(ModuleImpl):
+  ...
+
+
+# name: str = attr.ib()
+# module_type: ModuleType = attr.ib()
+# _members: Dict = attr.ib(init=False, default={})  # TODO: Remove.
 
 
 @attr.s
@@ -367,43 +380,100 @@ class FunctionImpl(Function):
         namespace=self,
         module=self._module,
         cell_symbols=self._cell_symbols)
-    self._process_args(args, kwargs, new_frame)
+    self._process_args(args, kwargs, curr_frame, new_frame)
     self.graph.process(new_frame)
 
     return new_frame.get_returns()
 
-  def _process_args(self, args, kwargs, curr_frame):
+  def _process_args(self, args, kwargs, curr_frame, new_frame):
+    # As a sort of safety measure, we explicitly provide some value for every single param - this
+    # avoids any issues with missing symbols when processing the function if it was called with
+    # invalid arguments.
+    # TODO: Perhaps don't call into it in that case instead as Python should do as well? This
+    # could/will probably leak through bugs.
+    for param in self.parameters:
+      new_frame[param.name] = UnknownObject(param.name)
+
+    # Process positional arguments.
     param_iter = iter(self.parameters)
     arg_iter = iter(args)
     for arg, param in zip(arg_iter, param_iter):
       if param.parameter_type == ParameterType.SINGLE:
-        curr_frame[param.name] = arg.evaluate(curr_frame)
+        if isinstance(arg, StarredExpression):  # Passed *iterable or **dict.
+          results = arg.base_expression.evaluate(curr_frame)
+          if arg.operator == '*':
+            iterator = iter(results)
+            try:
+              new_frame[param.name] = next(iterator)
+            except StopIteration:
+              # Prepend param back to param_iter to ensure we set it in kwargs section.
+              param_iter = itertools.chain([param], param_iter)
+            for evaluated_arg, param in zip(iterator, param_iter):
+              new_frame[param.name] = evaluated_arg
+            break  # No more positionals allowed after *iterable.
+          else:  # **dict
+            try:
+              result_dict = results.to_dict()
+              kwarg_param_name = None
+              kwarg_remaining = {}
+              param_set = set()
+              for param in itertools.chain([param], param_iter):
+                if param.parameter_type == ParameterType.SINGLE:
+                  param_set.add(param.name)
+                elif param.parameter_type == ParameterType.KWARGS:
+                  kwarg_param_name = param.name
+
+              for key, value in result_dict.items():
+                value = pobject_from_object(value)
+                if key in param_set:
+                  new_frame[key] = value
+                else:
+                  kwarg_remaining[key] = value
+              if kwarg_param_name:
+                new_frame[kwarg_param_name] = pobject_from_object(
+                    kwarg_remaining)
+              elif kwarg_remaining:  # non-empty.
+                error(
+                    f'No **kwargs but had unassigned kwargs: {kwarg_remaining}')
+            except NoDictImplementationError:
+              pass  # Non-NativeObject. Too fancy for us.
+            break
+        # Normal case.
+        new_frame[param.name] = arg.evaluate(curr_frame)
       elif param.parameter_type == ParameterType.ARGS:
-        curr_frame[param.name] = [arg.evaluate(curr_frame)
-                                 ] + [a.evaluate(curr_frame) for a in arg_iter]
+        # Collect all remaining positional arguments into *args param
+        args = []
+        for a in itertools.chain([arg], arg_iter):
+          if isinstance(a, StarredExpression):  # Passing in *iterable.
+            args += list(a.base_expression.evaluate(curr_frame).iterator())
+          else:  # Normal positional.
+            args.append(a.evaluate(curr_frame))
+
+        new_frame[param.name] = pobject_from_object(args)
+        break
       else:  # KWARGS
-        raise ValueError(
+        error(
             f'Invalid number of positionals. {arg}: {args} fitting {self.parameters}'
         )
 
+    # Process keyword-arguments.
     kwargs_name = None
     for param in param_iter:
       if param.name in kwargs:
-        curr_frame[VariableExpression(
-            param.name)] = kwargs[param.name].evaluate(curr_frame)
+        new_frame[param.name] = kwargs[param.name].evaluate(curr_frame)
       elif param.parameter_type == ParameterType.KWARGS:
         kwargs_name = param.name
       else:
         # Use default. If there's no assignment and no explicit default, this
         # will be NONE_POBJECT.
-        curr_frame[VariableExpression(param.name)] = param.default
+        new_frame[param.name] = param.default
 
     if kwargs_name:  # Add remaining keywords to kwargs if there is one.
       in_dict = {}
       for key, value in kwargs.items():
-        if key not in curr_frame:
+        if key not in new_frame:
           in_dict[key] = value
-      curr_frame[kwargs_name] = object_to_pobject(in_dict)  # NativeObject.
+      new_frame[kwargs_name] = pobject_from_object(in_dict)  # NativeObject.
 
   def __str__(self):
     return f'def {self.name}({tuple(self.parameters)})'

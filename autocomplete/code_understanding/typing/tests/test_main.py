@@ -4,13 +4,11 @@ from glob import glob
 
 import parso
 
-from autocomplete.code_understanding.typing import (control_flow_graph,
-                                                    module_loader)
+from autocomplete.code_understanding.typing import (
+    control_flow_graph, module_loader)
 # from autocomplete.code_understanding.typing.api import modulefrom_source
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     Instance,
-                                                                     Klass,
-                                                                     Module)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, Instance, Klass, Module)
 from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
 from autocomplete.nsn_logging import debug
 

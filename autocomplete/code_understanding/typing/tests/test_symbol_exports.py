@@ -1,9 +1,8 @@
 import os
 from glob import glob
 
-from autocomplete.code_understanding.typing import (collector,
-                                                    control_flow_graph,
-                                                    module_loader)
+from autocomplete.code_understanding.typing import (
+    collector, control_flow_graph, module_loader)
 from autocomplete.code_understanding.typing.api import graph_from_source
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     FuncCfgNode)

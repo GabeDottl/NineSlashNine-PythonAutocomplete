@@ -3,8 +3,8 @@ import os
 from glob import glob
 from pprint import pprint
 
-from autocomplete.code_understanding.typing import (api, collector,
-                                                    module_loader)
+from autocomplete.code_understanding.typing import (
+    api, collector, module_loader)
 from autocomplete.nsn_logging import info
 
 

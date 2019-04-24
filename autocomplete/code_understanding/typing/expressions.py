@@ -10,7 +10,7 @@ from autocomplete.code_understanding.typing.errors import (
     AmbiguousFuzzyValueDoesntHaveSingleValueError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.pobjects import (
     AugmentedObject, FuzzyBoolean, FuzzyObject, NativeObject, PObject,
-    UnknownObject)
+    UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, info, warning
 
@@ -104,6 +104,7 @@ class ItemListExpression(Expression):
       validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
+    assert curr_frame
     return NativeObject(list(e.evaluate(curr_frame) for e in self.expressions))
 
   def __len__(self):
@@ -173,7 +174,7 @@ class CallExpression(Expression):
 
 @attr.s
 class VariableExpression(Expression):
-  name = attr.ib()
+  name = attr.ib(validator=attr.validators.instance_of(str))
 
   def evaluate(self, curr_frame) -> PObject:
     return curr_frame[self]
@@ -194,6 +195,7 @@ class ForComprehension:
     new_frame = curr_frame.make_child(curr_frame.namespace)
     _assign_variables_to_results(new_frame, self.target_variables,
                                  self.iterable_expression.evaluate(new_frame))
+    return new_frame
 
   @instance_memoize
   def get_defined_symbols(self):
@@ -241,7 +243,8 @@ class StarredExpression(Expression):
   base_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    raise NotImplementedError(f'*({self.base_expression})')
+    return pobject_from_object(
+        self.base_expression.evaluate(curr_frame).iterator())
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -255,7 +258,7 @@ class KeyValueAssignment:
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return value.get_used_free_symbols()
+    return self.value.get_used_free_symbols()
 
 
 @attr.s

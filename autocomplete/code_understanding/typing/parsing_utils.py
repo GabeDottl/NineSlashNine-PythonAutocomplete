@@ -333,30 +333,72 @@ def expressions_from_subscriptlist(node) -> Tuple[Expression]:
 
 
 # @_unimplmented_expression
+
+
+def kwarg_from_argument(argument):
+  # argument: ( test [comp_for] |
+  #        test '=' test |
+  #        '**' test |
+  #        '*' test )
+  # Note: We do an obnoxious amount of checking here to see if it's a kwarg because just checking
+  # for 'name' first also matches for_comp - e.g. 'truth for truth in truths'. It's dumb.
+  # first_child = node.children[0]
+  first_child = argument.children[0]
+
+  # Examples: *args or **kwargs
+  if first_child.type == 'operator':
+    assert first_child.value == '*' or first_child.value == '**'
+    if len(argument.children) == 1:
+      return None, '*'  # * - positional indicator.d
+    return None, StarredExpression(first_child.value,
+                                   expression_from_node(argument.children[1]))
+
+  second_child = argument.children[1]
+  if second_child.type == 'operator' and second_child.value == '=':
+    # kwarg
+    assert len(argument.children) == 3
+    return first_child.value, expression_from_node(argument.children[2])
+
+  first_expression = expression_from_node(first_child)
+  assert second_child.type == 'comp_for'
+  for_comprehension = for_comprehension_from_comp_for(second_child)
+  return None, ForComprehensionExpression(first_expression, for_comprehension)
+
+  # if argument.children[0].type == 'name':  # Possible kwarg
+  #   if len(argument.children) == 3 and argument.children[1].type == 'operator' and argument.children.value == '=':
+  #     return argument.children[0].value, expression_from_node(argument.children[2])
+  #   assert False
+
+  #   # elif argument.type == 'operator' and argument.value == '*':
+  #   #   continue
+  # else:  # arg
+  #   assert_unexpected_parso(len(argument.children) == 2, node_info(argument))
+
+
 @_assert_returns_type(Tuple)
 def args_and_kwargs_from_arglist(node):
   try:
     if node.type != 'arglist' and node.type != 'argument':
       return [expression_from_node(node)], {}
     elif node.type == 'argument':
-      # argument: ( test [comp_for] |
-      #        test '=' test |
-      #        '**' test |
-      #        '*' test )
-      # Note: We do an obnoxious amount of checking here to see if it's a kwarg because just checking
-      # for 'name' first also matches for_comp - e.g. 'truth for truth in truths'. It's dumb.
-      first_child = node.children[0]
-      if first_child.type == 'name':
-        second_child = node.children[1]
-        if second_child.type == 'operator' and second_child.value == '=':  # kwarg
-          return [], {first_child.value: expression_from_node(node.children[2])}
-        else:  # comp_for
-          assert_unexpected_parso(second_child.type == 'comp_for')
-          raise NotImplementedError()
+      name, arg = kwarg_from_argument(node)
+      if name:
+        return [], {name: arg}
+      return [arg], {}
+      # if first_child.type == 'name':
+      #   second_child = node.children[1]
+      #   if second_child.type == 'operator' and second_child.value == '=':  # kwarg
+      #     return [], {first_child.value: expression_from_node(node.children[2])}
+      #   else:  # comp_for
+      #     assert_unexpected_parso(second_child.type == 'comp_for')
+      #     raise NotImplementedError()
 
-      else:  # *args or **kwargs
-        # assert_unexpected_parso(len(node.children) == 2, node_info(node))
-        raise NotImplementedError()
+      # else:
+      #   # Example: *args or **kwargs
+      #   if first_child.type == 'operator':
+      #     raise NotImplementedError()
+      # assert_unexpected_parso(len(node.children) == 2, node_info(node))
+      # raise NotImplementedError()
 
     else:  # arglist
       iterator = iter(node.children)
@@ -364,12 +406,13 @@ def args_and_kwargs_from_arglist(node):
       kwargs = {}
       for child in iterator:
         if child.type == 'argument':
-          if child.children[0].type == 'name':  # kwarg
-            kwargs[child.children[0].value] = expression_from_node(
-                child.children[2])
+          name, arg = kwarg_from_argument(child)
+          if arg == '*':
+            continue
+          if name:
+            kwargs[name] = arg
           else:
-            assert_unexpected_parso(len(child.children) == 2, node_info(child))
-            raise NotImplementedError()  # *args or **kwargs
+            args.append(arg)
         elif child.type != 'operator':  # not ','
           args.append(expression_from_node(child))
       return args, kwargs

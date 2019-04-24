@@ -1,4 +1,8 @@
 [style]
 # YAPF uses the chromium style
 based_on_style = chromium
-indent_width = 2 
+indent_width = 2
+# Arbitrary
+SPLIT_PENALTY_IMPORT_NAMES=1000
+SPACES_BEFORE_COMMENT=2
+SPLIT_BEFORE_DOT=False 

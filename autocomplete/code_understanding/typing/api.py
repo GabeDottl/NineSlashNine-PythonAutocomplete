@@ -2,17 +2,16 @@ import argparse
 
 import parso
 
-from autocomplete.code_understanding.typing import (collector,
-                                                    control_flow_graph, frame,
-                                                    module_loader)
+from autocomplete.code_understanding.typing import (
+    collector, control_flow_graph, frame, module_loader)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     CfgNode)
 from autocomplete.code_understanding.typing.expressions import (
     UnknownExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Function, Klass, create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (
+    FuzzyBoolean, UnknownObject)
 from autocomplete.nsn_logging import debug, info
 
 

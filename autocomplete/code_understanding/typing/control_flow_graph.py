@@ -482,7 +482,8 @@ class ControlFlowGraphBuilder:
         except_clause = keyword
         exceptions = variables_from_node(except_clause.children[1])
         if len(except_clause.children) == 4:
-          exception_variable = VariableExpression(except_clause.children[-1])
+          exception_variable = VariableExpression(
+              except_clause.children[-1].value)
         else:
           exception_variable = None
         except_nodes.append(
