@@ -257,11 +257,8 @@ def load_module_from_filename(name,
       module_type=module_type,
       filename=filename,
       members={},
-      containing_package=None,
       is_package=is_package)
   module._members = load_module_exports_from_filename(module, filename)
-  # name = os.path.splitext(os.path.basename(path))[0]
-  # TODO: containing_package.
   return module
 
 
@@ -271,19 +268,13 @@ def _create_lazy_module(name, filename, is_package, module_type) -> LazyModule:
       module_type=module_type,
       filename=filename,
       load_module_exports_from_filename=load_module_exports_from_filename,
-      containing_package=None,
       is_package=is_package)
 
 
 def _create_empty_module(name, module_type):
-  parts = name.split('.')
-  containing_package = None
-  for part in parts:
-    containing_package = ModuleImpl(
-        name=part,
-        module_type=module_type,
-        filename=name,  # TODO
-        members={},
-        containing_package=containing_package,
-        is_package=False)
-  return containing_package
+  return ModuleImpl(
+      name=name,
+      module_type=module_type,
+      filename=name,  # TODO
+      members={},
+      is_package=False)

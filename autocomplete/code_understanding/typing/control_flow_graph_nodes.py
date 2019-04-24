@@ -7,27 +7,18 @@ from typing import Iterable, List, Set, Tuple, Union
 import attr
 
 from autocomplete.code_understanding.typing import collector
-from autocomplete.code_understanding.typing.errors import (ParsingError,
-                                                           assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (Expression,
-                                                                StarredExpression,
-                                                                SubscriptExpression,
-                                                                VariableExpression,
-                                                                _assign_variables_to_results)
+from autocomplete.code_understanding.typing.errors import (
+    AmbiguousFuzzyValueDoesntHaveSingleValueError, ParsingError,
+    assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (
+    Expression, StarredExpression, SubscriptExpression, VariableExpression,
+    _assign_variables_to_results)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.language_objects import (BoundFunction,
-                                                                     Function,
-                                                                     FunctionImpl,
-                                                                     FunctionType,
-                                                                     Klass,
-                                                                     Module,
-                                                                     ModuleImpl,
-                                                                     NativeModule,
-                                                                     Parameter,
-                                                                     SimplePackageModule)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyBoolean,
-                                                             FuzzyObject,
-                                                             UnknownObject)
+from autocomplete.code_understanding.typing.language_objects import (
+    BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module,
+    ModuleImpl, NativeModule, Parameter, SimplePackageModule)
+from autocomplete.code_understanding.typing.pobjects import (
+    FuzzyBoolean, FuzzyObject, UnknownObject)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import error, info, warning
 
@@ -131,7 +122,7 @@ class ExpressionCfgNode(CfgNode):
 
 @attr.s
 class ImportCfgNode(CfgNode):
-  module_path = attr.ib()
+  module_path = attr.ib()  # TODO: Rename to name
   parso_node = attr.ib()
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
@@ -142,15 +133,18 @@ class ImportCfgNode(CfgNode):
 
     if self.as_name:
       curr_frame[name] = module
-    elif '.' in self.name and isinstance(module, NativeModule):
+    elif '.' in self.module_path:
       # When python imports a module, it does not include information about containing packages
       # in it, so we dynamically add a structure to our module. Because we cache imported modules,
-      # we don't attach this to |module| so we don't risk sharing this imported hierachy across frames.
-      ancestor_module_hierarchy = self.name.split('.')
+      # we don't attach this to |module| so we don't risk sharing this imported hierachy across
+      # frames.
+      ancestor_module_hierarchy = self.module_path.split('.')
       last_module = None
+      current_name = None
       for name in ancestor_module_hierarchy[:-1]:
+        current_name = f'{current_name}.{name}' if current_name else name
         obj = None
-        if last_module and last_module.has_attribute(name)
+        if last_module and last_module.has_attribute(name):
           obj = last_module.get_attribute(name)
         elif not last_module and name in curr_frame:
           obj = curr_frame[name]
@@ -168,24 +162,23 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
-          ancestor_module = SimplePackageModule(name, module.module_type, filename=None, is_package=True, members={}, containing_package=last_module)
+          ancestor_module = SimplePackageModule(
+              current_name,
+              module.module_type,
+              filename=None,
+              is_package=True,
+              members={})
 
         if last_module:
           last_module.add_members({name: ancestor_module})
         else:
           root_module = ancestor_module
         last_module = ancestor_module
-      
+
       last_module.add_members({ancestor_module_hierarchy[-1]: module})
       curr_frame[root_module.name] = root_module
-    else:
-      root_module = module.root()
-      
-      curr_frame[root_module.name] = root_module
-        
-      else:
-        assert False
-
+    else:  # Free module - e.g. import a.
+      curr_frame[module.name] = module
     collector.add_module_import(module.name, self.as_name)
 
   @instance_memoize
@@ -217,7 +210,7 @@ class FromImportCfgNode(CfgNode):
       # Python's kind of funny. If |module| is a package, this will only bring in the modules in
       # that package which have already been explcitly imported. So, given a.b and a.c modules,
       # if we have from a import *, b and c will only be brought in to the namespace if they were
-      # already imported. Such subtleties.. 
+      # already imported. Such subtleties..
       module = self.module_loader.get_module(self.module_path)
       # Python does not include private members when importing with star.
       for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
@@ -445,7 +438,8 @@ class ExceptCfgNode(CfgNode):
     For this reason, we do a bit of weird finagling here in which we create a new frame, and merge
     it into the current frame after deleting `e` from it.'''
 
-    new_frame = curr_frame.make_child(curr_frame.namespace, FrameType.NORMAL)  # TODO: EXCEPT
+    new_frame = curr_frame.make_child(curr_frame.namespace,
+                                      FrameType.NORMAL)  # TODO: EXCEPT
     if self.exception_variable:
       new_frame[self.exception_variable] = UnknownObject(
           f'{self.exception_variable}')

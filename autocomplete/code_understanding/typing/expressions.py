@@ -288,7 +288,9 @@ class SetExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(value.get_used_free_symbols() for value in self.values)
+    return set(
+        itertools.chain(
+            *[value.get_used_free_symbols() for value in self.values]))
 
 
 @attr.s

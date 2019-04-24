@@ -96,7 +96,6 @@ def create_main_module(filename=None):
       '__main__',
       ModuleType.MAIN,
       members={},
-      containing_package=None,
       filename=filename,
       is_package=False)
 
@@ -114,16 +113,8 @@ class Module(Namespace, ABC):
   def get_members(self):
     return self._members
 
-  @abstractmethod
-  def path(self) -> str:
-    ...
 
-  @abstractmethod
-  def root(self):
-    ...
-
-
-@attr.s  # (str=False, repr=False)
+@attr.s
 class NativeModule(Module):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
@@ -153,8 +144,8 @@ class NativeModule(Module):
     return self._native_module.get_attribute(name)
 
   def set_attribute(self, name, value):
-    assert False, 'Should not set_attribute on NativeModules...'
-    return self._native_module.set_attribute(name)
+    # assert False, 'Should not set_attribute on NativeModules...'
+    self._native_module.set_attribute(name, value)
 
   def add_members(self, members):
     assert False, 'Should not add_members on NativeModules...'
@@ -163,38 +154,26 @@ class NativeModule(Module):
   def get_members(self):
     return self._native_module.to_dict()
 
-  def path(self) -> str:
-    return self._native_module.value().__name__
-
   @instance_memoize
   def root(self):
     return self
 
 
-@attr.s  # (str=False, repr=False)
+@attr.s
 class ModuleImpl(Module):
+  # This will include containing packages, if any. i.e. a.b.c for module c.
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
   filename = attr.ib(kw_only=True)
   _is_package = attr.ib(kw_only=True)
   _members: Dict = attr.ib(kw_only=True)
-  _containing_package = attr.ib(kw_only=True)
 
   def __attrs_post_init__(self):
-    # MODULE_GLOBALS = ['__name__', '__file__', '__loader__', '__package__', '__path__']
     self._members['__package__'] = self._members[
         '__name__'] = pobject_from_object(self.name)
     self._members['__path__'] = self._members['__file__'] = pobject_from_object(
         self.filename)
     self._members['__loader__'] = UnknownObject('__loader__')
-
-  def path(self) -> str:
-    return f'{self._containing_package.path()}.{self.name}' if self._containing_package else self.name
-
-  def root(self):
-    if self._containing_package:
-      return self._containing_package.root()
-    return self
 
   def __getitem__(self, name):
     try:
@@ -208,11 +187,6 @@ class ModuleImpl(Module):
 @attr.s
 class SimplePackageModule(ModuleImpl):
   ...
-
-
-# name: str = attr.ib()
-# module_type: ModuleType = attr.ib()
-# _members: Dict = attr.ib(init=False, default={})  # TODO: Remove.
 
 
 @attr.s
@@ -402,7 +376,7 @@ class FunctionImpl(Function):
         if isinstance(arg, StarredExpression):  # Passed *iterable or **dict.
           results = arg.base_expression.evaluate(curr_frame)
           if arg.operator == '*':
-            iterator = iter(results)
+            iterator = iter(results.iterator())
             try:
               new_frame[param.name] = next(iterator)
             except StopIteration:

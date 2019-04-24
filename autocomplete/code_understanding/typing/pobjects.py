@@ -205,9 +205,11 @@ def _process_indicies(args):
     return tuple()
   try:
     return tuple(x.value() for x in args) if len(args) > 1 else args[0].value()
-  except Exception as e:
-    print(e)
-    raise e
+  except AmbiguousFuzzyValueDoesntHaveSingleValueError:
+    # TODO?
+    return tuple()
+    # print(e)
+    # raise e
 
 
 NATIVE_TYPES = (int, str, list, dict, type(None))
