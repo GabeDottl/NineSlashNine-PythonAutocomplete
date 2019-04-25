@@ -314,7 +314,7 @@ def expressions_from_subscriptlist(node) -> Expression:
       assert isinstance(expression, Expression)
       return expression
     elif node.type == 'subscriptlist':
-      values = ItemListExpressin(
+      values = ItemListExpression(
           list(
               itertools.chain(
                   expressions_from_subscriptlist(node) for node in

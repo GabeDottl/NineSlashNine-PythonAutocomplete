@@ -1,10 +1,11 @@
 import itertools
 import types
+import typing
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from enum import Enum
 from functools import partialmethod, wraps
-from typing import List
+from typing import Dict, List
 
 import attr
 
@@ -175,7 +176,8 @@ class UnknownObject(PObject):
     return FuzzyBoolean.MAYBE
 
   def call(self, args, kwargs, curr_frame):
-    _process_args_kwargs(args, kwargs, curr_frame)
+    # TODO: For some reason, this causes infinite loops. Figure out why and uncomment.
+    # _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
   def get_item_pobject_index(self, native_indicies):
@@ -205,7 +207,9 @@ def _process_args_kwargs(args, kwargs, curr_frame):
   }
   return processed_args, processed_kwargs
 
+
 NATIVE_TYPES = (int, str, list, dict, type(None))
+
 
 @attr.s(str=False, repr=False)
 class NativeObject(PObject):
@@ -298,7 +302,7 @@ class NativeObject(PObject):
     # TODO: item_dynamic_container?
     if hasattr(self._native_object, '__setitem__'):
       try:
-        self._native_item.__setitem__(
+        self._native_object.__setitem__(
             index.evaluate(curr_frame).value(),
             value.evaluate(curr_frame).value())
       except (KeyError, AmbiguousFuzzyValueDoesntHaveSingleValueError):
@@ -308,10 +312,24 @@ class NativeObject(PObject):
         error(e)
 
   def to_dict(self):
-    return {
-        name: pobject_from_object(value)
-        for name, value in self._native_object.__dict__.items()
-    }
+    if hasattr(self._native_object, '__dict__'):
+      items_iter = self._native_object.__dict__.items()
+    elif isinstance(self._native_object, Dict):
+      items_iter = self._native_object.items()
+    elif hasattr(self._native_object, '__slots__'):
+
+      def iterator():
+        for name in self._native_object.__slots__:
+          try:
+            yield name, getattr(self._native_object, name)
+          except AttributeError:
+            pass
+
+      items_iter = iterator()
+    else:
+      debug(f'{self._native_object} can\'t be used as dict.')
+      return {}
+    return {name: pobject_from_object(value) for name, value in items_iter}
 
   def iterator(self):
     if hasattr(self._native_object, '__iter__'):
