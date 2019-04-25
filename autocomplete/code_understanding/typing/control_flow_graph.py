@@ -140,7 +140,7 @@ class ControlFlowGraphBuilder:
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_keyword(self, node):
-    if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield':
+    if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield' or node.value == 'raise':
       return NoOpCfgNode(node)
     if node.value == 'return':
       return ReturnCfgNode(LiteralExpression(None), parso_node=node)

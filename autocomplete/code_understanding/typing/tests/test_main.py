@@ -21,7 +21,7 @@ def test_simple_assignment():
 
 def test_imports():
   source = '''
-import numpy
+import numpy, tensorflow, pytorch
 import os as whatever
 import hob.dob as blob
 from functools import wraps
@@ -29,11 +29,14 @@ from a.b import c
 from x.y.z import (q, r as s)'''
   module = module_loader.load_module_from_source(source)
   assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
-  assert module['numpy'].value().path() == 'numpy'
+  assert 'tensorflow' in module and isinstance(module['tensorflow'].value(),
+                                               Module)
+  assert 'pytorch' in module and isinstance(module['pytorch'].value(), Module)
+  assert module['numpy'].value().name == 'numpy'
   assert 'whatever' in module and isinstance(module['whatever'].value(), Module)
-  assert module['whatever'].value().path() == 'os'
+  assert module['whatever'].value().name == 'os'
   assert 'blob' in module and isinstance(module['blob'].value(), Module)
-  assert module['blob'].value().path() == 'hob.dob'
+  assert module['blob'].value().name == 'hob.dob'
   assert 'wraps' in module
   assert module['wraps'].value().name == 'functools.wraps'
   assert 'c' in module

@@ -146,6 +146,7 @@ def test_no_missing_symbols_in_typing_package():
     missing_symbols = find_missing_symbols.scan_missing_symbols(
         filename, include_context=False)
     assert not missing_symbols
+  print(len(module_loader.__module_dict.keys()))
 
 
 if __name__ == "__main__":

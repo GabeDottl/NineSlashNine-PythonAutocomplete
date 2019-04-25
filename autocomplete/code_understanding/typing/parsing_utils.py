@@ -132,6 +132,7 @@ def parameters_from_parameters(node) -> List[Parameter]:
       # Either '*' or ',' - if *, is used, both will be given as children here.
       # All subsequent things are positional - don't care right now.
       continue
+
     assert_unexpected_parso(param.type == 'param', node_info(param))
     if len(param.children) == 1:  # name
       param_child = param.children[0]
@@ -146,19 +147,33 @@ def parameters_from_parameters(node) -> List[Parameter]:
         assert_unexpected_parso(param.children[0].type == 'operator',
                                 node_info(param))
         if param.children[0].value == '*':
-          out.append(Parameter(param.children[1].value, ParameterType.ARGS))
+          out.append(
+              Parameter(
+                  _param_name_from_param_child(param.children[1]),
+                  ParameterType.ARGS))
         else:  # **
-          out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
+          out.append(
+              Parameter(
+                  _param_name_from_param_child(param.children[1]),
+                  ParameterType.KWARGS))
     elif len(param.children) == 3:  # len(3)
       if param.children[0].type == 'operator':
         if param.children[0].value == '*':
-          out.append(Parameter(param.children[1].value, ParameterType.ARGS))
+          out.append(
+              Parameter(
+                  _param_name_from_param_child(param.children[1]),
+                  ParameterType.ARGS))
         else:  # **
-          out.append(Parameter(param.children[1].value, ParameterType.KWARGS))
-      elif param.children[0].type == 'name':
+          out.append(
+              Parameter(
+                  _param_name_from_param_child(param.children[1]),
+                  ParameterType.KWARGS))
+      elif param.children[0].type == 'name' or param.children[
+          0].type == 'tfpdef':
+        # TODO: typehint.
         out.append(
             Parameter(
-                param.children[0].value,
+                _param_name_from_param_child(param.children[0]),
                 ParameterType.SINGLE,
                 default=expression_from_node(param.children[2])))
       else:
@@ -167,8 +182,9 @@ def parameters_from_parameters(node) -> List[Parameter]:
     else:  # if len(param.children) == 4:  # name, =, expr, ','
       assert_unexpected_parso(len(param.children) == 4, node_info(param))
       out.append(
-          Parameter(param.children[0].value, ParameterType.SINGLE,
-                    expression_from_node(param.children[-2])))
+          Parameter(
+              _param_name_from_param_child(param.children[0]),
+              ParameterType.SINGLE, expression_from_node(param.children[-2])))
 
   return out
 

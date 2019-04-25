@@ -176,7 +176,7 @@ class UnknownObject(PObject):
     return FuzzyBoolean.MAYBE
 
   def call(self, args, kwargs, curr_frame):
-    # TODO: For some reason, this causes infinite loops. Figure out why and uncomment.
+    # TODO: For some reason, this causes infinite recursion. Figure out why and uncomment.
     # _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
@@ -268,24 +268,24 @@ class NativeObject(PObject):
     return FuzzyBoolean.TRUE if self._native_object else FuzzyBoolean.FALSE
 
   def call(self, args, kwargs, curr_frame):
+    args, kwargs = _process_args_kwargs(curr_frame, args, kwargs)
     try:
-      args, kwargs = _process_args_kwargs(curr_frame, args, kwargs)
       arg_values = [arg.value() for arg in args]
       kwarg_values = {name: value.value() for name, value in kwargs}
-      return NativeObject(
-          self._native_object.__call__(*arg_values, **kwarg_values))
     except AmbiguousFuzzyValueDoesntHaveSingleValueError as e:
       debug(e)
     except Exception as e:  # Catch any errors from calling a live-native object.
-      error(e)
+      debug(e)
+    else:
+      return NativeObject(
+          self._native_object.__call__(*arg_values, **kwarg_values))
+
     return UnknownObject(f'Call on {type(self._native_object)}')
 
   def get_item_pobject_index(self, indicies):
+    index = indicies.value()
     try:
-      value = self._native_object.__getitem__(indicies.value().value())
-      if isinstance(value, PObject):
-        return value
-      return pobject_from_object(value)
+      value = self._native_object.__getitem__(index)
     except (TypeError, KeyError, IndexError, AttributeError,
             AmbiguousFuzzyValueDoesntHaveSingleValueError):
       return UnknownObject(f'{self._native_object}[{indicies}]')
@@ -293,6 +293,10 @@ class NativeObject(PObject):
       import traceback
       traceback.print_tb(e.__traceback__)
       error(e)
+    else:
+      if isinstance(value, PObject):
+        return value
+      return pobject_from_object(value)
     return UnknownObject(f'{self._native_object}[{indicies}]')
 
   def get_item(self, curr_frame, index_expression):
@@ -640,7 +644,7 @@ class FuzzyObject(PObject):
     return self._get_item_internal(curr_frame, index_expression, indicies)
 
   def set_item(self, curr_frame, index, value):
-    debug(f'Skipping setting {self._object}[{index}] = {value}')
+    debug(f'Skipping setting FV[{index}] = {value}')
 
   def _operator(self, other, operator):
     try:

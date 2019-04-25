@@ -207,11 +207,11 @@ class ForComprehension:
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    generator_free_symbols = self.generator_expression.get_used_free_symbols()
-    iterable_symbols = self.iterable_symbols.get_used_free_symbols()
-    non_locals = set(itertools.chain(generator_free_symbols, iterable_symbols))
+    non_locals = set(self.iterable_expression.get_used_free_symbols())
     for symbol in self.get_defined_symbols():
       non_locals.discard(symbol)
+    if self.comp_iter:
+      return non_locals.union(self.comp_iter.get_used_free_symbols())
     return non_locals
 
 
@@ -229,7 +229,8 @@ class ForComprehensionExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    generator_free_symbols = self.generator_expression.get_used_free_symbols()
+    generator_free_symbols = set(
+        self.generator_expression.get_used_free_symbols())
     for symbol in self.for_comprehension.get_defined_symbols():
       generator_free_symbols.discard(symbol)
     return generator_free_symbols.union(
@@ -325,7 +326,9 @@ class DictExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(value.get_used_free_symbols() for value in self.values)
+    return set(
+        itertools.chain(
+            *[value.get_used_free_symbols() for value in self.values]))
 
 
 @attr.s

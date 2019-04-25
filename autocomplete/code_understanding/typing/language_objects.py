@@ -85,10 +85,10 @@ class ModuleType(Enum):
   LOCAL = 2
   MAIN = 3
   BUILTIN = 4
-  UNKNOWN = 5
+  UNKNOWN_OR_UNREADABLE = 5
 
   def should_be_readable(self):
-    return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN
+    return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE
 
 
 def create_main_module(filename=None):
@@ -126,12 +126,12 @@ class NativeModule(Module):
     return self._native_module.has_attribute(name)
 
   # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
-  def __getitem__(self, index):
-    return self._native_module.get_item_pobject_index(index)
+  def __getitem__(self, name):
+    return self._native_module.get_attribute(name)
 
   def __setitem__(self, index, value):
     assert False, 'Should not __setitem__ on NativeModules...'
-    self._native_module.set_item(index, value)
+    self._native_module.set_attribute(index, value)
 
   def items(self):
     return self.get_members().items()

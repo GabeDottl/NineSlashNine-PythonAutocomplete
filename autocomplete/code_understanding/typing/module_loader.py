@@ -50,7 +50,10 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
     return module[pobject_name]
 
   # # See if there's a module we can read that'd correspond to the full name.
-  return load_module(full_pobject_name)
+  try:
+    return load_module(full_pobject_name, unknown_fallback=False)
+  except InvalidModuleError:
+    return UnknownObject(full_pobject_name)
 
 
 def get_module(name: str, unknown_fallback=True) -> Module:
@@ -59,7 +62,7 @@ def get_module(name: str, unknown_fallback=True) -> Module:
     module = __module_dict[name]
     if module is None:
       error('Circular dep.')
-      return _create_empty_module(name, ModuleType.UNKNOWN)
+      return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
     return module
   __module_dict[name] = None
   path, is_package, module_type = _module_info_from_name(name)
@@ -152,6 +155,28 @@ def _module_type_from_path(path) -> ModuleType:
   return ModuleType.SYSTEM
 
 
+def _relative_path_from_relative_module(name):
+  # assert name[0] == '.'
+
+  if name == '.':
+    return '.'
+
+  dot_prefix_count = 0
+  for char in name:
+    if char != '.':
+      break
+    dot_prefix_count += 1
+
+  remaining_name = name[dot_prefix_count:]
+  if dot_prefix_count == 1:
+    relative_prefix = f'.{os.sep}'
+  else:
+    relative_prefix = ''
+    for i in range(dot_prefix_count - 1):
+      relative_prefix += f'..{os.sep}'
+  return f'{relative_prefix}{remaining_name.replace(".", os.sep)}'
+
+
 def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   try:
     stub_path, is_package = _get_module_stub_source_filename(name)
@@ -161,35 +186,43 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
     pass
   is_package = False
   if name[0] == '.':
-    if name == '.':
-      # TODO: Weird getting this from a collector... state.py?
-      path = os.path.join(collector.get_current_context_dir(), '__init__.py')
-      is_package = True
-    else:
-      path = f'{collector.get_current_context_dir()}.{name.replace(".", os.sep)}'
-      if os.path.isdir(path):
-        path = os.path.join(path, '__init__.py')
+    relative_path = _relative_path_from_relative_module(name)
+    absolute_path = os.path.join(collector.get_current_context_dir(),
+                                 relative_path)
+    if os.path.exists(absolute_path):
+      if os.path.isdir(absolute_path):
         is_package = True
+        for name in ('__init__.pyi', '__init__.py'):
+          filename = os.path.join(collector.get_current_context_dir(), name)
+          if os.path.exists(filename):
+            return filename, is_package, _module_type_from_path(filename)
       else:
-        path = f'{path}.py'
-
-    if not os.path.exists(path):
-      return '', False, ModuleType.UNKNOWN
-    return path, is_package, _module_type_from_path(path)
+        warning(f'Bizarre case - {absolute_path} is file but not dir...')
+        return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
+    for file_extension in ('.pyi', '.py'):
+      filename = f'{absolute_path}{file_extension}'
+      if os.path.exists(filename):
+        return filename, False, _module_type_from_path(filename)
+    return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
   try:
     spec = importlib.util.find_spec(name)
-    if spec:
-      if spec.has_location:
-        path = spec.loader.get_filename()
-        return path, _is_init(path), _module_type_from_path(path)
-      else:  # System module
-        return None, False, ModuleType.BUILTIN
-  except (AttributeError, ModuleNotFoundError) as e:
+  except (AttributeError, ModuleNotFoundError, ValueError) as e:
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')
     debug(e)
+  else:
+    if spec:
+      if spec.has_location:
+        path = spec.loader.get_filename()
+        ext = os.path.splitext(path)[1]
+        if ext != '.pyi' and ext != '.py':
+          debug(f'Cannot read module filetype - {path}')
+          return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
+        return path, _is_init(path), _module_type_from_path(path)
+      else:  # System module
+        return None, False, ModuleType.BUILTIN
   debug(f'Could not find Module {name} - falling back to Unknown.')
-  return None, False, ModuleType.UNKNOWN
+  return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
 
 def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
@@ -208,7 +241,7 @@ def _load_module_from_module_info(name: str,
                                   module_type,
                                   unknown_fallback=True,
                                   lazy=True) -> Module:
-  if module_type == ModuleType.UNKNOWN:
+  if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
     if unknown_fallback:
       return _create_empty_module(name, module_type)
     else:
@@ -242,7 +275,7 @@ def load_module_from_filename(name,
     if not unknown_fallback:
       raise InvalidModuleError(filename)
     else:
-      return _create_empty_module(name, ModuleType.UNKNOWN)
+      return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   if lazy:
     return _create_lazy_module(
         name, filename, is_package=is_package, module_type=module_type)
