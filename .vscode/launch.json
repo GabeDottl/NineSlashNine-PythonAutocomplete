@@ -4,14 +4,6 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-    // {
-    //   "name": "exception_weird",
-    //   "type": "python",
-    //   "request": "launch",
-    //   "program": "${workspaceFolder}/autocomplete/code_understanding/typing/test_exception_weirdness.py",
-    //   "console": "integratedTerminal",
-    // },
-      
     {
       "name": "test_expression",
       "type": "python",
@@ -26,9 +18,7 @@
       "program": "${workspaceFolder}/autocomplete/code_understanding/typing/project_analysis/find_missing_symbols.py",
       "console": "integratedTerminal",
       "args": [
-        // "/home/gabe/code/autocomplete/autocomplete/nsn_logging.py",
-        "/home/gabe/code/autocomplete/autocomplete/nsn_logging.py",
-        // "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/project_analysis/find_missing_symbols.py",
+        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing",
       ],
     },
     {

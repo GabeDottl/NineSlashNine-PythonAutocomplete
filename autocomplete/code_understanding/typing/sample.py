@@ -15,7 +15,7 @@ class Foo:
     print(self.x)
 
   def get_t(self):
-    return t
+    return self.t
 
   def inter(self):
     return 1

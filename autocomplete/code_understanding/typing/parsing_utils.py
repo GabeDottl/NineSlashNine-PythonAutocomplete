@@ -279,10 +279,9 @@ def expression_from_atom_expr(node) -> Expression:
         args, kwargs = args_and_kwargs_from_arglist(trailer.children[1])
         last_expression = CallExpression(last_expression, args, kwargs)
     elif trailer.children[0].value == '[':
-      subscript_expressions = expressions_from_subscriptlist(
-          trailer.children[1])
+      subscript_expression = expressions_from_subscriptlist(trailer.children[1])
       last_expression = SubscriptExpression(last_expression,
-                                            subscript_expressions)
+                                            subscript_expression)
     else:
       assert_unexpected_parso(trailer.children[0].value == '.',
                               trailer.get_code())
@@ -304,9 +303,8 @@ def _unimplmented_expression(func):
   return wrapper
 
 
-@_assert_returns_type(Tuple)
 @_unimplmented_expression
-def expressions_from_subscriptlist(node) -> Tuple[Expression]:
+def expressions_from_subscriptlist(node) -> Expression:
   try:
     # subscriptlist: subscript (',' subscript)* [',']
     # subscript: test | [test] ':' [test] [sliceop]
@@ -314,13 +312,14 @@ def expressions_from_subscriptlist(node) -> Tuple[Expression]:
     if node.type != 'subscriptlist' and node.type != 'subscript':
       expression = expression_from_node(node)
       assert isinstance(expression, Expression)
-      return (expression,)
+      return expression
     elif node.type == 'subscriptlist':
-      values = tuple(
-          itertools.chain(
-              expressions_from_subscriptlist(node) for node in
-              filter(lambda x: x.type != 'operator' or x.value != ',',
-                     node.children)))
+      values = ItemListExpressin(
+          list(
+              itertools.chain(
+                  expressions_from_subscriptlist(node) for node in
+                  filter(lambda x: x.type != 'operator' or x.value != ',',
+                         node.children))))
       assert all(isinstance(value, Expression) for value in values)
       return values
     else:  # subscript
@@ -329,7 +328,7 @@ def expressions_from_subscriptlist(node) -> Tuple[Expression]:
       # return UnknownExpression(node.get_code())
       raise NotImplementedError()  # TODO
   except:
-    return (UnknownExpression(node.get_code()),)
+    return UnknownExpression(node.get_code())
 
 
 # @_unimplmented_expression

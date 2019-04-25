@@ -87,17 +87,20 @@ class PObject(ABC):
   def call(self, args, kwargs, curr_frame):
     ...
 
-  # @abstractmethod
-  def _get_item_processed(self, indicies):
+  @abstractmethod
+  def get_item_pobject_index(self, indicies):
     ...
 
   @abstractmethod
-  def get_item(self, curr_frame, args):
+  def get_item(self, curr_frame, index_expression):
     ...
 
   @abstractmethod
-  def set_item(self, curr_frame, index, value):
+  def set_item(self, curr_frame, index_expression, value_expression):
     ...
+
+  # def set_item_native_index(self, native_indicies, value):
+  #   pass
 
   def iterator(self):
     return iter([])
@@ -175,14 +178,17 @@ class UnknownObject(PObject):
     _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
-  def _get_item_processed(self, indicies):
+  def get_item_pobject_index(self, native_indicies):
     return UnknownObject('get_item?')
 
-  def get_item(self, curr_frame, args):
+  def get_item(self, curr_frame, index_expression):
     # TODO
+    # index_expression.evaluate()
     return UnknownObject('get_item?')
 
-  def set_item(self, curr_frame, index, value):
+  def set_item(self, curr_frame, index_expression, value_expression):
+    # index_expression.evaluate()
+    # value_expression.evaluate()
     ...
 
   def __str__(self):
@@ -199,21 +205,7 @@ def _process_args_kwargs(args, kwargs, curr_frame):
   }
   return processed_args, processed_kwargs
 
-
-def _process_indicies(args):
-  if not args:
-    return tuple()
-  try:
-    return tuple(x.value() for x in args) if len(args) > 1 else args[0].value()
-  except AmbiguousFuzzyValueDoesntHaveSingleValueError:
-    # TODO?
-    return tuple()
-    # print(e)
-    # raise e
-
-
 NATIVE_TYPES = (int, str, list, dict, type(None))
-
 
 @attr.s(str=False, repr=False)
 class NativeObject(PObject):
@@ -284,13 +276,14 @@ class NativeObject(PObject):
       error(e)
     return UnknownObject(f'Call on {type(self._native_object)}')
 
-  def _get_item_processed(self, indicies):
+  def get_item_pobject_index(self, indicies):
     try:
-      value = self._native_object.__getitem__(indicies)
+      value = self._native_object.__getitem__(indicies.value().value())
       if isinstance(value, PObject):
         return value
       return pobject_from_object(value)
-    except (TypeError, KeyError, IndexError, AttributeError):
+    except (TypeError, KeyError, IndexError, AttributeError,
+            AmbiguousFuzzyValueDoesntHaveSingleValueError):
       return UnknownObject(f'{self._native_object}[{indicies}]')
     except Exception as e:
       import traceback
@@ -298,15 +291,17 @@ class NativeObject(PObject):
       error(e)
     return UnknownObject(f'{self._native_object}[{indicies}]')
 
-  def get_item(self, curr_frame, args):
-    return self._get_item_processed(_process_indicies(args))
+  def get_item(self, curr_frame, index_expression):
+    return self.get_item_pobject_index(index_expression.evaluate(curr_frame))
 
   def set_item(self, curr_frame, index, value):
     # TODO: item_dynamic_container?
     if hasattr(self._native_object, '__setitem__'):
       try:
-        self._native_item.__setitem__(_process_indicies(index), value)
-      except KeyError:
+        self._native_item.__setitem__(
+            index.evaluate(curr_frame).value(),
+            value.evaluate(curr_frame).value())
+      except (KeyError, AmbiguousFuzzyValueDoesntHaveSingleValueError):
         pass
       except Exception as e:
         error(f'While setting {self._native_object}[{index}] = {value}')
@@ -404,33 +399,34 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     _process_args_kwargs(args, kwargs, curr_frame)
     return UnknownObject('Call?')
 
-  # def _get_item_processed(self, indicies):
-  # if isinstance(self._object, PObject):
-  #   return self._object._get_item_processed(indicies)
-  # return self.get_item(AnonymousExpression(indicies))
-
-  def get_item(self, curr_frame, args):
+  def get_item_pobject_index(self, indicies):
     if isinstance(self._object, PObject):
-      return self._object.get_item(args)
+      return self._object.get_item_pobject_index(indicies)
+    # TODO
+    return UnknownObject('')
+
+  def get_item(self, curr_frame, index_expression):
+    if isinstance(self._object, PObject):
+      return self._object.get_item(index_expression)
     if self._object.has_attribute('__getitem__'):
       getitem = self._object.get_attribute('__getitem__')
-      return getitem.call(curr_frame, args, {})
+      return getitem.call([index_expression], {}, curr_frame)
 
     # TODO?
-    # self._object._get_item_processed(indicies)
-    return UnknownObject(f'{self._object}[{args}]')
+    # self._object.get_item_pobject_index(indicies)
+    return UnknownObject(f'{self._object}[{index_expression}]')
 
-  def set_item(self, curr_frame, index, value):
+  def set_item(self, curr_frame, index_expression, value_expression):
     if isinstance(self._object, PObject):
-      self._object.set_item(index, value)
+      self._object.set_item(index_expression, value_expression)
     elif self._object.has_attribute('__setitem__'):
-      setitem = self._object.get_attribute('__setitem__')
-      setitem.call(curr_frame, index, value)
-    # index = _process_indicies(index)
-    # self._object.set_item(index, value)
+      getitem = self._object.get_attribute('__setitem__')
+      return getitem.call([index_expression, value_expression], {}, curr_frame)
     else:
-      warning(f'Skipping setting {self._object}[{index}] = {value}')
-    # return self._get_item_processed(_process_indicies(args))
+      # TODO: item_dynamic_container
+      warning(
+          f'Skipping setting {self._object}[{index_expression}] = {value_expression}'
+      )
 
   def __str__(self):
     return f'AO({self._object}):[{self._dynamic_container}]'
@@ -585,19 +581,31 @@ class FuzzyObject(PObject):
     elif out:  # len(out) == 1
       return out[0]
     raise EmptyFuzzyValueError()
-    # _process_args_kwargs(args, kwargs, curr_frame)  # No children means we
-    # return UnknownObject(f'FV({args}, {kwargs})')
 
-  def _get_item_internal(self, curr_frame, args, indicies):
+  def get_item_pobject_index(self, indicies):
+    # TODO: This gets mucky bc we need expressions for making function calls and can't create
+    # expressions...
+    out = []
+    for value in self._values:
+      out.append(value.get_item_pobject_index(
+          indicies))  # TODO: Add API get_item_processed_args
+    if len(out) > 1:
+      return FuzzyObject(out)
+    elif out:  # len(out) == 1
+      return out[0]
+    return UnknownObject(f'FV[{indicies}]')
+
+  def _get_item_internal(self, curr_frame, index_expression, indicies):
     out = []
     for value in self._values:
       try:
         if isinstance(value, FuzzyObject):
-          result = value._get_item_internal(curr_frame, args, indicies)
-        elif hasattr(value, '_get_item_processed'):
-          result = value._get_item_processed(indicies)
+          result = value._get_item_internal(curr_frame, index_expression,
+                                            indicies)
+        elif hasattr(value, 'get_item_pobject_index'):
+          result = value.get_item_pobject_index(indicies)
         else:  # Default.
-          result = value.get_item(args)
+          result = value.get_item(index_expression)
         assert isinstance(result, PObject)
         out.append(result)  # TODO: Add API get_item_processed_args
       except IndexError as e:
@@ -609,9 +617,9 @@ class FuzzyObject(PObject):
       return out[0]
     return UnknownObject(f'FV[{indicies}]')
 
-  def get_item(self, curr_frame, args):
-    indicies = _process_indicies(args)
-    return self._get_item_internal(curr_frame, args, indicies)
+  def get_item(self, curr_frame, index_expression):
+    indicies = index_expression.evaluate(curr_frame)
+    return self._get_item_internal(curr_frame, index_expression, indicies)
 
   def set_item(self, curr_frame, index, value):
     debug(f'Skipping setting {self._object}[{index}] = {value}')

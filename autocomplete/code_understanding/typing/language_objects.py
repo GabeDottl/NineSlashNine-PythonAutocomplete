@@ -127,7 +127,7 @@ class NativeModule(Module):
 
   # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
   def __getitem__(self, index):
-    return self._native_module._get_item_processed(index)
+    return self._native_module.get_item_pobject_index(index)
 
   def __setitem__(self, index, value):
     assert False, 'Should not __setitem__ on NativeModules...'

@@ -47,11 +47,7 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   # because it will cause headaches. So try getting full_object_name as a package instead.
   if (not isinstance(module, LazyModule) or
       not module._loading) and pobject_name in module:
-    # try:
     return module[pobject_name]
-    # except (SourceAttributeError, LoadingModuleAttributeError,
-    #         UnableToReadModuleFileError):
-    #   pass
 
   # # See if there's a module we can read that'd correspond to the full name.
   return load_module(full_pobject_name)
@@ -219,9 +215,8 @@ def _load_module_from_module_info(name: str,
       raise InvalidModuleError(name)
 
   if module_type == ModuleType.BUILTIN or name in NATIVE_MODULE_WHITELIST:
-    # TODO: Cache.
-    spec = importlib.util.find_spec(name)
-    python_module = spec.loader.load_module(name)
+    # TODO: Create caches and rely on those after initial loads.
+    python_module = importlib.import_module(name)
     return NativeModule(
         name,
         module_type,

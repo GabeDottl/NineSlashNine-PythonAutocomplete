@@ -144,10 +144,10 @@ def _assign_variables_to_results(curr_frame, variable, result):
         debug(f'Mishandling star assignment')
         # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
         _assign_variables_to_results(curr_frame, variable_item.base_expression,
-                                     result._get_item_processed(i))
+                                     result.get_item_pobject_index(i))
       else:
         _assign_variables_to_results(curr_frame, variable_item,
-                                     result._get_item_processed(i))
+                                     result.get_item_pobject_index(i))
 
 
 @attr.s
@@ -345,30 +345,19 @@ class AttributeExpression(Expression):
 @attr.s
 class SubscriptExpression(Expression):
   base_expression: Expression = attr.ib()
-  subscript_list = attr.ib()
-
-  @subscript_list.validator
-  def _validate_subscript_list(self, attribute, values):
-    for value in values:
-      if not isinstance(value, Expression):
-        raise ValueError(value)
+  subscript_list_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return self.get(curr_frame)
 
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
-    values = []
-    for e in self.subscript_list:
-      values.append(e.evaluate(curr_frame))
-    return pobject.get_item(curr_frame, values)
+    return pobject.get_item(curr_frame, self.subscript_list_expression)
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
-    values = []
-    for e in self.subscript_list:
-      values.append(e.evaluate(curr_frame))
-    return pobject.set_item(curr_frame, tuple(values), value)
+    return pobject.set_item(curr_frame, self.subscript_list_expression,
+                            AnonymousExpression(value))
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
