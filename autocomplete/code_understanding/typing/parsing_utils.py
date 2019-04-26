@@ -38,7 +38,7 @@ def _assert_returns_type(type_):
 
 def variables_from_node(node):
   if node.type == 'testlist_star_expr':
-    return ItemListExpression(expressions_from_testlist_comp(node))
+    return expression_from_testlist_comp(node)
   else:  # Illegal per the grammar, but this includes things like 'name'.
     variable = expression_from_node(node)
     if isinstance(variable,
@@ -97,7 +97,7 @@ def statement_node_from_expr_stmt(node):
     for i in range(2, len(node.children) - 1, 2):
       child = node.children[i]
       if child.type == 'testlist_star_expr':
-        target_repeats.append(expressions_from_testlist_comp(child))
+        target_repeats.append(expression_from_testlist_comp(child))
       else:  # Illegal per the grammar, but this includes things like 'name'.
         target_repeats.append(ItemListExpression([expression_from_node(child)]))
     assignments = []
@@ -190,23 +190,20 @@ def parameters_from_parameters(node) -> List[Parameter]:
   return out
 
 
-@_assert_returns_type(List)
-def expressions_from_testlist_comp(node) -> List[Variable]:
+@_assert_returns_type(Expression)
+def expression_from_testlist_comp(node) -> Expression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
-  if len(node.children
-        ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
-    assert_unexpected_parso(
-        False, ('Can\'t have comp_for references - only expressions.',
-                node_info(node)))
-    # return extract_references_from_comp_for(test, comp_for)
-  else:  # expr(x), expr(b), ...,
-    out = []
-    for child in node.children:
-      if child.type == 'operator':
-        assert_unexpected_parso(child.value == ',')
-        continue
-      out.append(expression_from_node(child))
-    return out
+  # expr(x) for x in b
+  assert_unexpected_parso(len(node.children) != 2 or node.children[1].type == 'comp_for',
+      ('Can\'t have comp_for references - only expressions.', node_info(node)))
+
+  out = []
+  for child in node.children:
+    if child.type == 'operator':
+      assert_unexpected_parso(child.value == ',')
+      continue
+    out.append(expression_from_node(child))
+  return ItemListExpression(out)
 
 
 def for_comprehension_from_comp_for(comp_for):
@@ -238,15 +235,11 @@ def expression_from_comp_for(generator_node,
 @_assert_returns_type(Expression)
 def expression_from_testlist_comp(node) -> TupleExpression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
+  # expr(x) for x in b
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     return TupleExpression(expression_from_comp_for(*node.children))
 
-  # expr(x) for x in b
-  if len(node.children) == 2 and node.children[1].type == 'comp_for':
-    assert_unexpected_parso(
-        False, ('Don\'t support comp_for references - only expressions.',
-                node_info(node)))
 
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,
@@ -458,7 +451,7 @@ def expression_from_node(node):
     return expression_from_atom(node)
   if node.type == 'atom_expr':
     return expression_from_atom_expr(node)
-  if node.type == 'testlist_comp':
+  if node.type == 'testlist_comp' or node.type == 'testlist_star_expr':
     return expression_from_testlist_comp(node)
   if node.type == 'testlist' or node.type == 'exprlist':
     return expression_from_testlist(node)

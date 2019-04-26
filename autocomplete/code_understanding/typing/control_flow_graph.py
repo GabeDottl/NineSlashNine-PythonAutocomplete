@@ -86,20 +86,23 @@ class ControlFlowGraphBuilder:
       traceback.print_tb(e.__traceback__)
       error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')
       raise e
-    except NotImplementedError:
+    except NotImplementedError as e:
+      # import traceback
+      # traceback.print_tb(e.__traceback__)
+      # warning(f'{type(e)}: {e}')
       pass
 
     return NoOpCfgNode(node)
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_error_leaf(self, node):
-    info(f'Error leaf when processing: {node.get_code()}')
+    info(f'Error leaf when processing: "{node.get_code()}"')
     # assert False
     return NoOpCfgNode(node)
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_error_node(self, node):
-    info(f'Error node when processing: {node.get_code()}')
+    info(f'Error node when processing: "{node.get_code()}"')
     # assert False
     return NoOpCfgNode(node)
 
