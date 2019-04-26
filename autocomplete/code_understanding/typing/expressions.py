@@ -76,6 +76,28 @@ class NotExpression(Expression):
 
 
 @attr.s
+class AndOrExpression(Expression):
+  left_expression: Expression = attr.ib()
+  operator: str = attr.ib()
+  right_expression: Expression = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    l = self.left_expression.evaluate(curr_frame)
+    r = self.right_expression.evaluate(curr_frame)
+    if self.operator == 'or':
+      return pobject_from_object(l.bool_value().or_expr(r.bool_value()))
+    assert self.operator == 'and'
+    return pobject_from_object(l.bool_value().and_expr(r.bool_value()))
+
+    return AugmentedObject(pobject.bool_value().invert())
+
+  @instance_memoize
+  def get_used_free_symbols(self) -> Iterable[str]:
+    return set(self.left_expression.get_used_free_symbols()).union(
+        self.right_expression.get_used_free_symbols())
+
+
+@attr.s
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
   source_expression: Expression = attr.ib(

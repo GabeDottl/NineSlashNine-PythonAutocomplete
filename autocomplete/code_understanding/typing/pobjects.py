@@ -37,6 +37,29 @@ class FuzzyBoolean(Enum):
   def __bool__(self):
     raise ValueError('FuzzyBoolean\'s shouldn\'t be converted to regular bools')
 
+  def and_expr(self, other):
+    assert isinstance(other, FuzzyBoolean)
+    # if hasattr(other, bool_value):
+    if self == FuzzyBoolean.FALSE or other == FuzzyBoolean.FALSE:
+      return FuzzyBoolean.FALSE
+    elif self == FuzzyBoolean.TRUE and other == FuzzyBoolean.TRUE:
+      return FuzzyBoolean.TRUE
+    return FuzzyBoolean.MAYBE if self.maybe_true() and other.maybe_true(
+    ) else FuzzyBoolean.FALSE
+
+  def or_expr(self, other):
+    assert isinstance(other, FuzzyBoolean)
+    # if hasattr(other, bool_value):
+    if self == FuzzyBoolean.FALSE and other == FuzzyBoolean.FALSE:
+      return FuzzyBoolean.FALSE
+    elif self == FuzzyBoolean.TRUE or other == FuzzyBoolean.TRUE:
+      return FuzzyBoolean.TRUE
+    return FuzzyBoolean.MAYBE if self.maybe_true() or other.maybe_true(
+    ) else FuzzyBoolean.FALSE
+
+  def maybe_true(self):
+    return self == FuzzyBoolean.MAYBE or self == FuzzyBoolean.TRUE
+
 
 class PObject(ABC):
   '''PObjects wrap or substitute actual objects and encapsulate unexpected or ambiguous behavior.

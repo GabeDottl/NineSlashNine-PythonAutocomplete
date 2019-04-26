@@ -9,12 +9,13 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
-    AttributeExpression, CallExpression, ComparisonExpression, DictExpression,
-    Expression, FactorExpression, ForComprehension, ForComprehensionExpression,
-    IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp,
-    ListExpression, LiteralExpression, MathExpression, NotExpression,
-    SetExpression, StarredExpression, SubscriptExpression, TupleExpression,
-    UnknownExpression, Variable, VariableExpression)
+    AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression,
+    DictExpression, Expression, FactorExpression, ForComprehension,
+    ForComprehensionExpression, IfElseExpression, ItemListExpression,
+    KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
+    MathExpression, NotExpression, SetExpression, StarredExpression,
+    SubscriptExpression, TupleExpression, UnknownExpression, Variable,
+    VariableExpression)
 from autocomplete.code_understanding.typing.language_objects import (
     Parameter, ParameterType)
 from autocomplete.nsn_logging import debug, error, info, warning
@@ -476,11 +477,24 @@ def expression_from_node(node):
   if node.type == 'star_expr':
     return StarredExpression(node.children[0].value,
                              expression_from_node(node.children[-1]))
+  if node.type == 'or_test' or node.type == 'and_test':
+    return expression_from_and_test_or_test(node)
+
     # return UnknownExpression()
   debug(f'Unhanded type!!!!: {node_info(node)}')
-  return UnknownExpression(node.get_code())
-  # raise NotImplementedError(node_info(node))
+  # return UnknownExpression(node.get_code())
+  raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))
+
+
+def expression_from_and_test_or_test(node) -> Expression:
+  assert len(node.children) >= 3
+  right_expression = expression_from_node(node.children[-1])
+  for i in range(1, len(node.children), 2)[::-1]:
+    right_expression = AndOrExpression(
+        expression_from_node(node.children[i - 1]), node.children[i].value,
+        right_expression)
+  return right_expression
 
 
 def expression_from_dictorsetmaker(dictorsetmaker
