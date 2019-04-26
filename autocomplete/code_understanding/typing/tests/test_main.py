@@ -13,10 +13,16 @@ from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
 from autocomplete.nsn_logging import debug
 
 
-def test_simple_assignment():
-  source = 'a=1'
+def test_simple_assignments():
+  source = '''
+  a=1
+  b,(c, d) = a,(2,3)
+  '''
   module = module_loader.load_module_from_source(source)
   assert module['a'].value() == 1
+  assert module['b'].value() == 1
+  assert module['c'].value() == 2
+  assert module['d'].value() == 3
 
 
 def test_imports():
@@ -153,7 +159,7 @@ def test_processing_all_typing_dir():
 
 
 if __name__ == '__main__':
-  test_simple_assignment()
+  test_simple_assignments()
   test_stubs()
   test_classes()
   test_arrays()

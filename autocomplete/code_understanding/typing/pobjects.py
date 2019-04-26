@@ -64,6 +64,12 @@ class FuzzyBoolean(Enum):
   def maybe_true(self):
     return self == FuzzyBoolean.MAYBE or self == FuzzyBoolean.TRUE
 
+  def to_pobject(self):
+    if self == FuzzyBoolean.TRUE:
+      return NativeObject(True)
+    if self == FuzzyBoolean.FALSE:
+      return NativeObject(False)
+    return FuzzyObject([NativeObject(True), NativeObject(False)])
 
 def _process_args_kwargs(curr_frame, args, kwargs):
   processed_args = [arg.evaluate(curr_frame) for arg in args]
@@ -260,7 +266,7 @@ class NativeObject(PObject):
       native_object = getattr(self._native_object, name)
     except AttributeError as e:  # E.g. <str>.get_attribute
       # TODO: Support for some native objects - str, int, list perhaps.
-      warning(f'Failed to access {name} from {self._native_object}. {e}')
+      debug(f'Failed to access {name} from {self._native_object}. {e}')
     else:
       return pobject_from_object(native_object)
     return self._dynamic_container.get_attribute(name)
@@ -297,12 +303,12 @@ class NativeObject(PObject):
       kwarg_values = {name: value.value() for name, value in kwargs.items()}
     except AmbiguousFuzzyValueDoesntHaveSingleValueError as e:
       debug(e)
-    else:
-      try:
-        return NativeObject(
-            self._native_object.__call__(*arg_values, **kwarg_values))
-      except Exception as e:
-        warning(e)
+    # else:
+      # try:
+      #   # TODO: Add whitelist.
+      #   # return NativeObject(self._native_object.__call__(*arg_values, **kwarg_values))
+      # except Exception as e:
+      #   warning(e)
 
     return UnknownObject(f'Call on {type(self._native_object)}')
 
@@ -385,10 +391,12 @@ class NativeObject(PObject):
 
 
 def pobject_from_object(obj):
-  if isinstance(obj, LanguageObject) or isinstance(obj, FuzzyBoolean):
+  if isinstance(obj, LanguageObject):
     return AugmentedObject(obj)
   if isinstance(obj, PObject):
     return obj
+  if isinstance(obj, FuzzyBoolean):
+    return obj.to_pobject()
 
   return NativeObject(obj)
 

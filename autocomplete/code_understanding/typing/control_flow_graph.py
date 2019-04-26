@@ -501,8 +501,15 @@ class ControlFlowGraphBuilder:
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_async_stmt(self, node):
+    # TODO: https://docs.python.org/3/library/asyncio-task.html
     debug(f'Ignoring async in {node.type}')
     return self._create_cfg_node(node.children[1])
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_async_funcdef(self, node):
+    # TODO: https://docs.python.org/3/library/asyncio-task.html
+    # TODO: Generators.
+    return self._create_cfg_node_for_funcdef(node.children[1])
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_decorated(self, node):
@@ -515,10 +522,6 @@ class ControlFlowGraphBuilder:
     # TODO: Generators.
     return ReturnCfgNode(expression_from_node(node.children[1]), node)
 
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_async_funcdef(self, node):
-    # TODO: Generators.
-    return self._create_cfg_node_for_funcdef(node.children[1])
 
   ##### Intentional NoOp nodes for our purposes. #####
   @_assert_returns_type(CfgNode)
