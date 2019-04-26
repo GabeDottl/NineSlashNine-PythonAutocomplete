@@ -68,7 +68,7 @@ class NotExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.expression.evaluate(curr_frame)
-    return AugmentedObject(pobject.bool_value().invert())
+    return pobject.bool_value().invert().to_pobject()
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -87,9 +87,7 @@ class AndOrExpression(Expression):
     if self.operator == 'or':
       return pobject_from_object(l.bool_value().or_expr(r.bool_value()))
     assert self.operator == 'and'
-    return pobject_from_object(l.bool_value().and_expr(r.bool_value()))
-
-    return AugmentedObject(pobject.bool_value().invert())
+    return l.bool_value().and_expr(r.bool_value()).to_pobject()
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:

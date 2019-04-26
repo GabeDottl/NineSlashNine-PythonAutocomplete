@@ -588,7 +588,7 @@ class FuzzyObject(PObject):
 
   def set_attribute(self, name: str, value):
     if not isinstance(value, PObject):
-      value = AugmentedObject(value)
+      value = pobject_from_object(value)
     for val in self._values:
       val.set_attribute(name, value)
 

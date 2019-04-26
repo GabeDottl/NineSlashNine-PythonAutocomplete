@@ -60,6 +60,14 @@ class TypingException(Exception):
   ...
 
 
+EXPRESSION_NODES = {
+    'testlist_star_expr', 'comparison', 'star_expr', 'expr', 'xor_expr',
+    'and_expr', 'shift_expr', 'arith_expr', 'term', 'factor', 'atom_exr',
+    'atom', 'exprlist', 'testlist_comp', 'dictorsetmaker', 'name', 'number',
+    'string'
+}
+
+
 @attr.s
 class ControlFlowGraphBuilder:
   module_loader = attr.ib()
@@ -77,6 +85,10 @@ class ControlFlowGraphBuilder:
     nodes that contain a complete statement/definition or control flow.
     '''
     try:
+      # The are nodes which represent expressions - if they're encountered directly in the process
+      # of creating CfgNodes, we simply want to wrap them in an ExpressionCfgNode.
+      if node.type in EXPRESSION_NODES:
+        return ExpressionCfgNode(expression_from_node(node), node)
       if hasattr(self, f'_create_cfg_node_for_{node.type}'):
         return getattr(self, f'_create_cfg_node_for_{node.type}')(node)
       error(f'Unhandled type: {node.type}')
@@ -467,27 +479,6 @@ class ControlFlowGraphBuilder:
     return ExpressionCfgNode(expression_from_node(node.children[1]), node)
 
   @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_term(self, node):
-    return ExpressionCfgNode(expression_from_node(node), node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_arith_expr(self, node):
-    return ExpressionCfgNode(expression_from_node(node), node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_expr(self, node):
-    return ExpressionCfgNode(expression_from_node(node), node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_name(self, node):
-    return ExpressionCfgNode(expression_from_node(node), node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_string(self, node):
-    # TODO: Documentation?
-    return ExpressionCfgNode(expression_from_node(node), node)
-
-  @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_assert_stmt(self, node):
     # Note that we don't so much care about excuting this as extracting
     # used symbols from it.
@@ -524,7 +515,6 @@ class ControlFlowGraphBuilder:
   def _create_cfg_node_for_yield_expr(self, node):
     # TODO: Generators.
     return ReturnCfgNode(expression_from_node(node.children[1]), node)
-
 
   ##### Intentional NoOp nodes for our purposes. #####
   @_assert_returns_type(CfgNode)
