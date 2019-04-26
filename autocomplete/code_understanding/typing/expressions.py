@@ -143,11 +143,13 @@ def _assign_variables_to_results(curr_frame, variable, result):
       if isinstance(variable_item, StarredExpression):
         debug(f'Mishandling star assignment')
         # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
-        _assign_variables_to_results(curr_frame, variable_item.base_expression,
-                                     result.get_item_pobject_index(i))
+        _assign_variables_to_results(
+            curr_frame, variable_item.base_expression,
+            result.get_item_pobject_index(pobject_from_object(i)))
       else:
-        _assign_variables_to_results(curr_frame, variable_item,
-                                     result.get_item_pobject_index(i))
+        _assign_variables_to_results(
+            curr_frame, variable_item,
+            result.get_item_pobject_index(pobject_from_object(i)))
 
 
 @attr.s
@@ -159,7 +161,7 @@ class CallExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.function_expression.evaluate(curr_frame)
-    return pobject.call(self.args, self.kwargs, curr_frame)
+    return pobject.call(curr_frame, self.args, self.kwargs)
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:

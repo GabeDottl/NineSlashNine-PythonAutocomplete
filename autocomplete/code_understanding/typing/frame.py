@@ -105,13 +105,14 @@ class Frame:
       # self._builtins['globals'] = NativeObject(lambda: return self._module.get_members())
       # self._builtins['locals'] = NativeObject(lambda: return self._locals)
       self._builtins['range'] = NativeObject(range)
+      # TODO: nonlocal_names and global_names
 
-    for symbol in self._cell_symbols:
+    self.add_cell_symbols(self._cell_symbols)
+
+  def add_cell_symbols(self, cell_symbols):
+    self._cell_symbols = self._cell_symbols.union(cell_symbols)
+    for symbol in cell_symbols:
       self[symbol] = CellObject()
-
-  # TODO: nonlocal_names and global_names
-  # _frame_type = attr.ib(FrameType.NORMAL)
-  # TODO: Block stack?
 
   def contains_namespace_on_stack(self, namespace):
     if self.namespace == namespace:

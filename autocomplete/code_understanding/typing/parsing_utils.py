@@ -691,10 +691,3 @@ def keyword_eval(keyword_str):
   elif keyword_str == 'Ellipsis' or keyword_str == '...':
     return Ellipsis
   assert_unexpected_parso(False, keyword_str)
-
-
-def print_tree(node, indent='', file=sys.stdout):
-  print(f'{indent}{node.type}', file=file)
-  if hasattr(node, 'children'):
-    for c in node.children:
-      print_tree(c, indent + '  ', file=file)

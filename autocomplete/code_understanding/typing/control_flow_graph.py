@@ -78,7 +78,7 @@ class ControlFlowGraphBuilder:
     try:
       if hasattr(self, f'_create_cfg_node_for_{node.type}'):
         return getattr(self, f'_create_cfg_node_for_{node.type}')(node)
-      debug(f'Unhandled type: {node.type}')
+      error(f'Unhandled type: {node.type}')
     except (
         NotImplementedError, ParsingError
     ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
@@ -88,7 +88,8 @@ class ControlFlowGraphBuilder:
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_error_node(self, node):
-    debug(f'Error node when processing: {node.get_code()}')
+    info(f'Error node when processing: {node.get_code()}')
+    assert False
     return NoOpCfgNode(node)
 
   @_assert_returns_type(CfgNode)
@@ -133,11 +134,6 @@ class ControlFlowGraphBuilder:
         [self._create_cfg_node(child) for child in node.children],
         parso_node=node)
 
-  # Noop nodes for our purposes.
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_del_stmt(self, node):
-    return NoOpCfgNode(node)
-
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_keyword(self, node):
     if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield' or node.value == 'raise':
@@ -145,47 +141,6 @@ class ControlFlowGraphBuilder:
     if node.value == 'return':
       return ReturnCfgNode(LiteralExpression(None), parso_node=node)
     assert_unexpected_parso(False, node_info)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_string(self, node):
-    # TODO: Documentation?
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_pass(self, node):
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_newline(self, node):
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_endmarker(self, node):
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_name(self, node):
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_decorated(self, node):
-    # TODO: Handle first child decorator or decorators.
-    assert_unexpected_parso(len(node.children) == 2, node_info(node))
-    return self._create_cfg_node(node.children[1])
-
-  # @_assert_returns_type(CfgNode)
-  # def _create_cfg_node_for_decorator(self, node): debug(f'Skipping {node.type}')
-  # @_assert_returns_type(CfgNode)
-  # def _create_cfg_node_for_decorators(self, node): debug(f'Skipping {node.type}')
-
-  # Parso doesn't handle these grammar nodes in the expectezd way:
-  # async_func's are treated as async_stmt with a funcdef inside.
-  # @_assert_returns_type(CfgNode)
-  # def _create_cfg_node_for_async_funcdef(self, node): debug(f'Skipping {node.type}')
-
-  # augassign is treated as a regular assignment with a special operator (e.g. +=)
-  # @_assert_returns_type(CfgNode)
-  # def _create_cfg_node_for_augassign(self, node): debug(f'Skipping {node.type}')
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_if_stmt(self, node):
@@ -228,37 +183,6 @@ class ControlFlowGraphBuilder:
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return ReturnCfgNode(
         expression_from_node(node.children[1]), parso_node=node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_flow_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_break_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_continue_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_yield_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_raise_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_import_stmt(self, node):
-    assert_unexpected_parso(False, "Not used.")
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_import_name(self, node):
@@ -419,32 +343,6 @@ class ControlFlowGraphBuilder:
     return out
 
   @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_global_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_nonlocal_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_assert_stmt(self, node):
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_compound_stmt(self, node):
-    assert False
-    debug(f'Skipping {node.type}')
-    return NoOpCfgNode(node)
-
-  @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_async_stmt(self, node):
-    debug(f'Ignoring async in {node.type}')
-    return self._create_cfg_node(node.children[1])
-
-  @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_while_stmt(self, node):
     assert len(node.children) == 4 or len(node.children) == 7, node_info(node)
     conditional_expression = expression_from_node(node.children[1])
@@ -513,10 +411,6 @@ class ControlFlowGraphBuilder:
         finally_suite=finally_suite)
 
   @_assert_returns_type(CfgNode)
-  def _create_cfg_node_for_except_clause(self, node):
-    assert False
-
-  @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_with_stmt(self, node):
     with_item = node.children[1]
     as_name = None
@@ -574,3 +468,113 @@ class ControlFlowGraphBuilder:
       except StopIteration:
         pass
     return expression_node_tuples
+
+  # Noop nodes for our purposes.
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_del_stmt(self, node):
+    return NoOpCfgNode(node)
+
+  # @_assert_returns_type(CfgNode)
+  # def _create_cfg_node_for_decorator(self, node): debug(f'Skipping {node.type}')
+  # @_assert_returns_type(CfgNode)
+  # def _create_cfg_node_for_decorators(self, node): debug(f'Skipping {node.type}')
+
+  # Parso doesn't handle these grammar nodes in the expectezd way:
+  # async_func's are treated as async_stmt with a funcdef inside.
+  # @_assert_returns_type(CfgNode)
+  # def _create_cfg_node_for_async_funcdef(self, node): debug(f'Skipping {node.type}')
+
+  # augassign is treated as a regular assignment with a special operator (e.g. +=)
+  # @_assert_returns_type(CfgNode)
+  # def _create_cfg_node_for_augassign(self, node): debug(f'Skipping {node.type}')
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_except_clause(self, node):
+    # Should never be reached - should be handled with try_stmt.
+    assert False
+
+  # Nodes we explicitly do nothing with.
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_string(self, node):
+    # TODO: Documentation?
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_pass(self, node):
+    assert False  # Treated as keyword
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_newline(self, node):
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_endmarker(self, node):
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_name(self, node):
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_decorated(self, node):
+    # TODO: Handle first child decorator or decorators.
+    assert_unexpected_parso(len(node.children) == 2, node_info(node))
+    return self._create_cfg_node(node.children[1])
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_flow_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_break_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_continue_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_yield_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_raise_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_import_stmt(self, node):
+    assert_unexpected_parso(False, "Not used.")
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_global_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_nonlocal_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_assert_stmt(self, node):
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_compound_stmt(self, node):
+    assert False
+    debug(f'Skipping {node.type}')
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_async_stmt(self, node):
+    debug(f'Ignoring async in {node.type}')
+    return self._create_cfg_node(node.children[1])

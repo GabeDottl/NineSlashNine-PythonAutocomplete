@@ -9,6 +9,10 @@ CFG.
 created) and returning types.
 3) If we can't find a module that's imported, we will create an 'Unknown'
 module.
+
+Python's tutorial on module's is a rather quick, helpful reference for some
+peculiarities like the purposes of __all__:
+https://docs.python.org/3/tutorial/modules.html
 '''
 import importlib
 import os
@@ -25,7 +29,7 @@ from autocomplete.code_understanding.typing.language_objects import (
 )
 from autocomplete.code_understanding.typing.pobjects import (
     PObject, UnknownObject)
-from autocomplete.nsn_logging import debug, error, warning
+from autocomplete.nsn_logging import debug, error, info, warning
 
 __module_dict: dict = {}
 __path_module_dict: dict = {}
@@ -69,6 +73,7 @@ def get_module(name: str, unknown_fallback=True) -> Module:
   module = _load_module_from_module_info(name, path, is_package, module_type)
   module = load_module(name)
   assert module is not None
+  info(f'Added {name} to module dict.')
   __module_dict[name] = module
   if path and os.path.exists(path):
     __path_module_dict[path] = module
@@ -142,6 +147,7 @@ def load_module_exports_from_filename(module, filename):
   try:
     with open(filename) as f:
       source = ''.join(f.readlines())
+    info(f'Loading {module.name}')
     return _module_exports_from_source(module, source, filename)
   except UnicodeDecodeError as e:
     warning(f'{filename}: {e}')

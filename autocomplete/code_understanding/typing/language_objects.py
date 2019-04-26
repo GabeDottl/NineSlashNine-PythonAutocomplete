@@ -181,7 +181,7 @@ class ModuleImpl(Module):
     except SourceAttributeError:
       if self.module_type.should_be_readable():
         warning(f'Failed to get {name} from {self.name}')
-      raise
+      return UnknownObject(f'{self.name}.{name}')
 
 
 @attr.s
@@ -198,20 +198,25 @@ class LazyModule(ModuleImpl):
   load_module_exports_from_filename = attr.ib(kw_only=True)
   _loaded = attr.ib(init=False, default=False)
   _loading = attr.ib(init=False, default=False)
+  _loading_failed = attr.ib(init=False, default=False)
   _members: Dict = attr.ib(init=False, factory=dict)
 
   def _lazy_load(func):
 
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
-      if not self._loaded:
-        debug(f'Lazily loading from: {self.filename}')
+      if not self._loaded and not self._loading_failed:
         if self._loading:
+          # debug(f'Lazily loading from: {self.filename}')
+          # So, curiously, this is more allowed than I would think. ctypes does this with _endian
+          # where ctypes imports some stuff from _endian and the latter imports everything from
+          # ctypes - however, the ordering seems carefully done such that the _endian import in
+          # ctypes is well after most of it's members are defined - so, the module is mostly defined.
           warning(
-              f'Already lazy-loading module... dependency cycle? {self.path()}. Or From import?'
+              f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?'
           )
-          raise LoadingModuleAttributeError()
-          # return func(self, *args, **kwargs)
+          return func(self, *args, **kwargs)
+          # raise LoadingModuleAttributeError()
         self._loading = True
         try:
           self._members = self.load_module_exports_from_filename(
@@ -220,8 +225,9 @@ class LazyModule(ModuleImpl):
           # raise
           error(f'Unable to lazily load {self.filename}')
           self._loading_failed = True
-        finally:
+        else:
           self._loaded = True
+        finally:
           self._loading = False
       return func(self, *args, **kwargs)
 
@@ -256,10 +262,10 @@ class Klass(Namespace):
   def __repr__(self):
     return str(self)
 
-  def call(self, args, kwargs, curr_frame):
-    return AugmentedObject(self.new(args, kwargs, curr_frame))
+  def call(self, curr_frame, args, kwargs):
+    return AugmentedObject(self.new(curr_frame, args, kwargs))
 
-  def new(self, args, kwargs, curr_frame):
+  def new(self, curr_frame, args, kwargs):
     debug(f'Creating instance of {self.name}')
     # TODO: Handle params.
     # TODO: __init__
@@ -278,7 +284,7 @@ class Klass(Namespace):
 
     if '__init__' in instance:
       # info('Calling method __init__')
-      instance['__init__'].value().call(args, kwargs, curr_frame)
+      instance['__init__'].value().call(curr_frame, args, kwargs)
 
     return instance
 
@@ -340,7 +346,7 @@ class FunctionImpl(Function):
   def bind(self, args, kwargs) -> 'BoundFunction':
     return BoundFunction(self, args, kwargs)
 
-  def call(self, args, kwargs, curr_frame):
+  def call_inner(self, curr_frame, args, kwargs, bound_locals):
     debug(f'Calling {self.name}')
     if curr_frame.contains_namespace_on_stack(self):
       debug(
@@ -348,18 +354,22 @@ class FunctionImpl(Function):
       )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
-
     new_frame = curr_frame.make_child(
         frame_type=FrameType.FUNCTION,
         namespace=self,
         module=self._module,
         cell_symbols=self._cell_symbols)
-    self._process_args(args, kwargs, curr_frame, new_frame)
+    new_frame._locals.update(bound_locals)
+
+    self._process_args(curr_frame, args, kwargs, new_frame)
     self.graph.process(new_frame)
 
     return new_frame.get_returns()
 
-  def _process_args(self, args, kwargs, curr_frame, new_frame):
+  def call(self, curr_frame, args, kwargs):
+    return self.call_inner(curr_frame, args, kwargs, bound_locals={})
+
+  def _process_args(self, curr_frame, args, kwargs, new_frame):
     # As a sort of safety measure, we explicitly provide some value for every single param - this
     # avoids any issues with missing symbols when processing the function if it was called with
     # invalid arguments.
@@ -482,16 +492,28 @@ class BoundFunction(Function):
   def bind(self, args, kwargs) -> 'BoundFunction':
     return BoundFunction(self, args, kwargs)
 
-  def call(self, args, kwargs, curr_frame):
-    new_frame = curr_frame.make_child(
-        frame_type=FrameType.NORMAL,
-        namespace=self,
-        module=self._function._module)
-    new_frame._locals = self._bound_locals
-    return self._function.call(self._bound_args + args, {
+  def call_inner(self, curr_frame, args, kwargs, bound_locals):
+    return self._function.call_inner(curr_frame, self._bound_args + args, {
         **kwargs,
         **self._bound_kwargs
-    }, new_frame)
+    }, {
+        **bound_locals,
+        **self._bound_locals
+    })
+
+  def call(self, curr_frame, args, kwargs, reuse_curr_frame=False):
+    # if reuse_curr_frame:
+    #   new_frame = curr_frame
+    # else:
+    #   new_frame = curr_frame.make_child(
+    #       frame_type=FrameType.FUNCTION,
+    #       namespace=self,
+    #       module=self._function._module)
+    # new_frame._locals.update(self._bound_locals)
+    return self._function.call_inner(curr_frame, self._bound_args + args, {
+        **kwargs,
+        **self._bound_kwargs
+    }, self._bound_locals)
 
   def __str__(self):
     return f'bound[{self._bound_args}][{self._bound_kwargs}]:{self._function}'
@@ -508,7 +530,11 @@ class StubFunction(Function):
   type = attr.ib(FunctionType.FREE)
   _members: Dict = attr.ib(factory=dict)
 
-  def call(self, args, kwargs, curr_frame):
+  def call_inner(self, curr_frame, args, kwargs, bound_locals):
+    # TODO: Handle parameters?
+    return self.returns
+
+  def call(self, curr_frame, args, kwargs, reuse_curr_frame=False):
     # TODO: Handle parameters?
     return self.returns
 

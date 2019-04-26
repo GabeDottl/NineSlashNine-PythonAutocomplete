@@ -51,14 +51,14 @@ def analyze_file(filename):
 
 def _process(member, a_frame):
   if member.value_is_a(Klass) == FuzzyBoolean.TRUE:
-    instance = member.value().new([], {}, a_frame)
+    instance = member.value().new(a_frame, [], {})
     for _, value in instance.items():
       _process(value, a_frame)
   elif member.value_is_a(Function) == FuzzyBoolean.TRUE:
     func = member.value()
     debug(f'Calling {func.name}')
     kwargs = {param.name: UnknownExpression('') for param in func.parameters}
-    func.call([], kwargs, a_frame)
+    func.call(a_frame, [], kwargs)
 
 
 if __name__ == '__main__':
