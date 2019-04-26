@@ -37,7 +37,8 @@ from autocomplete.code_understanding.typing.expressions import (
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.parsing_utils import (
     _assert_returns_type, expression_from_node, node_info,
-    parameters_from_parameters, statement_node_from_expr_stmt,
+    parameters_from_parameters, path_and_name_from_dotted_as_name,
+    path_and_name_from_import_child, statement_node_from_expr_stmt,
     variables_from_node)
 from autocomplete.nsn_logging import debug, error, info, warning
 
@@ -79,13 +80,15 @@ class ControlFlowGraphBuilder:
       if hasattr(self, f'_create_cfg_node_for_{node.type}'):
         return getattr(self, f'_create_cfg_node_for_{node.type}')(node)
       error(f'Unhandled type: {node.type}')
-    except (
-        NotImplementedError, ParsingError
-    ) as e:  # For reasons beyond me, 'as e' causes this not to be caught...
-      # handle_error(e, node)
+      raise ParsingError(f'Unhandled type: {node.type}')
+    except ParsingError as e:
       import traceback
       traceback.print_tb(e.__traceback__)
       error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')
+      raise e
+    except NotImplementedError:
+      pass
+
     return NoOpCfgNode(node)
 
   @_assert_returns_type(CfgNode)
@@ -157,6 +160,11 @@ class ControlFlowGraphBuilder:
         parso_node=node)
 
   @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_operator(self, node):
+    assert node.value == '...' or node.value == ';'
+    return NoOpCfgNode(node)
+
+  @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_keyword(self, node):
     if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield' or node.value == 'raise':
       return NoOpCfgNode(node)
@@ -213,43 +221,23 @@ class ControlFlowGraphBuilder:
     # dotted_as_name: dotted_name ['as' NAME]
     # dotted_name: NAME ('.' NAME)*
     child = node.children[1]  # 0 is 'import'
-    if child.type == 'name':
-      return ImportCfgNode(
-          child.value, parso_node=node, module_loader=self.module_loader)
-    if child.type == 'dotted_as_name':
-      path, as_name = self.path_and_name_from_dotted_as_name(child)
+    if child.type != 'dotted_as_names':
+      path, as_name = path_and_name_from_import_child(child)
       return ImportCfgNode(
           path,
           as_name=as_name,
           parso_node=node,
           module_loader=self.module_loader)
 
-    # Example: import a.b
-    if child.type == 'dotted_name':
-      dotted_name = child
-      path = ''.join([child.value for child in dotted_name.children])
-      return ImportCfgNode(
-          path, parso_node=node, module_loader=self.module_loader)
-
-    assert_unexpected_parso(child.type == 'dotted_as_names', node_info(child))
-    # Some combination of things.
+    # Multiple imports.
     import_nodes = []
     out = GroupCfgNode(import_nodes, parso_node=node)
     dotted_as_names = child
     for child in dotted_as_names.children:
-      if child.type == 'name':
-        import_nodes.append(
-            ImportCfgNode(
-                child.value,
-                as_name=None,
-                parso_node=node,
-                module_loader=self.module_loader))
-      elif child.type == 'operator':
+      if child.type == 'operator':
         assert_unexpected_parso(child.value == ',', node_info(child))
       else:
-        assert_unexpected_parso(child.type == 'dotted_as_name',
-                                node_info(child))
-        path, as_name = self.path_and_name_from_dotted_as_name(child)
+        path, as_name = path_and_name_from_import_child(child)
         import_nodes.append(
             ImportCfgNode(
                 path,
@@ -257,21 +245,6 @@ class ControlFlowGraphBuilder:
                 parso_node=node,
                 module_loader=self.module_loader))
     return out
-
-  def path_and_name_from_dotted_as_name(self, node):
-    assert_unexpected_parso(node.type == 'dotted_as_name', node_info(node))
-    if node.children[0].type == 'name':
-      path = node.children[0].value
-    else:
-      dotted_name = node.children[0]
-      assert_unexpected_parso(dotted_name.type == 'dotted_name',
-                              node_info(dotted_name))
-      path = ''.join([child.value for child in dotted_name.children])
-    if len(node.children) == 1:  # import x
-      return path, None
-    # import a as b
-    assert_unexpected_parso(len(node.children) == 3, node_info(node))
-    return path, node.children[-1].value
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_import_from(self, node):
@@ -485,6 +458,24 @@ class ControlFlowGraphBuilder:
     return expression_node_tuples
 
   @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_star_expr(self, node):
+    # StarredExpression itself can't be evaluated. This would actually be an illegal use that
+    # shouldn't run, but we make do instead.
+    return ExpressionCfgNode(expression_from_node(node.children[1]), node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_term(self, node):
+    return ExpressionCfgNode(expression_from_node(node), node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_arith_expr(self, node):
+    return ExpressionCfgNode(expression_from_node(node), node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_expr(self, node):
+    return ExpressionCfgNode(expression_from_node(node), node)
+
+  @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_name(self, node):
     return ExpressionCfgNode(expression_from_node(node), node)
 
@@ -498,11 +489,14 @@ class ControlFlowGraphBuilder:
     # Note that we don't so much care about excuting this as extracting
     # used symbols from it.
     if len(node.children) == 2:
-      return ExpressionCfgNode(expression_from_node(node.children[1]), node.children[1])
+      return ExpressionCfgNode(
+          expression_from_node(node.children[1]), node.children[1])
     assert len(node.children) == 4
     return GroupCfgNode([
-        ExpressionCfgNode(expression_from_node(node.children[1]), node.children[1]),
-        ExpressionCfgNode(expression_from_node(node.children[-1]), node.children[-1])
+        ExpressionCfgNode(
+            expression_from_node(node.children[1]), node.children[1]),
+        ExpressionCfgNode(
+            expression_from_node(node.children[-1]), node.children[-1])
     ])
 
   @_assert_returns_type(CfgNode)
@@ -516,7 +510,21 @@ class ControlFlowGraphBuilder:
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
     return self._create_cfg_node(node.children[1])
 
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_yield_expr(self, node):
+    # TODO: Generators.
+    return ReturnCfgNode(expression_from_node(node.children[1]), node)
+
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_async_funcdef(self, node):
+    # TODO: Generators.
+    return self._create_cfg_node_for_funcdef(node.children[1])
+
   ##### Intentional NoOp nodes for our purposes. #####
+  @_assert_returns_type(CfgNode)
+  def _create_cfg_node_for_number(self, node):
+    return NoOpCfgNode(node)
+
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_del_stmt(self, node):
     return NoOpCfgNode(node)
@@ -561,11 +569,6 @@ class ControlFlowGraphBuilder:
 
   # @_assert_returns_type(CfgNode)
   # def _create_cfg_node_for_continue_stmt(self, node):
-  #   debug(f'Skipping {node.type}')
-  #   return NoOpCfgNode(node)
-
-  # @_assert_returns_type(CfgNode)
-  # def _create_cfg_node_for_yield_stmt(self, node):
   #   debug(f'Skipping {node.type}')
   #   return NoOpCfgNode(node)
 

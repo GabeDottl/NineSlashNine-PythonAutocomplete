@@ -90,17 +90,17 @@ def get_module_from_filename(name, filename, is_package=False) -> Module:
 
 
 def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
-  try:
-    with FileContext(filename):
-      a_frame = frame.Frame(
-          module=module, namespace=module, locals=module._members)
-      graph = api.graph_from_source(source, module)
-      graph.process(a_frame)
-  except Exception as e:
-    import traceback
-    traceback.print_tb(e.__traceback__)
-    print(e)
-    raise e
+  # try:
+  with FileContext(filename):
+    a_frame = frame.Frame(
+        module=module, namespace=module, locals=module._members)
+    graph = api.graph_from_source(source, module)
+    graph.process(a_frame)
+  # except Exception as e:
+  #   import traceback
+  #   traceback.print_tb(e.__traceback__)
+  #   print(e)
+  #   raise e
   # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
   # when running, so we through them in anyway for the heck of it.
   return a_frame._locals  #dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
@@ -212,7 +212,7 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
     return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
   try:
     spec = importlib.util.find_spec(name)
-  except (AttributeError, ModuleNotFoundError, ValueError) as e:
+  except (ImportError, AttributeError, ModuleNotFoundError, ValueError) as e:
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')
     debug(e)

@@ -37,6 +37,7 @@ def test_sets():
 def test_and_or():
   source = '''
   a = False
+  b = 1 < 2 < 3 < 4
   def foo(): return True
   b = a or foo()
   c = a and foo()

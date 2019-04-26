@@ -28,8 +28,8 @@ from autocomplete.code_understanding.typing.expressions import (
     VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, NativeObject, PObject,
-    UnknownObject, pobject_from_object)
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, NativeObject,
+    PObject, UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, error, info, warning
 
@@ -101,7 +101,7 @@ def create_main_module(filename=None):
 
 
 @attr.s
-class Module(Namespace, ABC):
+class Module(Namespace, LanguageObject, ABC):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib()
@@ -251,7 +251,7 @@ class LazyModule(ModuleImpl):
 
 
 @attr.s(str=False, repr=False)
-class Klass(Namespace):
+class Klass(Namespace, LanguageObject):
   name: str = attr.ib()
   context: Namespace = attr.ib()
   _members: Dict[str, PObject] = attr.ib(factory=dict)
@@ -295,7 +295,7 @@ class Klass(Namespace):
 
 
 @attr.s(str=False, repr=False)
-class Instance(Namespace):
+class Instance(Namespace, LanguageObject):
   klass = attr.ib()
   _members: Dict = attr.ib(factory=dict)
 
@@ -316,7 +316,7 @@ class FunctionType(Enum):
   BOUND_INSTANCE_METHOD = 4
 
 
-class Function(Namespace):
+class Function(Namespace, LanguageObject):
   ...
 
 

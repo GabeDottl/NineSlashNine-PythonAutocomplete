@@ -22,6 +22,10 @@ _OPERATORS = [
 ]
 
 
+class LanguageObject:
+  ...
+
+
 class FuzzyBoolean(Enum):
   FALSE = 0
   MAYBE = 1
@@ -59,6 +63,14 @@ class FuzzyBoolean(Enum):
 
   def maybe_true(self):
     return self == FuzzyBoolean.MAYBE or self == FuzzyBoolean.TRUE
+
+
+def _process_args_kwargs(curr_frame, args, kwargs):
+  processed_args = [arg.evaluate(curr_frame) for arg in args]
+  processed_kwargs = {
+      name: value.evaluate(curr_frame) for name, value in kwargs.items()
+  }
+  return processed_args, processed_kwargs
 
 
 class PObject(ABC):
@@ -223,14 +235,6 @@ class UnknownObject(PObject):
     return str(self)
 
 
-def _process_args_kwargs(curr_frame, args, kwargs):
-  processed_args = [arg.evaluate(curr_frame) for arg in args]
-  processed_kwargs = {
-      name: value.evaluate(curr_frame) for name, value in kwargs.items()
-  }
-  return processed_args, processed_kwargs
-
-
 NATIVE_TYPES = (int, str, list, dict, type(None))
 
 
@@ -254,15 +258,11 @@ class NativeObject(PObject):
   def get_attribute(self, name):
     try:
       native_object = getattr(self._native_object, name)
-      if isinstance(native_object, NATIVE_TYPES):
-        return NativeObject(native_object)
-      elif isinstance(native_object, PObject):
-        return native_object
-      elif isinstance(native_object, types.FunctionType):
-        pass  # TODO.
     except AttributeError as e:  # E.g. <str>.get_attribute
       # TODO: Support for some native objects - str, int, list perhaps.
-      debug(f'Failed to access {name} from {self._native_object}. {e}')
+      warning(f'Failed to access {name} from {self._native_object}. {e}')
+    else:
+      return pobject_from_object(native_object)
     return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):
@@ -313,13 +313,12 @@ class NativeObject(PObject):
       return UnknownObject(f'{self._native_object}[{indicies}]')
     try:
       value = self._native_object.__getitem__(index)
-    except (TypeError, KeyError, IndexError, AttributeError,
-            AmbiguousFuzzyValueDoesntHaveSingleValueError):
+    except (TypeError, KeyError, IndexError, AttributeError):
       return UnknownObject(f'{self._native_object}[{indicies}]')
-    except Exception as e:
-      import traceback
-      traceback.print_tb(e.__traceback__)
-      error(e)
+    # except Exception as e:
+    #   import traceback
+    #   traceback.print_tb(e.__traceback__)
+    #   error(e)
     else:
       if isinstance(value, PObject):
         return value
@@ -386,12 +385,12 @@ class NativeObject(PObject):
 
 
 def pobject_from_object(obj):
-  if isinstance(obj, NATIVE_TYPES):
-    return NativeObject(obj)
+  if isinstance(obj, LanguageObject) or isinstance(obj, FuzzyBoolean):
+    return AugmentedObject(obj)
   if isinstance(obj, PObject):
     return obj
-  # TODO: if isinstance(obj, Namespace)
-  return AugmentedObject(obj)
+
+  return NativeObject(obj)
 
 
 @attr.s(str=False, repr=False)
@@ -409,11 +408,9 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     except (SourceAttributeError, LoadingModuleAttributeError):
       # TODO: Log
       debug(f'Failed to access {name} from {self._object}')
-      return self._dynamic_container.get_attribute(name)
-    except AttributeError as e:  # E.g. <str>.get_attribute
-      # TODO: Support for some native objects - str, int, list perhaps.
-      debug(f'Failed to access {name} from {self._object}')
-      return self._dynamic_container.get_attribute(name)
+    except AttributeError:
+      raise
+    return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):
     # Can this get messy at all?
@@ -515,15 +512,14 @@ class FuzzyObject(PObject):
     assert all(isinstance(value, PObject) for value in values)
 
   def __attrs_post_init(self):
-    new_values = []
-    for val in self._values:
-      if isinstance(val, FuzzyObject):
-        new_values += val._values
-      elif not isinstance(val, PObject):
-        new_values.append(pobject_from_object(val))
-      else:
-        new_values.append(val)
-    self._values = new_values
+    # new_values = []
+    # for val in self._values:
+    #   # Flatten FuzzyObjects?
+    #   if isinstance(val, FuzzyObject):
+    #     new_values += val._values
+    #   else:
+    #     new_values.append(val)
+    # self._values = new_values
     self.validate()
 
   def validate(self):

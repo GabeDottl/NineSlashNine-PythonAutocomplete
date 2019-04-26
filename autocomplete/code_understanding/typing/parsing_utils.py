@@ -610,15 +610,24 @@ def expression_from_comparison(node):
   # sake of a __future__ import described in PEP 401 (which really works :-)
   # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
   # TODO: Implement.
-  operator = node.children[1].get_code().strip(
-  )  # Handles operators & comp_op ('is' 'not')
-  assert_unexpected_parso(len(node.children) == 3, node_info(node))
-  left_expression = expression_from_node(node.children[0])
-  right_expression = expression_from_node(node.children[2])
-  return ComparisonExpression(
-      left_expression=left_expression,
-      operator=operator,
-      right_expression=right_expression)
+  # Handles operators & comp_op ('is' 'not')
+
+  # Arbitrarily many: a < b < c < d <....
+  assert len(node.children) % 2 == 1 and len(node.children) >= 3
+  last_expression = None
+  for i in range(0, len(node.children) - 2, 2):
+    left_expression = expression_from_node(node.children[i])
+    operator = node.children[i + 1].get_code().strip()
+    right_expression = expression_from_node(node.children[i + 2])
+    comparison = ComparisonExpression(
+        left_expression=left_expression,
+        operator=operator,
+        right_expression=right_expression)
+    if last_expression:
+      last_expression = AndOrExpression(last_expression, 'and', comparison)
+    else:
+      last_expression = comparison
+  return last_expression
 
 
 @_assert_returns_type(Expression)
@@ -660,6 +669,36 @@ def children_contains_operator(node, operator_str):
     if child.type == 'operator' and child.value == operator_str:
       return True
   return False
+
+
+def path_and_name_from_dotted_as_name(node):
+  assert_unexpected_parso(node.type == 'dotted_as_name', node_info(node))
+  if node.children[0].type == 'name':
+    path = node.children[0].value
+  else:
+    dotted_name = node.children[0]
+    assert_unexpected_parso(dotted_name.type == 'dotted_name',
+                            node_info(dotted_name))
+    path = path_from_dotted_name(dotted_name)
+  if len(node.children) == 1:  # import x
+    return path, None
+  # import a as b
+  assert_unexpected_parso(len(node.children) == 3, node_info(node))
+  return path, node.children[-1].value
+
+
+def path_from_dotted_name(dotted_name):
+  return ''.join([child.value for child in dotted_name.children])
+
+
+def path_and_name_from_import_child(child):
+  if child.type == 'name':
+    return child.value, None
+  if child.type == 'dotted_as_name':
+    return path_and_name_from_dotted_as_name(child)
+  # Example: import a.b
+  if child.type == 'dotted_name':
+    return path_from_dotted_name(child), None
 
 
 def path_to_name(node, name):

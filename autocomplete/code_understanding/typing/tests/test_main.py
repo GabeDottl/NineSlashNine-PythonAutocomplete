@@ -21,7 +21,7 @@ def test_simple_assignment():
 
 def test_imports():
   source = '''
-import numpy, tensorflow, pytorch
+import numpy, tensorflow.datasets, pytorch
 import os as whatever
 import hob.dob as blob
 from functools import wraps
