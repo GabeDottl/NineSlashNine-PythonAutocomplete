@@ -5,6 +5,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_module_index",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/tests/test_module_index.py",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_expression",
       "type": "python",
       "request": "launch",

@@ -18,7 +18,7 @@ from autocomplete.code_understanding.typing.pobjects import (
 from autocomplete.nsn_logging import info, warning
 
 
-@attr.s
+@attr.s(slots=True)
 class CellObject:
   '''Cell object's are simply wrappers over PObjects.
 

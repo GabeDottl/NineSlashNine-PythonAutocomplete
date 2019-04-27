@@ -55,7 +55,7 @@ class CfgNode(ABC):
     return f'{indent}{type(self)}'
 
 
-@attr.s
+@attr.s(slots=True)
 class GroupCfgNode(CfgNode):
   children: List[CfgNode] = attr.ib(factory=list)
   parso_node = attr.ib(None)
@@ -103,7 +103,7 @@ class GroupCfgNode(CfgNode):
         child.pretty_print(indent + "  ") for child in self.children)
 
 
-@attr.s
+@attr.s(slots=True)
 class ExpressionCfgNode(CfgNode):
   expression: Expression = attr.ib()
   parso_node = attr.ib()
@@ -120,7 +120,7 @@ class ExpressionCfgNode(CfgNode):
     return []
 
 
-@attr.s
+@attr.s(slots=True)
 class ImportCfgNode(CfgNode):
   module_path = attr.ib()  # TODO: Rename to name
   parso_node = attr.ib()
@@ -194,7 +194,7 @@ class ImportCfgNode(CfgNode):
     return [self.module_path]
 
 
-@attr.s
+@attr.s(slots=True)
 class FromImportCfgNode(CfgNode):
   module_path = attr.ib()
   from_import_name = attr.ib()
@@ -235,7 +235,7 @@ class FromImportCfgNode(CfgNode):
     return [self.from_import_name]
 
 
-@attr.s
+@attr.s(slots=True)
 class NoOpCfgNode(CfgNode):
   parso_node = attr.ib()
 
@@ -251,7 +251,7 @@ class NoOpCfgNode(CfgNode):
     return []
 
 
-@attr.s
+@attr.s(slots=True)
 class AssignmentStmtCfgNode(CfgNode):
   # https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
   left_variables: Expression = attr.ib(
@@ -284,7 +284,7 @@ class AssignmentStmtCfgNode(CfgNode):
     return self.left_variables.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class ForCfgNode(CfgNode):
   # Example for loop_variables in loop_expression: suite
   loop_variables: Expression = attr.ib()
@@ -313,7 +313,7 @@ class ForCfgNode(CfgNode):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class WhileCfgNode(CfgNode):
   # Example while conditional_expression: suite else: else_suite
   conditional_expression: Expression = attr.ib()
@@ -341,7 +341,7 @@ class WhileCfgNode(CfgNode):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}\n{indent}Else\n{self.else_suite.pretty_print(indent=indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class WithCfgNode(CfgNode):
   # For 'else', (True, node).
   with_item_expression: Expression = attr.ib()
@@ -381,7 +381,7 @@ class WithCfgNode(CfgNode):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class TryCfgNode(CfgNode):
   suite: CfgNode = attr.ib()
   except_nodes: List['ExceptCfgNode'] = attr.ib()
@@ -418,7 +418,7 @@ class TryCfgNode(CfgNode):
     return out + f'\n{self.finally_suite.pretty_print(indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class ExceptCfgNode(CfgNode):
   exceptions: Expression = attr.ib()  # TODO: ???
   exception_variable: Union[VariableExpression, None] = attr.ib()
@@ -464,7 +464,7 @@ class ExceptCfgNode(CfgNode):
     return f'{indent}except {self.exceptions} as {self.exception_variable}\n{self.suite.pretty_print(indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class IfCfgNode(CfgNode):
   # For 'else', (True, node).
   expression_node_tuples: List[Tuple[Expression, CfgNode]] = attr.ib()
@@ -514,7 +514,7 @@ def _search_for_module(frame):
   return _search_for_module(frame._back)
 
 
-@attr.s
+@attr.s(slots=True)
 class KlassCfgNode(CfgNode):
   name = attr.ib()
   suite = attr.ib()
@@ -522,7 +522,7 @@ class KlassCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     klass_name = f'{curr_frame.namespace.name}.{self.name}' if curr_frame.namespace else self.name
-    klass = Klass(klass_name, curr_frame.namespace)
+    klass = Klass(klass_name)
     curr_frame[self.name] = klass
 
     new_frame = curr_frame.make_child(
@@ -550,7 +550,7 @@ class KlassCfgNode(CfgNode):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class FuncCfgNode(CfgNode):
   name = attr.ib()
   parameters = attr.ib()
@@ -583,12 +583,12 @@ class FuncCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     processed_params = []
     for param in self.parameters:
-      if param.default is None:
+      if param.default_expression is None:
         processed_params.append(param)
       else:  # Process parameter defaults at the time of definition.
-        default = param.default.evaluate(curr_frame)
+        default = param.default_expression.evaluate(curr_frame)
         processed_params.append(
-            Parameter(param.name, param.parameter_type, default))
+            Parameter(param.name, param.parameter_type, default_value=default))
     # Include full name.
     func_name = '.'.join([curr_frame.namespace.name, self.name
                          ]) if curr_frame.namespace else self.name
@@ -628,7 +628,7 @@ class FuncCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Iterable[str]:
     out = set()
     for parameter in self.parameters:
-      if parameter.default:
+      if parameter.default_expression:
         out = out.union(parameter.default.get_used_free_symbols())
     out = out.union(self.suite.get_non_local_symbols())
     return out
@@ -641,7 +641,7 @@ class FuncCfgNode(CfgNode):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
 
-@attr.s
+@attr.s(slots=True)
 class ReturnCfgNode(CfgNode):
   expression: Expression = attr.ib()
   parso_node = attr.ib()

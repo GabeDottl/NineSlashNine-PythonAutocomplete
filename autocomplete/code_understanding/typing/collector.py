@@ -24,7 +24,7 @@ def get_current_context_dir():
   return os.path.split(_filename_context[-1])[0]
 
 
-@attr.s
+@attr.s(slots=True)
 class FileContext:
   filename = attr.ib()
 
@@ -40,7 +40,7 @@ def paths_prefix():
   return '|'.join(filenames)
 
 
-@attr.s
+@attr.s(slots=True)
 class BlockContext:
   block = attr.ib()
 
@@ -51,7 +51,7 @@ class BlockContext:
     _block_context.pop()
 
 
-@attr.s
+@attr.s(slots=True)
 class ParsoNodeContext:
   parso_node = attr.ib()
 
@@ -81,7 +81,7 @@ def get_missing_symbols_in_file(filename, include_context=True):
     return set(a[0] for a in _missing_symbols[filename])
 
 
-@attr.s
+@attr.s(slots=True)
 class ModuleMember:
   module: str = attr.ib(validator=[attr.validators.instance_of(str)])
   member: str = attr.ib(validator=[attr.validators.instance_of(str)])

@@ -176,7 +176,7 @@ def parameters_from_parameters(node) -> List[Parameter]:
             Parameter(
                 _param_name_from_param_child(param.children[0]),
                 ParameterType.SINGLE,
-                default=expression_from_node(param.children[2])))
+                default_expression=expression_from_node(param.children[2])))
       else:
         assert_unexpected_parso(False)
 
@@ -185,7 +185,8 @@ def parameters_from_parameters(node) -> List[Parameter]:
       out.append(
           Parameter(
               _param_name_from_param_child(param.children[0]),
-              ParameterType.SINGLE, expression_from_node(param.children[-2])))
+              ParameterType.SINGLE,
+              default_expression=expression_from_node(param.children[-2])))
 
   return out
 
@@ -194,7 +195,8 @@ def parameters_from_parameters(node) -> List[Parameter]:
 def expression_from_testlist_comp(node) -> Expression:
   # testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
   # expr(x) for x in b
-  assert_unexpected_parso(len(node.children) != 2 or node.children[1].type == 'comp_for',
+  assert_unexpected_parso(
+      len(node.children) != 2 or node.children[1].type == 'comp_for',
       ('Can\'t have comp_for references - only expressions.', node_info(node)))
 
   out = []
@@ -239,7 +241,6 @@ def expression_from_testlist_comp(node) -> TupleExpression:
   if len(node.children
         ) == 2 and node.children[1].type == 'comp_for':  # expr(x) for x in b
     return TupleExpression(expression_from_comp_for(*node.children))
-
 
     # return extract_references_from_comp_for(test, comp_for)
   else:  # expr(x), expr(b), ...,

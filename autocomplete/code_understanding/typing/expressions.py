@@ -26,43 +26,40 @@ class Expression(ABC):
     ''' Gets symbols used in a free context - i.e. not as attributes.'''
 
 
-@attr.s
+@attr.s(slots=True)
 class AnonymousExpression(Expression):
   pobject: PObject = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return self.pobject
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
 
-@attr.s
+@attr.s(slots=True)
 class LiteralExpression(Expression):
   literal = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(self.literal)
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
 
-@attr.s
+@attr.s(slots=True)
 class UnknownExpression(Expression):
   string = attr.ib()
 
   def evaluate(self, curr_frame):
     return UnknownObject(self.string)
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return []
 
 
-@attr.s
+@attr.s(slots=True)
 class NotExpression(Expression):
   expression: Expression = attr.ib()
 
@@ -70,12 +67,11 @@ class NotExpression(Expression):
     pobject = self.expression.evaluate(curr_frame)
     return pobject.bool_value().invert().to_pobject()
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class AndOrExpression(Expression):
   left_expression: Expression = attr.ib()
   operator: str = attr.ib()
@@ -95,7 +91,7 @@ class AndOrExpression(Expression):
         self.right_expression.get_used_free_symbols())
 
 
-@attr.s
+@attr.s(slots=True)
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
   source_expression: Expression = attr.ib(
@@ -107,17 +103,16 @@ class ListExpression(Expression):
   def __iter__(self):
     return iter(self.source_expression)
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.source_expression.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class TupleExpression(ListExpression):
   ...
 
 
-@attr.s
+@attr.s(slots=True)
 class ItemListExpression(Expression):
   '''Used for cased like: 1,2,3 - as in a tuple (1,2,3) or a list [1,2,3] or an arg list.'''
   expressions: List[Expression] = attr.ib(
@@ -172,7 +167,7 @@ def _assign_variables_to_results(curr_frame, variable, result):
             result.get_item_pobject_index(pobject_from_object(i)))
 
 
-@attr.s
+@attr.s(slots=True)
 class CallExpression(Expression):
   function_expression = attr.ib(
       validator=[attr.validators.instance_of(Expression)])
@@ -194,14 +189,13 @@ class CallExpression(Expression):
     return out
 
 
-@attr.s
+@attr.s(slots=True)
 class VariableExpression(Expression):
   name = attr.ib(validator=attr.validators.instance_of(str))
 
   def evaluate(self, curr_frame) -> PObject:
     return curr_frame[self]
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return [self.name]
 
@@ -237,7 +231,7 @@ class ForComprehension:
     return non_locals
 
 
-@attr.s
+@attr.s(slots=True)
 class ForComprehensionExpression(Expression):
   ''' As in: ` for x in func2(y)` - not to be confused with a for-block.'''
   # generator_expression for target_variables in iterable_expression
@@ -259,7 +253,7 @@ class ForComprehensionExpression(Expression):
         self.for_comprehension.get_used_free_symbols())
 
 
-@attr.s
+@attr.s(slots=True)
 class StarredExpression(Expression):
   '''E.g. *args - or more meaninglessly, *(a,b)'''
   operator: str = attr.ib()  # * or **
@@ -269,22 +263,20 @@ class StarredExpression(Expression):
     return pobject_from_object(
         self.base_expression.evaluate(curr_frame).iterator())
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class KeyValueAssignment:
   key: Expression = attr.ib()
   value: Expression = attr.ib()
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.value.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class KeyValueForComp:
   key: Expression = attr.ib()
   value: Expression = attr.ib()
@@ -299,12 +291,10 @@ class KeyValueForComp:
     return out
 
 
-@attr.s
+@attr.s(slots=True)
 class SetExpression(Expression):
   values: List[Union[StarredExpression, Expression,
                      ForComprehensionExpression]] = attr.ib()
-
-  # TODO
 
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(set())  # TODO
@@ -316,7 +306,7 @@ class SetExpression(Expression):
             *[value.get_used_free_symbols() for value in self.values]))
 
 
-@attr.s
+@attr.s(slots=True)
 class DictExpression(Expression):
   values: List[Union[StarredExpression, KeyValueAssignment,
                      KeyValueForComp]] = attr.ib()
@@ -353,7 +343,7 @@ class DictExpression(Expression):
             *[value.get_used_free_symbols() for value in self.values]))
 
 
-@attr.s
+@attr.s(slots=True)
 class AttributeExpression(Expression):
   base_expression: Expression = attr.ib()
   attribute: str = attr.ib()
@@ -362,12 +352,11 @@ class AttributeExpression(Expression):
     value: PObject = self.base_expression.evaluate(curr_frame)
     return value.get_attribute(self.attribute)
 
-  @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class SubscriptExpression(Expression):
   base_expression: Expression = attr.ib()
   subscript_list_expression: Expression = attr.ib()
@@ -386,10 +375,11 @@ class SubscriptExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return self.base_expression.get_used_free_symbols()
+    return self.base_expression.get_used_free_symbols().union(
+        self.subscript_list_expression.get_used_free_symbols())
 
 
-@attr.s
+@attr.s(slots=True)
 class IfElseExpression(Expression):
   true_expression: Expression = attr.ib()
   conditional_expression: Expression = attr.ib()
@@ -417,7 +407,7 @@ class IfElseExpression(Expression):
         ]))
 
 
-@attr.s
+@attr.s(slots=True)
 class FactorExpression(Expression):
   operator = attr.ib()
   expression: Expression = attr.ib()
@@ -439,7 +429,7 @@ class FactorExpression(Expression):
     return self.expression.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class MathExpression(Expression):
   left_expression: Expression = attr.ib()
   operator = attr.ib()
@@ -500,7 +490,7 @@ class MathExpression(Expression):
         self.right_expression.get_used_free_symbols())
 
 
-@attr.s
+@attr.s(slots=True)
 class ComparisonExpression(Expression):
   left_expression: Expression = attr.ib()
   operator = attr.ib()

@@ -55,14 +55,14 @@ def dataframe_from_symbol_index(symbol_index):
   })
 
 
-@attr.s
+@attr.s(slots=True)
 class SymbolDefinition:
   module = attr.ib()
   value = attr.ib()
   # TODO: Usages.
 
 
-@attr.s
+@attr.s(slots=True)
 class Symbol:
   name = attr.ib()
   symbol_definitions: List[SymbolDefinition] = attr.ib()

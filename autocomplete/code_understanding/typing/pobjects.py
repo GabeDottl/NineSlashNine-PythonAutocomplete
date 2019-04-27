@@ -71,6 +71,7 @@ class FuzzyBoolean(Enum):
       return NativeObject(False)
     return FuzzyObject([NativeObject(True), NativeObject(False)])
 
+
 def _process_args_kwargs(curr_frame, args, kwargs):
   processed_args = [arg.evaluate(curr_frame) for arg in args]
   processed_kwargs = {
@@ -304,11 +305,11 @@ class NativeObject(PObject):
     except AmbiguousFuzzyValueDoesntHaveSingleValueError as e:
       debug(e)
     # else:
-      # try:
-      #   # TODO: Add whitelist.
-      #   # return NativeObject(self._native_object.__call__(*arg_values, **kwarg_values))
-      # except Exception as e:
-      #   warning(e)
+    # try:
+    #   # TODO: Add whitelist.
+    #   # return NativeObject(self._native_object.__call__(*arg_values, **kwarg_values))
+    # except Exception as e:
+    #   warning(e)
 
     return UnknownObject(f'Call on {type(self._native_object)}')
 

@@ -34,7 +34,7 @@ from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
-@attr.s
+@attr.s(slots=True)
 class Namespace:
   '''A Namespace is a container for named objects.
 
@@ -100,7 +100,7 @@ def create_main_module(filename=None):
       is_package=False)
 
 
-@attr.s
+@attr.s(slots=True)
 class Module(Namespace, LanguageObject, ABC):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
@@ -114,7 +114,7 @@ class Module(Namespace, LanguageObject, ABC):
     return self._members
 
 
-@attr.s
+@attr.s(slots=True)
 class NativeModule(Module):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
@@ -159,7 +159,7 @@ class NativeModule(Module):
     return self
 
 
-@attr.s
+@attr.s(slots=True)
 class ModuleImpl(Module):
   # This will include containing packages, if any. i.e. a.b.c for module c.
   name: str = attr.ib()
@@ -184,12 +184,12 @@ class ModuleImpl(Module):
       return UnknownObject(f'{self.name}.{name}')
 
 
-@attr.s
+@attr.s(slots=True)
 class SimplePackageModule(ModuleImpl):
   ...
 
 
-@attr.s
+@attr.s  #(slots=True)
 class LazyModule(ModuleImpl):
   '''A Module which is lazily loaded with members.
   
@@ -250,10 +250,9 @@ class LazyModule(ModuleImpl):
     return super().items()
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class Klass(Namespace, LanguageObject):
   name: str = attr.ib()
-  context: Namespace = attr.ib()
   _members: Dict[str, PObject] = attr.ib(factory=dict)
 
   def __str__(self):
@@ -294,18 +293,30 @@ class Klass(Namespace, LanguageObject):
   #   return []
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class Instance(Namespace, LanguageObject):
-  klass = attr.ib()
+  _klass = attr.ib()
   _members: Dict = attr.ib(factory=dict)
 
   # TODO: Class member fallback for classmethods?
 
   def __str__(self):
-    return f'Inst {self.klass.name}: {list(self._members.keys())}'
+    return f'Inst {self._klass.name}: {list(self._members.keys())}'
 
   def __repr__(self):
     return str(self)
+
+
+@attr.s(str=False, repr=False, slots=True)
+class LazyInstance(Namespace, LanguageObject):
+  '''An unintialized or partially initialized instance.
+
+  The main value of this is to allow us to have a notion that we have an instance of some type/class
+  X, but we don't need to actually define what X is or know what member this derives from X until
+  they're needed.
+  '''
+  klass_name = attr.ib()
+  _members: Dict = attr.ib(factory=dict)
 
 
 class FunctionType(Enum):
@@ -450,7 +461,7 @@ class FunctionImpl(Function):
       else:
         # Use default. If there's no assignment and no explicit default, this
         # will be NONE_POBJECT.
-        new_frame[param.name] = param.default
+        new_frame[param.name] = param.default_value
 
     if kwargs_name:  # Add remaining keywords to kwargs if there is one.
       in_dict = {}
@@ -466,7 +477,7 @@ class FunctionImpl(Function):
     return str(self)
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class BoundFunction(Function):
   _function = attr.ib(validator=attr.validators.instance_of(Function))
   # We use a notion of a 'bound frame' to encapsulate values which are
@@ -522,7 +533,7 @@ class BoundFunction(Function):
     return str(self)
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True, frozen=True)
 class StubFunction(Function):
   name: str = attr.ib()
   parameters = attr.ib()
@@ -548,11 +559,31 @@ class StubFunction(Function):
     return str(self)
 
 
-@attr.s(str=False, repr=False)
+class ParameterType(Enum):
+  SINGLE = 0
+  ARGS = 1
+  KWARGS = 2
+
+  def serialize(self):
+    return self.value
+
+  @staticmethod
+  def deserialize(value):
+    return ParameterType(value)
+
+
+@attr.s(str=False, repr=False, slots=True, frozen=True)
 class Parameter:
   name: str = attr.ib()
   parameter_type: 'ParameterType' = attr.ib()
-  default: 'Expression' = attr.ib(None)  # TODO: Rename default_expression
+  default_expression: 'Expression' = attr.ib(
+      None, kw_only=True)  # TODO: Rename default_expression
+  default_value: 'PObject' = attr.ib(None, kw_only=True)
+
+  def __attrs_post_init__(self):
+    # These cannot both be specified. Once a parameter has been processed (i.e. Function has been
+    # created and added to frame), the default_value should be set,
+    assert self.default_value is None or self.default_expression is None
 
   def __str__(self):
     if self.parameter_type == ParameterType.SINGLE:
@@ -566,8 +597,10 @@ class Parameter:
   def __repr__(self):
     return str(self)
 
+  def serialize(self):
 
-class ParameterType(Enum):
-  SINGLE = 0
-  ARGS = 1
-  KWARGS = 2
+    return self.value
+
+  @staticmethod
+  def deserialize(value):
+    return ParameterType(value)

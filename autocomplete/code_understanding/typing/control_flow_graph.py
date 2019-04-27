@@ -273,8 +273,9 @@ class ControlFlowGraphBuilder:
 
     path_node = node.children[node_index]
     path = ''
-    if path_node.type == 'operator':  # Example from . import y
-      path = path_node.value
+    # Example from . import y
+    while path_node.type == 'operator' and path_node.value == '.':
+      path += path_node.value
       node_index += 1
       path_node = node.children[node_index]
 
