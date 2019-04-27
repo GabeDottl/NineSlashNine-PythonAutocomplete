@@ -1,5 +1,30 @@
+# Approach
+We should be ridiculously fast at a few things:
+1) Retrieving attributes for a type (as for autocomplete)
+1a) Predicting which of these attributes are best
+2) Detecting missing symbols
+3) Finding best matches for symbols
+4) Extrapolating types
+
+It seems like one can consider the processing required for these at two levels:
+1) The level of the current file - how long does it take to parse and process a module to determine
+   its missing symbols, types, etc.
+2) How long does it take to load arbitrary dependencies for a file.
+
+As we see below, for an average python file of around 500 lines, it takes a minimum of ~3ms to
+parse and create any sort of tree. Add another surprisingly-high 10ms to that for creating our CFG
+(clearly this should be much faster).
+
+For dependencies, traditional python will simply repeat the above process recursively until the
+entire dependency tree has been loaded. We only care about the existence of symbols and their types
+and perhaps their documentation - it'd be nice to have values, but frankly it just doesn't seem
+necessary for many of our purposes.
+
+Now, when we're trying to understand how APIs are used, then we'll need to scan the actual files
+anyway.
+
 # Interesting measures
-As of 4/26/19:
+As of 4/26/19 (control_flow_graph.py ~576 lines):
 
     >>> with open('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py') as f:
                source = ''.join(f.readlines())
@@ -26,8 +51,8 @@ essentially still stands - I'd need parso support for WIP files. Damnit though.
 typed_ast seems like a nice balance - still fast (only ~2x slower than ast proper) and it supports
 types.
 
-# Loading control_flow_graph.py
-
+## Loading control_flow_graph.py
+Based on: https://docs.python.org/3/library/profile.html
     >>>
     import cProfile
     from autocomplete.code_understanding.typing import module_loader

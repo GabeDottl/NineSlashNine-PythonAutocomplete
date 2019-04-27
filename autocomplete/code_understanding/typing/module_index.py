@@ -7,17 +7,13 @@ import h5py
 from autocomplete.code_understanding.typing import module_loader
 from autocomplete.code_understanding.typing.errors import (
     AmbiguousFuzzyValueDoesntHaveSingleValueError)
-from autocomplete.code_understanding.typing.language_objects import (Function,
-                                                                     Instance,
-                                                                     Klass,
-                                                                     ModuleImpl,
-                                                                     ModuleType)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyObject,
-                                                             UnknownObject,
-                                                             pobject_from_object)
+from autocomplete.code_understanding.typing.language_objects import (
+    Function, Instance, Klass, ModuleImpl, ModuleType)
+from autocomplete.code_understanding.typing.pobjects import (
+    FuzzyObject, UnknownObject, pobject_from_object)
 
 
-@attr.s(slots=True)
+@attr.s
 class ModuleIndex:
   filename = attr.ib()
 
@@ -28,7 +24,7 @@ class ModuleIndex:
     module_store = self.file.create_group(path_from_dot_name(module.name))
     for key, value in module.get_members().items():
       self.add_hdf_value_from_pobject(module_store, key, value)
-    
+
     module_store.attrs['filename'] = module.filename
     module_store.attrs['module_type'] = module.module_type.value
     module_store.attrs['_is_package'] = module._is_package
@@ -84,14 +80,16 @@ def members_from_group(group):
   out = {}
   for key, value in group.items():
     out[key] = pobject_from_value(value)
-  
+
   for key, value in group.attrs.items():
     out[key] = pobject_from_attr(value)
 
-  return out`
+  return out
+
 
 def pobject_from_attr(value):
   return pobject_from_object(value)
+
 
 def pobject_from_value(value):
   if value.attrs['type'] == 'Unknown':
@@ -100,7 +98,7 @@ def pobject_from_value(value):
     return Klass(dot_name_from_path(value.name), members_from_group(value))
   if value.attrs['type'] == 'Instance':
     return Instance(dot_name_from_path(value.name), members_from_group(value))
-  
+
   raise ValueError(value)
 
 

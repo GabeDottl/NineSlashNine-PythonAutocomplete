@@ -90,6 +90,13 @@ class ModuleType(Enum):
   def should_be_readable(self):
     return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE
 
+  def serialize(self):
+    return self.value
+
+  @staticmethod
+  def deserialize(value):
+    return ModuleType(value)
+
 
 def create_main_module(filename=None):
   return ModuleImpl(
@@ -287,11 +294,6 @@ class Klass(Namespace, LanguageObject):
 
     return instance
 
-  # def get_parameters(self):
-  #   if '__init__' in self:
-  #     return self['__init__'].get_parameters()
-  #   return []
-
 
 @attr.s(str=False, repr=False, slots=True)
 class Instance(Namespace, LanguageObject):
@@ -325,6 +327,13 @@ class FunctionType(Enum):
   STATIC_METHOD = 2  # Essentially, free.
   UNBOUND_INSTANCE_METHOD = 3
   BOUND_INSTANCE_METHOD = 4
+
+  def serialize(self):
+    return self.value
+
+  @staticmethod
+  def deserialize(value):
+    return FunctionType(value)
 
 
 class Function(Namespace, LanguageObject):
@@ -495,10 +504,6 @@ class BoundFunction(Function):
     self.parameters = filter(lambda param: param.name not in self._bound_kwargs,
                              remaining_parameters)
 
-  # @_function.validator
-  # def _function_validator(self, attribute, value):
-  #   assert isinstance(value, Function)v
-
   # TODO: Cell vars.
   def bind(self, args, kwargs) -> 'BoundFunction':
     return BoundFunction(self, args, kwargs)
@@ -513,14 +518,6 @@ class BoundFunction(Function):
     })
 
   def call(self, curr_frame, args, kwargs, reuse_curr_frame=False):
-    # if reuse_curr_frame:
-    #   new_frame = curr_frame
-    # else:
-    #   new_frame = curr_frame.make_child(
-    #       frame_type=FrameType.FUNCTION,
-    #       namespace=self,
-    #       module=self._function._module)
-    # new_frame._locals.update(self._bound_locals)
     return self._function.call_inner(curr_frame, self._bound_args + args, {
         **kwargs,
         **self._bound_kwargs
@@ -538,7 +535,7 @@ class StubFunction(Function):
   name: str = attr.ib()
   parameters = attr.ib()
   returns = attr.ib()
-  type = attr.ib(FunctionType.FREE)
+  # type = attr.ib(FunctionType.FREE)
   _members: Dict = attr.ib(factory=dict)
 
   def call_inner(self, curr_frame, args, kwargs, bound_locals):
@@ -597,10 +594,55 @@ class Parameter:
   def __repr__(self):
     return str(self)
 
-  def serialize(self):
 
-    return self.value
+NONE_TYPE = type(None)
 
-  @staticmethod
-  def deserialize(value):
-    return ParameterType(value)
+
+def deserialize(type_str, serialized_obj):
+  # type_str, serialized_obj = serialized_obj
+  if serialized_obj is None:
+    return None
+  if type_str in __builtins__:
+    return serialized_obj
+
+  type_ = globals()[type_str]
+  if hasattr(type_, 'deserialize'):
+    return type_.deserialize(serialized_obj)
+
+  if isinstance(serialized_obj, dict):
+    d = {}
+    for key, value in serialized_obj.items():
+      d[key] = deserialize(*value)
+    return type_(**d)
+  raise NotImplementedError()
+
+
+def serialize(obj):
+  if isinstance(obj, (str, int, float, bool, NONE_TYPE)):
+    return type_name(obj), obj
+
+  if hasattr(obj, 'serialize'):
+    return type_name(obj), obj.serialize()
+
+  # Check if attrs class.
+  if hasattr(obj, '__attrs_attrs__'):
+    out = {}
+    for name, value in attr.asdict(obj).items():
+      out[name] = serialize(value)
+    return type_name(obj), out
+
+  if isinstance(obj, dict):
+
+    return type_name(obj), {k: serialize(v) for k, v in obj.items()}
+
+  if isinstance(obj, Iterable):
+    return type_name(obj), list(serialize(x) for x in obj)
+
+  raise NotImplementedError()
+
+
+def type_name(obj):
+  if hasattr(obj, '__class__'):
+    return obj.__class__.__qualname__
+    # return f'{obj.__class__.__module__}.{obj.__class__.__qualname__}'
+  return str(type(obj))

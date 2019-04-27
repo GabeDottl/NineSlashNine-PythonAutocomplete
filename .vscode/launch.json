@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "test_module_index",
+      "name": "test_storage",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/tests/test_module_index.py",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/tests/test_storage.py",
       "console": "integratedTerminal",
     },
     {
