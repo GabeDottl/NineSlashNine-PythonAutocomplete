@@ -97,20 +97,14 @@ def get_module_from_filename(name, filename, is_package=False) -> Module:
 
 
 def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
-  # try:
   with FileContext(filename):
     a_frame = frame.Frame(
         module=module, namespace=module, locals=module._members)
     graph = api.graph_from_source(source, module)
     graph.process(a_frame)
-  # except Exception as e:
-  #   import traceback
-  #   traceback.print_tb(e.__traceback__)
-  #   print(e)
-  #   raise e
   # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
   # when running, so we through them in anyway for the heck of it.
-  return a_frame._locals  #dict(filter(lambda kv: '_' != kv[0][0], a_frame._locals.items()))
+  return a_frame._locals
 
 
 def _get_module_stub_source_filename(name) -> str:
@@ -121,7 +115,6 @@ def _get_module_stub_source_filename(name) -> str:
   # https://github.com/google/pytype/blob/309a87fab8a861241823592157208e65c970f7b6/pytype/pytd/typeshed.py#L24
   import typeshed
   typeshed_dir = os.path.dirname(typeshed.__file__)
-  # basename = name.split('.')[0]
   if name != '.' or name[0] != '.':
     raise ValueError()
   module_path_base = name.replace('.', os.sep)
@@ -135,9 +128,7 @@ def _get_module_stub_source_filename(name) -> str:
                           f'{module_path_base}.pyi'):
         abs_module_path = os.path.join(typeshed_dir, top_level, version,
                                        module_path)
-        # info(abs_module_path)
         if os.path.exists(abs_module_path):
-          # info(f'Found typeshed path for {name}: {abs_module_path}')
           return abs_module_path, os.path.basename(
               module_path) == '__init__.pyi'
   raise ValueError(f'Did not find typeshed for {name}')
