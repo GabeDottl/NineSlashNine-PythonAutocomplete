@@ -518,11 +518,12 @@ def _search_for_module(frame):
 class KlassCfgNode(CfgNode):
   name = attr.ib()
   suite = attr.ib()
+  _module = attr.ib()
   parso_node = attr.ib()
 
   def _process_impl(self, curr_frame):
     klass_name = f'{curr_frame.namespace.name}.{self.name}' if curr_frame.namespace else self.name
-    klass = Klass(klass_name)
+    klass = Klass(klass_name, self._module.name)
     curr_frame[self.name] = klass
 
     new_frame = curr_frame.make_child(

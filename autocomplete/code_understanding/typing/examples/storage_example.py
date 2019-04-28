@@ -1,6 +1,9 @@
-from functools import wraps
+import sys
+import traceback
 
-import numpy as np
+import six  # NativeModule
+
+from .boo import Boo
 
 a = 2
 b = False
@@ -11,9 +14,8 @@ d = 1.2
 class Klazz:
   e = 1
 
-  @wraps(None)
   def foo(self, a, *args, b=2, **kwargs):
-    return 4
+    return Boo()
 
 
 k = Klazz()

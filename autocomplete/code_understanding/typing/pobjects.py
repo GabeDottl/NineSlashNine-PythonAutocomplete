@@ -9,9 +9,11 @@ from typing import Dict, List
 
 import attr
 
+from autocomplete.code_understanding.typing import serialization
 from autocomplete.code_understanding.typing.errors import (
     AmbiguousFuzzyValueDoesntHaveSingleValueError, LoadingModuleAttributeError,
     NoDictImplementationError, SourceAttributeError)
+from autocomplete.code_understanding.typing.utils import to_dict_iter
 from autocomplete.nsn_logging import debug, error, info, warning
 
 _OPERATORS = [
@@ -70,6 +72,9 @@ class FuzzyBoolean(Enum):
     if self == FuzzyBoolean.FALSE:
       return NativeObject(False)
     return FuzzyObject([NativeObject(True), NativeObject(False)])
+
+  def serialize(self, **kwargs):
+    return FuzzyBoolean.__qualname__, self.value
 
 
 def _process_args_kwargs(curr_frame, args, kwargs):
@@ -162,7 +167,7 @@ class PObject(ABC):
     )
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class DynamicContainer:
   attributes = attr.ib(factory=dict)
 
@@ -187,7 +192,7 @@ class DynamicContainer:
     return str(self)
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class UnknownObject(PObject):
   name = attr.ib()  # For recording source of value - e.g. functools.wraps.
   _dynamic_container = attr.ib(factory=DynamicContainer)
@@ -242,10 +247,10 @@ class UnknownObject(PObject):
     return str(self)
 
 
-NATIVE_TYPES = (int, str, list, dict, type(None))
+NATIVE_TYPES = (int, float, str, list, dict, type(None))
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class NativeObject(PObject):
   '''NativeObject wraps native-Python objects.
 
@@ -349,23 +354,7 @@ class NativeObject(PObject):
         error(e)
 
   def to_dict(self):
-    if hasattr(self._native_object, '__dict__'):
-      items_iter = self._native_object.__dict__.items()
-    elif isinstance(self._native_object, Dict):
-      items_iter = self._native_object.items()
-    elif hasattr(self._native_object, '__slots__'):
-
-      def iterator():
-        for name in self._native_object.__slots__:
-          try:
-            yield name, getattr(self._native_object, name)
-          except AttributeError:
-            pass
-
-      items_iter = iterator()
-    else:
-      debug(f'{self._native_object} can\'t be used as dict.')
-      return {}
+    items_iter = to_dict_iter(self._native_object)
     return {name: pobject_from_object(value) for name, value in items_iter}
 
   def iterator(self):
@@ -383,6 +372,19 @@ class NativeObject(PObject):
       except Exception as e:
         error(e)
     return super().iterator()
+
+  def serialize(self, **kwargs):
+    if isinstance(self._native_object, NATIVE_TYPES):
+      return NativeObject.__qualname__, serialization.serialize(
+          self._native_object, **kwargs)
+    # TODO: return native_conversion_func, object.path'
+    if hasattr(self._native_object, '__module__'):
+      return UnknownObject(
+          f'{self._native_object.__module__}.{self._native_object.__class__.__qualname__}'
+      )
+    if hasattr(self._native_object, '__name__'):
+      return UnknownObject(self._native_object.__name__)
+    return UnknownObject(str(self._native_object))
 
   def __str__(self):
     return f'NO({self._native_object})'
@@ -402,7 +404,7 @@ def pobject_from_object(obj):
   return NativeObject(obj)
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class AugmentedObject(PObject):  # TODO: CallableInterface
   _object = attr.ib()
   _dynamic_container = attr.ib(factory=DynamicContainer)
@@ -486,6 +488,9 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
           f'Skipping setting {self._object}[{index_expression}] = {value_expression}'
       )
 
+  def serialize(self, **kwargs):
+    return serialization.serialize(self._object, **kwargs)
+
   def __str__(self):
     return f'AO({self._object}):[{self._dynamic_container}]'
 
@@ -497,7 +502,7 @@ class EmptyFuzzyValueError(Exception):
   ...
 
 
-@attr.s(str=False, repr=False)
+@attr.s(str=False, repr=False, slots=True)
 class FuzzyObject(PObject):
   """A FuzzyObject is an abstraction over the result of executing an expression.
 
@@ -514,7 +519,6 @@ class FuzzyObject(PObject):
   """
 
   _values: List = attr.ib()  # Tuple of possible values
-  _source_node = attr.ib(None)  # type is CfgNode - circular dep breaks lint.
 
   @_values.validator
   def _values_valid(self, attribute, values):
@@ -535,7 +539,7 @@ class FuzzyObject(PObject):
     assert all(isinstance(value, PObject) for value in self._values)
 
   def __str__(self):
-    return f'FV({self._values}{self._source_node})'
+    return f'FV({self._values})'
 
   def __repr__(self):
     return str(self)
@@ -567,25 +571,6 @@ class FuzzyObject(PObject):
 
   def get_attribute(self, name) -> 'FuzzyObject':
     return FuzzyObject([value.get_attribute(name) for value in self._values])
-    # results = []
-    # for val in self._values:
-    #     results.append(val.get_attribute(name))
-
-    #   if hasattr(val, 'get_attribute') and val.has_attribute(name):
-    #     results.append(val.get_attribute(name))
-
-    # if matches:    #   if len(matches) > 1:
-    #     return FuzzyObject(matches)
-    #   return matches[0]
-
-    # if self._
-    # self._dynamic_container.get_attribute(name)
-    # # if not self._dynamic_creation:
-    # #   raise ValueError(f'No value with attribute for {name} on {self}')
-    # info(
-    #     f'Failed to find attribute {name}; creating an empty FuzzyObject for it.'
-    # )
-    # return FuzzyObject([], dynamic_creation=True)
 
   def set_attribute(self, name: str, value):
     if not isinstance(value, PObject):
@@ -700,6 +685,11 @@ class FuzzyObject(PObject):
       # for v in chain(self._values, other._values):
       #   types.append(fuzzy_types(v))
       return FuzzyObject(values, types)
+
+  def serialize(self, **kwargs):
+    return FuzzyObject.__qualname__, [
+        serialization.serialize(value, **kwargs) for value in self._values
+    ]
 
 
 # Add various operators too FuzzyObject class.

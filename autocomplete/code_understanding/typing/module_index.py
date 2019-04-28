@@ -92,12 +92,12 @@ def pobject_from_attr(value):
 
 
 def pobject_from_value(value):
-  if value.attrs['type'] == 'Unknown':
-    return UnknownObject('')
-  if value.attrs['type'] == 'Klass':
-    return Klass(dot_name_from_path(value.name), members_from_group(value))
-  if value.attrs['type'] == 'Instance':
-    return Instance(dot_name_from_path(value.name), members_from_group(value))
+  # if value.attrs['type'] == 'Unknown':
+  #   return UnknownObject('')
+  # if value.attrs['type'] == 'Klass':
+  #   return Klass(dot_name_from_path(value.name), members_from_group(value))
+  # if value.attrs['type'] == 'Instance':
+  #   return Instance(dot_name_from_path(value.name), members_from_group(value))
 
   raise ValueError(value)
 

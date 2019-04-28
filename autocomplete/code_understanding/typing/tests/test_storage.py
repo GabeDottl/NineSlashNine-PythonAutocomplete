@@ -3,8 +3,10 @@ import os
 import msgpack
 
 from autocomplete.code_understanding.typing import (
-    language_objects, module_loader)
+    language_objects, module_loader, serialization)
 from autocomplete.code_understanding.typing.module_index import ModuleIndex
+from autocomplete.code_understanding.typing.tests.utils import (
+    assert_expected_iterable)
 
 
 def test_store_retrieve():
@@ -21,11 +23,16 @@ def test_store_retrieve():
 
 
 def test_serialization_deserialization():
-  p = language_objects.Parameter('a', language_objects.ParameterType.SINGLE)
+  module_name = 'autocomplete.code_understanding.typing.examples.storage_example'
+  # module_name = 'autocomplete.code_understanding.typing.control_flow_graph'
+  module = module_loader.load_module(module_name)
+
   with open('/tmp/tmp.msg', 'wb') as f:
-    msgpack.pack(p, f, default=language_objects.serialize, use_bin_type=True)
+    msgpack.pack(module, f, default=serialization.serialize, use_bin_type=True)
   with open('/tmp/tmp.msg', 'rb') as f:
-    pl = language_objects.deserialize(*msgpack.unpack(f, raw=False))
+    module_loaded = module_loader.deserialize(*msgpack.unpack(f, raw=False))
+  assert_expected_iterable(module_loaded.get_members().keys(),
+                           module.get_members().keys())
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from typing import Dict, Iterable
 
 import attr
 
+from autocomplete.code_understanding.typing import serialization
 from autocomplete.code_understanding.typing.errors import (
     LoadingModuleAttributeError, NoDictImplementationError,
     SourceAttributeError, UnableToReadModuleFileError)
@@ -30,7 +31,9 @@ from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.pobjects import (
     NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, NativeObject,
     PObject, UnknownObject, pobject_from_object)
-from autocomplete.code_understanding.typing.utils import instance_memoize
+from autocomplete.code_understanding.typing.serialization import type_name
+from autocomplete.code_understanding.typing.utils import (
+    attrs_names_from_class, instance_memoize)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -90,12 +93,8 @@ class ModuleType(Enum):
   def should_be_readable(self):
     return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE
 
-  def serialize(self):
-    return self.value
-
-  @staticmethod
-  def deserialize(value):
-    return ModuleType(value)
+  def serialize(self, **kwargs):
+    return ModuleType.__qualname__, self.value
 
 
 def create_main_module(filename=None):
@@ -161,9 +160,11 @@ class NativeModule(Module):
   def get_members(self):
     return self._native_module.to_dict()
 
-  @instance_memoize
   def root(self):
     return self
+
+  def serialize(self, **kwargs):
+    return NativeModule.__qualname__, self.name
 
 
 @attr.s(slots=True)
@@ -190,13 +191,38 @@ class ModuleImpl(Module):
         warning(f'Failed to get {name} from {self.name}')
       return UnknownObject(f'{self.name}.{name}')
 
+  def serialize(self, **kwargs):
+    # Note, this is being done s.t. it works with subclasses - namely LazyModule.
+    d = {}
+
+    def serialization_hook(obj):
+      if isinstance(obj, Module):
+        return True, ('import_module', (obj.name, obj.filename))
+      if isinstance(obj, Klass) and obj.module_name != self.name:
+        return True, ('from_import', obj.name)
+      return False, None
+
+    for name in attrs_names_from_class(ModuleImpl):
+      value = getattr(self, name)
+      info(f'name: {name} {type(value)}')
+      value = serialization.serialize(value, hook_fn=serialization_hook)
+      d[_strip_underscore_prefix(name)] = value
+    return ModuleImpl.__qualname__, d
+
+
+def _strip_underscore_prefix(name):
+  for i in range(len(name)):
+    if name[i] != '_':
+      return name[i:]
+  return ''
+
 
 @attr.s(slots=True)
 class SimplePackageModule(ModuleImpl):
   ...
 
 
-@attr.s  #(slots=True)
+@attr.s
 class LazyModule(ModuleImpl):
   '''A Module which is lazily loaded with members.
   
@@ -212,33 +238,35 @@ class LazyModule(ModuleImpl):
 
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
-      if not self._loaded and not self._loading_failed:
-        if self._loading:
-          # debug(f'Lazily loading from: {self.filename}')
-          # So, curiously, this is more allowed than I would think. ctypes does this with _endian
-          # where ctypes imports some stuff from _endian and the latter imports everything from
-          # ctypes - however, the ordering seems carefully done such that the _endian import in
-          # ctypes is well after most of it's members are defined - so, the module is mostly defined.
-          warning(
-              f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?'
-          )
-          return func(self, *args, **kwargs)
-          # raise LoadingModuleAttributeError()
-        self._loading = True
-        try:
-          self._members = self.load_module_exports_from_filename(
-              self, self.filename)
-        except UnableToReadModuleFileError:
-          # raise
-          error(f'Unable to lazily load {self.filename}')
-          self._loading_failed = True
-        else:
-          self._loaded = True
-        finally:
-          self._loading = False
+      self._load()
+      if self._loading:
+        # debug(f'Lazily loading from: {self.filename}')
+        # So, curiously, this is more allowed than I would think. ctypes does this with _endian
+        # where ctypes imports some stuff from _endian and the latter imports everything from
+        # ctypes - however, the ordering seems carefully done such that the _endian import in
+        # ctypes is well after most of it's members are defined - so, the module is mostly defined.
+        warning(
+            f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?'
+        )
       return func(self, *args, **kwargs)
 
     return _wrapper
+
+  def _load(self):
+    if self._loaded or self._loading_failed or self._loading:
+      return
+
+    self._loading = True
+    try:
+      self._members = self.load_module_exports_from_filename(
+          self, self.filename)
+    except UnableToReadModuleFileError:
+      error(f'Unable to lazily load {self.filename}')
+      self._loading_failed = True
+    else:
+      self._loaded = True
+    finally:
+      self._loading = False
 
   @_lazy_load
   def __contains__(self, name):
@@ -256,17 +284,19 @@ class LazyModule(ModuleImpl):
   def items(self):
     return super().items()
 
+  def serialize(self, **kwargs):
+    assert not self._loading
+    if not self._loaded or self._loading_failed:
+      self._load()
+    # Loaded or loading failed.
+    return super().serialize(**kwargs)
+
 
 @attr.s(str=False, repr=False, slots=True)
 class Klass(Namespace, LanguageObject):
   name: str = attr.ib()
+  module_name: 'str' = attr.ib()
   _members: Dict[str, PObject] = attr.ib(factory=dict)
-
-  def __str__(self):
-    return f'class {self.name}: {list(self._members.keys())}'
-
-  def __repr__(self):
-    return str(self)
 
   def call(self, curr_frame, args, kwargs):
     return AugmentedObject(self.new(curr_frame, args, kwargs))
@@ -289,10 +319,15 @@ class Klass(Namespace, LanguageObject):
         instance[name] = member
 
     if '__init__' in instance:
-      # info('Calling method __init__')
       instance['__init__'].value().call(curr_frame, args, kwargs)
 
     return instance
+
+  def __str__(self):
+    return f'class {self.name}: {list(self._members.keys())}'
+
+  def __repr__(self):
+    return str(self)
 
 
 @attr.s(str=False, repr=False, slots=True)
@@ -301,6 +336,9 @@ class Instance(Namespace, LanguageObject):
   _members: Dict = attr.ib(factory=dict)
 
   # TODO: Class member fallback for classmethods?
+
+  def serialize(self, **kwargs):
+    return 'LazyInstance', self._klass.name
 
   def __str__(self):
     return f'Inst {self._klass.name}: {list(self._members.keys())}'
@@ -320,6 +358,9 @@ class LazyInstance(Namespace, LanguageObject):
   klass_name = attr.ib()
   _members: Dict = attr.ib(factory=dict)
 
+  def serialize(self, **kwargs):
+    return 'LazyInstance', self._klass.name
+
 
 class FunctionType(Enum):
   FREE = 0
@@ -328,16 +369,15 @@ class FunctionType(Enum):
   UNBOUND_INSTANCE_METHOD = 3
   BOUND_INSTANCE_METHOD = 4
 
-  def serialize(self):
-    return self.value
-
-  @staticmethod
-  def deserialize(value):
-    return FunctionType(value)
+  def serialize(self, **kwargs):
+    return FunctionType.__qualname__, self.value
 
 
 class Function(Namespace, LanguageObject):
   ...
+
+  def to_stub(self):
+    return StubFunction(self.name, self.parameters, None)
 
 
 @attr.s(str=False, repr=False)
@@ -479,6 +519,9 @@ class FunctionImpl(Function):
           in_dict[key] = value
       new_frame[kwargs_name] = pobject_from_object(in_dict)  # NativeObject.
 
+  def serialize(self, **kwargs):
+    return serialization.serialize(self.to_stub(), **kwargs)
+
   def __str__(self):
     return f'def {self.name}({tuple(self.parameters)})'
 
@@ -523,6 +566,9 @@ class BoundFunction(Function):
         **self._bound_kwargs
     }, self._bound_locals)
 
+  def serialize(self, **kwargs):
+    return serialization.serialize(self.to_stub(), **kwargs)
+
   def __str__(self):
     return f'bound[{self._bound_args}][{self._bound_kwargs}]:{self._function}'
 
@@ -549,6 +595,12 @@ class StubFunction(Function):
   def get_parameters(self, curr_frame):
     return self.parameters
 
+  def to_stub(self):
+    return self
+
+  # def serialize(self, **kwargs):
+  #   return serialization.serialize(self, **kwargs)
+
   def __str__(self):
     return f'Func({tuple(self.parameters)})'
 
@@ -561,12 +613,8 @@ class ParameterType(Enum):
   ARGS = 1
   KWARGS = 2
 
-  def serialize(self):
-    return self.value
-
-  @staticmethod
-  def deserialize(value):
-    return ParameterType(value)
+  def serialize(self, **kwargs):
+    return ParameterType.__qualname__, self.value
 
 
 @attr.s(str=False, repr=False, slots=True, frozen=True)
@@ -593,56 +641,3 @@ class Parameter:
 
   def __repr__(self):
     return str(self)
-
-
-NONE_TYPE = type(None)
-
-
-def deserialize(type_str, serialized_obj):
-  # type_str, serialized_obj = serialized_obj
-  if serialized_obj is None:
-    return None
-  if type_str in __builtins__:
-    return serialized_obj
-
-  type_ = globals()[type_str]
-  if hasattr(type_, 'deserialize'):
-    return type_.deserialize(serialized_obj)
-
-  if isinstance(serialized_obj, dict):
-    d = {}
-    for key, value in serialized_obj.items():
-      d[key] = deserialize(*value)
-    return type_(**d)
-  raise NotImplementedError()
-
-
-def serialize(obj):
-  if isinstance(obj, (str, int, float, bool, NONE_TYPE)):
-    return type_name(obj), obj
-
-  if hasattr(obj, 'serialize'):
-    return type_name(obj), obj.serialize()
-
-  # Check if attrs class.
-  if hasattr(obj, '__attrs_attrs__'):
-    out = {}
-    for name, value in attr.asdict(obj).items():
-      out[name] = serialize(value)
-    return type_name(obj), out
-
-  if isinstance(obj, dict):
-
-    return type_name(obj), {k: serialize(v) for k, v in obj.items()}
-
-  if isinstance(obj, Iterable):
-    return type_name(obj), list(serialize(x) for x in obj)
-
-  raise NotImplementedError()
-
-
-def type_name(obj):
-  if hasattr(obj, '__class__'):
-    return obj.__class__.__qualname__
-    # return f'{obj.__class__.__module__}.{obj.__class__.__qualname__}'
-  return str(type(obj))

@@ -18,7 +18,8 @@ import importlib
 import os
 from typing import Dict, Tuple
 
-from autocomplete.code_understanding.typing import api, collector, frame
+from autocomplete.code_understanding.typing import (
+    api, collector, frame, serialization)
 from autocomplete.code_understanding.typing.collector import FileContext
 from autocomplete.code_understanding.typing.errors import (
     LoadingModuleAttributeError, SourceAttributeError,
@@ -28,8 +29,10 @@ from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module
 )
 from autocomplete.code_understanding.typing.pobjects import (
-    PObject, UnknownObject)
+    NativeObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
+
+# from autocomplete.code_understanding.typing.serialization import deserialize
 
 __module_dict: dict = {}
 __path_module_dict: dict = {}
@@ -84,7 +87,11 @@ def get_module_from_filename(name, filename, is_package=False) -> Module:
   abs_path = os.path.abspath(filename)
   if abs_path in __path_module_dict:
     return __path_module_dict[abs_path]
-  module = load_module_from_filename(name, filename, is_package=is_package)
+  module = load_module_from_filename(
+      name,
+      filename,
+      is_package=is_package,
+      module_type=_module_type_from_path(filename))
   __path_module_dict[abs_path] = module
   return module
 
@@ -155,6 +162,8 @@ def load_module_exports_from_filename(module, filename):
 
 
 def _module_type_from_path(path) -> ModuleType:
+  # TODO: Refine / include LOCAL.
+  # https://github.com/GabeDottl/autocomplete/issues/1
   for third_party in ('dist-packages', 'site-packages'):
     if third_party in path:
       return ModuleType.PUBLIC
@@ -239,6 +248,29 @@ def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
 
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
+
+
+def deserialize_hook_fn(type_str, obj):
+  if type_str == NativeModule.__qualname__:
+    return True, get_module(obj)
+  if type_str == 'import_module':
+    name, filename = obj
+    return load_module_from_filename(
+        name,
+        filename,
+        is_package=_is_init(filename),
+        module_type=_module_type_from_path(filename))
+  if type_str == 'from_import':
+    path = obj
+    index = path.rindex('.')
+    module_name = path[:index]
+    object_name = path[index + 1:]
+    return get_pobject_from_module(module_name, object_name)
+  return False, None
+
+
+def deserialize(type_str, obj):
+  return serialization.deserialize(type_str, obj, hook_fn=deserialize_hook_fn)
 
 
 def _load_module_from_module_info(name: str,

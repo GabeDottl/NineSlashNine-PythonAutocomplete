@@ -439,7 +439,7 @@ class ControlFlowGraphBuilder:
   def _create_cfg_node_for_classdef(self, node):
     name = node.children[1].value
     suite = self._create_cfg_node(node.children[-1])
-    return KlassCfgNode(name, suite, parso_node=node)
+    return KlassCfgNode(name, suite, module=self._module, parso_node=node)
 
   @_assert_returns_type(List)
   def create_expression_node_tuples_from_if_stmt(

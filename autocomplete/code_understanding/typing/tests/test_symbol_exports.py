@@ -8,6 +8,8 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     FuncCfgNode)
 from autocomplete.code_understanding.typing.project_analysis import (
     find_missing_symbols)
+from autocomplete.code_understanding.typing.tests.utils import (
+    assert_expected_iterable)
 from autocomplete.nsn_logging import debug, info
 
 
@@ -33,18 +35,16 @@ def test_cfg_symbol_visibility():
   '''
   graph = graph_from_source(source)
   graph = control_flow_graph.condense_graph(graph)
-  _assert_expected_iterable(graph.get_defined_and_exported_symbols(),
-                            ['a', 'X'])
+  assert_expected_iterable(graph.get_defined_and_exported_symbols(), ['a', 'X'])
   klass_node = graph[1]
-  _assert_expected_iterable(klass_node.get_defined_and_exported_symbols(),
-                            ['X'])
-  _assert_expected_iterable(klass_node.suite.get_defined_and_exported_symbols(),
-                            ['b', 'foo'])
+  assert_expected_iterable(klass_node.get_defined_and_exported_symbols(), ['X'])
+  assert_expected_iterable(klass_node.suite.get_defined_and_exported_symbols(),
+                           ['b', 'foo'])
   func_node = klass_node.suite[2]
   assert isinstance(func_node, FuncCfgNode)
-  _assert_expected_iterable(func_node.get_defined_and_exported_symbols(),
-                            ['foo'])
-  _assert_expected_iterable(
+  assert_expected_iterable(func_node.get_defined_and_exported_symbols(),
+                           ['foo'])
+  assert_expected_iterable(
       func_node.suite.get_defined_and_exported_symbols(),
       ['c', 'f', 'd', 'e', 'g', 'i', 'h', 'j', 'k', 'foo2'])
 
@@ -74,13 +74,13 @@ def test_closure_scope():
   assert not foo_func_node.closure()  # Should be empty.
   foo2_func_node = foo_func_node.suite[5]
   assert isinstance(foo2_func_node, FuncCfgNode)
-  _assert_expected_iterable(foo2_func_node.closure(), ['b', 'w', 'q'])
+  assert_expected_iterable(foo2_func_node.closure(), ['b', 'w', 'q'])
   foo3_func_node = foo2_func_node.suite[2]
   assert isinstance(foo3_func_node, FuncCfgNode)
-  _assert_expected_iterable(foo3_func_node.closure(), ['b', 'c'])
+  assert_expected_iterable(foo3_func_node.closure(), ['b', 'c'])
   x_klass_node = foo2_func_node.suite[3]
   foo4_func_node = x_klass_node.suite[-1]
-  _assert_expected_iterable(foo4_func_node.closure(), ['c', 'q'])
+  assert_expected_iterable(foo4_func_node.closure(), ['c', 'q'])
 
 
 def test_closure_values():
@@ -124,13 +124,6 @@ def test_missing_symbols():
   assert len(missing_symbols) == 5, missing_symbols
   for i in range(1, 6):
     assert f'unresolved{i}' in missing_symbols
-
-
-def _assert_expected_iterable(actual, expected):
-  actual = set(actual)
-  expected = set(expected)
-  difference = actual.difference(expected)
-  assert not difference, difference  # Should be empty set.
 
 
 def test_no_missing_symbols_in_typing_package():
