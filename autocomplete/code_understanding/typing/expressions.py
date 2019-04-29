@@ -9,7 +9,7 @@ from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
     AmbiguousFuzzyValueDoesntHaveSingleValueError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, FuzzyObject, NativeObject, PObject,
+    AugmentedObject, FuzzyBoolean, FuzzyObject, NativeObject, PObject, PObjectType,
     UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, info, warning
@@ -160,11 +160,11 @@ def _assign_variables_to_results(curr_frame, variable, result):
         # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
         _assign_variables_to_results(
             curr_frame, variable_item.base_expression,
-            result.get_item_pobject_index(pobject_from_object(i)))
+            result.get_item(curr_frame, pobject_from_object(i)))
       else:
         _assign_variables_to_results(
             curr_frame, variable_item,
-            result.get_item_pobject_index(pobject_from_object(i)))
+            result.get_item(curr_frame, pobject_from_object(i)))
 
 
 @attr.s(slots=True)
@@ -175,8 +175,14 @@ class CallExpression(Expression):
   kwargs: Dict[str, Expression] = attr.ib(factory=dict)
 
   def evaluate(self, curr_frame) -> PObject:
+    
     pobject = self.function_expression.evaluate(curr_frame)
-    return pobject.call(curr_frame, self.args, self.kwargs)
+    info(f'evaluating for {pobject}: {self.args}')
+    evaluated_args = [arg.evaluate(curr_frame) for arg in self.args]
+    evaluated_kwargs = {name: arg.evaluate(curr_frame) for name, arg in self.kwargs.items()}
+    out = pobject.call(curr_frame, evaluated_args, evaluated_kwargs)
+    info(f'Evaluated {pobject}. {out}')
+    return out
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -260,8 +266,10 @@ class StarredExpression(Expression):
   base_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    return pobject_from_object(
+    out = pobject_from_object(
         self.base_expression.evaluate(curr_frame).iterator())
+    out.pobject_type = PObjectType.STARRED if self.operator == '*' else PObjectType.DOUBLE_STARRED
+    return out
 
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
@@ -366,12 +374,12 @@ class SubscriptExpression(Expression):
 
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.get_item(curr_frame, self.subscript_list_expression)
+    return pobject.get_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame))
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.set_item(curr_frame, self.subscript_list_expression,
-                            AnonymousExpression(value))
+    return pobject.set_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame),
+                            value)
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:

@@ -36,7 +36,7 @@ def analyze_file(filename):
   #       return collector_from_source(source)
 
   # def collector_from_source(source: str):
-  module = module_loader.load_module_from_filename(
+  module = module_loader.get_module_from_filename(
       '', filename, is_package=False, lazy=False)
   # graph = graph_from_source(source)
   # a_frame = frame.Frame()
@@ -57,12 +57,12 @@ def _process(member, a_frame):
   elif member.value_is_a(Function) == FuzzyBoolean.TRUE:
     func = member.value()
     debug(f'Calling {func.name}')
-    kwargs = {param.name: UnknownExpression('') for param in func.parameters}
+    kwargs = {param.name: UnknownObject(param.name) for param in func.parameters}
     func.call(a_frame, [], kwargs)
 
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('source')
+  parser.add_argument('filename')
   args, _ = parser.parse_known_args()
-  print(analyze_file(filename))
+  print(analyze_file(args.filename))

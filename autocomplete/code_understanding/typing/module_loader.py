@@ -16,7 +16,7 @@ https://docs.python.org/3/tutorial/modules.html
 '''
 import importlib
 import os
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Set
 
 from autocomplete.code_understanding.typing import (
     api, collector, frame, serialization)
@@ -32,10 +32,11 @@ from autocomplete.code_understanding.typing.pobjects import (
     NativeObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
-# from autocomplete.code_understanding.typing.serialization import deserialize
-
-__module_dict: dict = {}
-__path_module_dict: dict = {}
+__filename_module_dict: Dict[str, Module] = {}
+__native_module_dict: Dict[str, Module] = {}
+# This is primarily to ensure we never read in a file twice - which should be essentially impossible
+# given the public API.
+__loaded_paths: Set[str] = set()
 
 
 class InvalidModuleError(Exception):
@@ -43,12 +44,14 @@ class InvalidModuleError(Exception):
 
 
 def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
+  # See if there's a module we can read that'd correspond to the full name.
   full_pobject_name = f'{module_name}.{pobject_name}'
-  if full_pobject_name in __module_dict:
-    return __module_dict[full_pobject_name]
+  try:
+    return get_module(full_pobject_name, unknown_fallback=False)
+  except InvalidModuleError:
+    pass
 
   module = get_module(module_name)
-
   # Try to get pobject_name as a member of module if module is a package.
   # If the module is already loading, then we don't want to check if pobject_name is in module
   # because it will cause headaches. So try getting full_object_name as a package instead.
@@ -56,48 +59,65 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
       not module._loading) and pobject_name in module:
     return module[pobject_name]
 
-  # # See if there's a module we can read that'd correspond to the full name.
-  try:
-    return load_module(full_pobject_name, unknown_fallback=False)
-  except InvalidModuleError:
-    return UnknownObject(full_pobject_name)
+  return UnknownObject(full_pobject_name)
 
+def get_module(name: str, unknown_fallback=True, lazy=True) -> Module:
+  filename, is_package, module_type = _module_info_from_name(name)
+  return _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy)
 
-def get_module(name: str, unknown_fallback=True) -> Module:
-  global __module_dict
-  if name in __module_dict:
-    module = __module_dict[name]
-    if module is None:
-      error('Circular dep.')
-      return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
+def get_module_from_filename(name, filename, is_package=False, unknown_fallback=False, lazy=True) -> Module:
+  filename = os.path.abspath(filename)  # Ensure its absolute.
+  return _get_module_internal(name, filename, is_package, _module_type_from_filename(filename), unknown_fallback=unknown_fallback, lazy=lazy)
+
+def _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy):
+  if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
+    if unknown_fallback:
+      return _create_empty_module(name, module_type)
+    raise InvalidModuleError(name)
+  
+  global __filename_module_dict
+  global __native_module_dict
+
+  # Modules we load natively are stored in a separate dict from the filename dict because they
+  # typically don't have a valid filename.
+  # TODO: This could get murky if we allowed more modules to be loaded natively.
+  if name in NATIVE_MODULE_WHITELIST or module_type == ModuleType.BUILTIN:
+    if name in __native_module_dict:
+      return __native_module_dict[name]
+    out = __native_module_dict[name] = _load_module_from_module_info(name, filename, is_package, module_type, unknown_fallback=unknown_fallback, lazy=lazy)
+    return out
+  
+  assert filename is not None and os.path.exists(filename)
+  assert filename == os.path.abspath(filename)
+
+  # Normal case, check if we have a module for the specified file already.
+  if filename in __filename_module_dict:
+    module = __filename_module_dict[filename]
+    assert module is not None, collector._filename_context
+
+    # Load module if it's not alread loaded and we're specifically retrieving a non-Lazy version.
+    if isinstance(module, LazyModule) and not lazy:
+      module.load()
     return module
-  __module_dict[name] = None
-  path, is_package, module_type = _module_info_from_name(name)
-  module = _load_module_from_module_info(name, path, is_package, module_type)
-  module = load_module(name)
+
+  # We set this to None to start as a form of dependency-cycle-checking. This is the only way that
+  # an object is this dict is None and we check if a value retrieved from it is None above.
+  __filename_module_dict[filename] = None
+
+  module = _load_module_from_module_info(name, filename, is_package, module_type, unknown_fallback=unknown_fallback, lazy=lazy)
   assert module is not None
-  info(f'Added {name} to module dict.')
-  __module_dict[name] = module
-  if path and os.path.exists(path):
-    __path_module_dict[path] = module
+  info(f'Adding {filename} to module dict.')
+  # Note: This will essentially stop us from storing modules which are unreadable because they are
+  # sourced from invalid files. That's fine.
+  if filename is not None and os.path.exists(filename):
+    __filename_module_dict[filename] = module
   return module
-
-
-def get_module_from_filename(name, filename, is_package=False) -> Module:
-  abs_path = os.path.abspath(filename)
-  if abs_path in __path_module_dict:
-    return __path_module_dict[abs_path]
-  module = load_module_from_filename(
-      name,
-      filename,
-      is_package=is_package,
-      module_type=_module_type_from_path(filename))
-  __path_module_dict[abs_path] = module
-  return module
-
 
 def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
   with FileContext(filename):
+    assert filename not in __loaded_paths
+    __loaded_paths.add(filename)
+    info(f'len(__loaded_paths): {len(__loaded_paths)}')
     a_frame = frame.Frame(
         module=module, namespace=module, locals=module._members)
     graph = api.graph_from_source(source, module)
@@ -129,7 +149,7 @@ def _get_module_stub_source_filename(name) -> str:
         abs_module_path = os.path.join(typeshed_dir, top_level, version,
                                        module_path)
         if os.path.exists(abs_module_path):
-          return abs_module_path, os.path.basename(
+          return abs_module_filename, os.path.basename(
               module_path) == '__init__.pyi'
   raise ValueError(f'Did not find typeshed for {name}')
 
@@ -152,11 +172,11 @@ def load_module_exports_from_filename(module, filename):
     raise UnableToReadModuleFileError(e)
 
 
-def _module_type_from_path(path) -> ModuleType:
+def _module_type_from_filename(filename) -> ModuleType:
   # TODO: Refine / include LOCAL.
   # https://github.com/GabeDottl/autocomplete/issues/1
   for third_party in ('dist-packages', 'site-packages'):
-    if third_party in path:
+    if third_party in filename:
       return ModuleType.PUBLIC
   return ModuleType.SYSTEM
 
@@ -185,30 +205,31 @@ def _relative_path_from_relative_module(name):
 
 def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   try:
-    stub_path, is_package = _get_module_stub_source_filename(name)
+    stub_filename, is_package = _get_module_stub_source_filename(name)
     module_type = ModuleType.PUBLIC if 'third_party' in stub_path else ModuleType.SYSTEM
-    return stub_path, is_package, module_type
+    return stub_filename, is_package, module_type
   except ValueError:
     pass
   is_package = False
   if name[0] == '.':
     relative_path = _relative_path_from_relative_module(name)
-    absolute_path = os.path.join(collector.get_current_context_dir(),
-                                 relative_path)
+    absolute_path = os.path.abspath(os.path.join(collector.get_current_context_dir(),
+                                    relative_path))
     if os.path.exists(absolute_path):
       if os.path.isdir(absolute_path):
         is_package = True
         for name in ('__init__.pyi', '__init__.py'):
           filename = os.path.join(collector.get_current_context_dir(), name)
           if os.path.exists(filename):
-            return filename, is_package, _module_type_from_path(filename)
+            return filename, is_package, _module_type_from_filename(filename)
       else:
+        assert False
         warning(f'Bizarre case - {absolute_path} is file but not dir...')
         return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
     for file_extension in ('.pyi', '.py'):
       filename = f'{absolute_path}{file_extension}'
       if os.path.exists(filename):
-        return filename, False, _module_type_from_path(filename)
+        return filename, False, _module_type_from_filename(filename)
     return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
   try:
     spec = importlib.util.find_spec(name)
@@ -219,22 +240,22 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   else:
     if spec:
       if spec.has_location:
-        path = spec.loader.get_filename()
-        ext = os.path.splitext(path)[1]
+        filename = spec.loader.get_filename()
+        ext = os.path.splitext(filename)[1]
         if ext != '.pyi' and ext != '.py':
-          debug(f'Cannot read module filetype - {path}')
+          debug(f'Cannot read module filetype - {filename}')
           return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
-        return path, _is_init(path), _module_type_from_path(path)
+        return os.path.abspath(filename), _is_init(filename), _module_type_from_filename(filename)
       else:  # System module
         return None, False, ModuleType.BUILTIN
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
 
-def load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
+def _load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
   debug(f'Loading module: {name}')
-  path, is_package, module_type = _module_info_from_name(name)
-  return _load_module_from_module_info(name, path, is_package, module_type,
+  filename, is_package, module_type = _module_info_from_name(name)
+  return _load_module_from_module_info(name, filename, is_package, module_type,
                                        unknown_fallback, lazy)
 
 
@@ -246,13 +267,13 @@ def deserialize_hook_fn(type_str, obj):
     return True, get_module(obj)
   if type_str == 'import_module':
     name, filename = obj
-    return load_module_from_filename(
+    return _get_module_from_filename(
         name,
         filename,
         is_package=_is_init(filename),
-        module_type=_module_type_from_path(filename))
+        module_type=_module_type_from_filename(filename))
   if type_str == 'from_import':
-    path = obj
+    filename = obj
     index = path.rindex('.')
     module_name = path[:index]
     object_name = path[index + 1:]
@@ -265,7 +286,7 @@ def deserialize(type_str, obj):
 
 
 def _load_module_from_module_info(name: str,
-                                  path,
+                                  filename,
                                   is_package,
                                   module_type,
                                   unknown_fallback=True,
@@ -278,22 +299,27 @@ def _load_module_from_module_info(name: str,
 
   if module_type == ModuleType.BUILTIN or name in NATIVE_MODULE_WHITELIST:
     # TODO: Create caches and rely on those after initial loads.
-    python_module = importlib.import_module(name)
-    return NativeModule(
-        name,
-        module_type,
-        filename=path,
-        native_module=NativeObject(python_module))
-  return load_module_from_filename(
-      name, path, is_package=is_package, module_type=module_type, lazy=lazy)
+    info(f'name: {name}')
+    try:
+      python_module = importlib.import_module(name)
+    except ImportError:
+      return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
+    else:
+      return NativeModule(
+          name,
+          module_type,
+          filename=filename,
+          native_module=NativeObject(python_module))
+  return _load_module_from_filename(
+      name, filename, is_package=is_package, module_type=module_type, lazy=lazy)
 
 
-def _is_init(path):
-  name = os.path.basename(path)
-  return '__init__.py' in name  # include .pyi
+def _is_init(filename):
+  name = os.path.basename(filename)
+  return '__init__.py' in name  # Implicitly includes __init__.pyi.
 
 
-def load_module_from_filename(name,
+def _load_module_from_filename(name,
                               filename,
                               *,
                               is_package,

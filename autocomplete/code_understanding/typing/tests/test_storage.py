@@ -16,7 +16,7 @@ def test_store_retrieve():
 
   index = ModuleIndex(tmp_file)
   module_name = 'autocomplete.code_understanding.typing.examples.example_storage'
-  storage_example_module = module_loader.load_module(module_name)
+  storage_example_module = module_loader.get_module(module_name, lazy=False)
   index.store_module(storage_example_module)
   module = index.retrieve_module(module_name)
   assert 'autocomplete' in index.file
@@ -25,7 +25,7 @@ def test_store_retrieve():
 def test_serialization_deserialization():
   module_name = 'autocomplete.code_understanding.typing.examples.storage_example'
   # module_name = 'autocomplete.code_understanding.typing.control_flow_graph'
-  module = module_loader.load_module(module_name)
+  module = module_loader.get_module(module_name, lazy=False)
 
   with open('/tmp/tmp.msg', 'wb') as f:
     msgpack.pack(module, f, default=serialization.serialize, use_bin_type=True)

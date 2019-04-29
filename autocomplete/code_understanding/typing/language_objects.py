@@ -29,7 +29,7 @@ from autocomplete.code_understanding.typing.expressions import (
     VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, NativeObject,
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, NativeObject, PObjectType,
     PObject, UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.serialization import type_name
 from autocomplete.code_understanding.typing.utils import (
@@ -238,7 +238,7 @@ class LazyModule(ModuleImpl):
 
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
-      self._load()
+      self.load()
       if self._loading:
         # debug(f'Lazily loading from: {self.filename}')
         # So, curiously, this is more allowed than I would think. ctypes does this with _endian
@@ -252,7 +252,7 @@ class LazyModule(ModuleImpl):
 
     return _wrapper
 
-  def _load(self):
+  def load(self):
     if self._loaded or self._loading_failed or self._loading:
       return
 
@@ -262,10 +262,10 @@ class LazyModule(ModuleImpl):
           self, self.filename)
     except UnableToReadModuleFileError:
       error(f'Unable to lazily load {self.filename}')
-      self._loading_failed = True
     else:
       self._loaded = True
     finally:
+      self._loading_failed = not self._loaded
       self._loading = False
 
   @_lazy_load
@@ -287,7 +287,7 @@ class LazyModule(ModuleImpl):
   def serialize(self, **kwargs):
     assert not self._loading
     if not self._loaded or self._loading_failed:
-      self._load()
+      self.load()
     # Loaded or loading failed.
     return super().serialize(**kwargs)
 
@@ -307,13 +307,13 @@ class Klass(Namespace, LanguageObject):
     # TODO: __init__
     instance = Instance(self)
     for name, member in self.items():
-      raise Vasdf
+      # raise Vasdf
       if member.value_is_a(
           Function
       ) == FuzzyBoolean.TRUE:  # and value.type == FunctionType.UNBOUND_INSTANCE_METHOD:
         value = member.value(
         )  # TODO: This can raise an exception for FuzzyObjects
-        new_func = value.bind([AnonymousExpression(self)], {})
+        new_func = value.bind([AugmentedObject(self)], {})
         new_func.function_type = FunctionType.BOUND_INSTANCE_METHOD
         instance[name] = AugmentedObject(new_func)
       else:
@@ -408,11 +408,11 @@ class FunctionImpl(Function):
     return BoundFunction(self, args, kwargs)
 
   def call_inner(self, curr_frame, args, kwargs, bound_locals):
-    debug(f'Calling {self.name}')
+    info(f'Calling {self.name}')
     if curr_frame.contains_namespace_on_stack(self):
       debug(
           f'Call being made into {self.name} when it\'s already on the call stack. Returning an UnknownObject instead.'
-      )
+      )  
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
     new_frame = curr_frame.make_child(
@@ -422,7 +422,7 @@ class FunctionImpl(Function):
         cell_symbols=self._cell_symbols)
     new_frame._locals.update(bound_locals)
 
-    self._process_args(curr_frame, args, kwargs, new_frame)
+    self._process_args(args, kwargs, new_frame)
     self.graph.process(new_frame)
 
     return new_frame.get_returns()
@@ -430,7 +430,7 @@ class FunctionImpl(Function):
   def call(self, curr_frame, args, kwargs):
     return self.call_inner(curr_frame, args, kwargs, bound_locals={})
 
-  def _process_args(self, curr_frame, args, kwargs, new_frame):
+  def _process_args(self, args, kwargs, new_frame):
     # As a sort of safety measure, we explicitly provide some value for every single param - this
     # avoids any issues with missing symbols when processing the function if it was called with
     # invalid arguments.
@@ -444,10 +444,9 @@ class FunctionImpl(Function):
     arg_iter = iter(args)
     for arg, param in zip(arg_iter, param_iter):
       if param.parameter_type == ParameterType.SINGLE:
-        if isinstance(arg, StarredExpression):  # Passed *iterable or **dict.
-          results = arg.base_expression.evaluate(curr_frame)
-          if arg.operator == '*':
-            iterator = iter(results.iterator())
+        if arg.pobject_type != PObjectType.NORMAL:  # Passed *iterable or **dict.
+          if arg.pobject_type == PObjectType.STARRED:
+            iterator = iter(arg.iterator())
             try:
               new_frame[param.name] = next(iterator)
             except StopIteration:
@@ -458,7 +457,7 @@ class FunctionImpl(Function):
             break  # No more positionals allowed after *iterable.
           else:  # **dict
             try:
-              result_dict = results.to_dict()
+              input_kwargs_dict = arg.to_dict()
               kwarg_param_name = None
               kwarg_remaining = {}
               param_set = set()
@@ -468,7 +467,7 @@ class FunctionImpl(Function):
                 elif param.parameter_type == ParameterType.KWARGS:
                   kwarg_param_name = param.name
 
-              for key, value in result_dict.items():
+              for key, value in input_kwargs_dict.items():
                 value = pobject_from_object(value)
                 if key in param_set:
                   new_frame[key] = value
@@ -484,15 +483,15 @@ class FunctionImpl(Function):
               pass  # Non-NativeObject. Too fancy for us.
             break
         # Normal case.
-        new_frame[param.name] = arg.evaluate(curr_frame)
+        new_frame[param.name] = arg
       elif param.parameter_type == ParameterType.ARGS:
         # Collect all remaining positional arguments into *args param
         args = []
         for a in itertools.chain([arg], arg_iter):
-          if isinstance(a, StarredExpression):  # Passing in *iterable.
-            args += list(a.base_expression.evaluate(curr_frame).iterator())
+          if a.pobject_type == PObjectType.STARRED:  # Passing in *iterable.
+            args += list(a.iterator())
           else:  # Normal positional.
-            args.append(a.evaluate(curr_frame))
+            args.append(a)
 
         new_frame[param.name] = pobject_from_object(args)
         break
@@ -505,7 +504,7 @@ class FunctionImpl(Function):
     kwargs_name = None
     for param in param_iter:
       if param.name in kwargs:
-        new_frame[param.name] = kwargs[param.name].evaluate(curr_frame)
+        new_frame[param.name] = kwargs[param.name]
       elif param.parameter_type == ParameterType.KWARGS:
         kwargs_name = param.name
       else:
@@ -590,7 +589,6 @@ class StubFunction(Function):
     return self.returns
 
   def call(self, curr_frame, args, kwargs, reuse_curr_frame=False):
-    # TODO: Handle parameters?
     return self.returns
 
   def get_parameters(self, curr_frame):
