@@ -115,9 +115,9 @@ class PObject(ABC):
   def apply_to_values(self, func):
     ...
 
-  @abstractmethod
-  def value_equals(self, other) -> FuzzyBoolean:
-    ...
+  # @abstractmethod
+  # def value_equals(self, other) -> FuzzyBoolean:
+  #   ...
 
   @abstractmethod
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -195,7 +195,7 @@ class DynamicContainer:
 @attr.s(str=False, repr=False, slots=True)
 class UnknownObject(PObject):
   name = attr.ib()  # For recording source of value - e.g. functools.wraps.
-  _dynamic_container = attr.ib(factory=DynamicContainer)
+  _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
     return self._dynamic_container.has_attribute(name)
@@ -209,8 +209,8 @@ class UnknownObject(PObject):
   def apply_to_values(self, func):
     func(self)
 
-  def value_equals(self, other) -> FuzzyBoolean:
-    return FuzzyBoolean.TRUE if self == other else FuzzyBoolean.MAYBE
+  # def value_equals(self, other) -> FuzzyBoolean:
+  #   return FuzzyBoolean.TRUE if self == other else FuzzyBoolean.MAYBE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.MAYBE
@@ -261,7 +261,7 @@ class NativeObject(PObject):
   and thus cannot create our Module instances. Instead, these modules can be loaded as
   NativeObjects and be run in relative isolation.'''
   _native_object = attr.ib()
-  _dynamic_container = attr.ib(factory=DynamicContainer)
+  _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
     return hasattr(self._native_object,
@@ -283,14 +283,14 @@ class NativeObject(PObject):
   def apply_to_values(self, func):
     func(self._native_object)
 
-  def value_equals(self, other) -> FuzzyBoolean:
-    try:
-      value = other.value()
-      if value == self.value:
-        return FuzzyBoolean.TRUE
-    except AmbiguousFuzzyValueDoesntHaveSingleValueError:
-      return FuzzyBoolean.MAYBE  # TODO
-    return FuzzyBoolean.FALSE
+  # def value_equals(self, other) -> FuzzyBoolean:
+  #   try:
+  #     value = other.value()
+  #     if value == self.value:
+  #       return FuzzyBoolean.TRUE
+  #   except AmbiguousFuzzyValueDoesntHaveSingleValueError:
+  #     return FuzzyBoolean.MAYBE  # TODO
+  #   return FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.TRUE if isinstance(self._native_object,
@@ -403,11 +403,122 @@ def pobject_from_object(obj):
 
   return NativeObject(obj)
 
+class LazyObjectLoadingError(Exception):...
+
+@attr.s(str=False, repr=False, slots=True)
+class LazyObject(PObject):
+  name = attr.ib()
+  _loader = attr.ib()
+  _loaded_object = attr.ib(init=False, None)
+  # _loaded = attr.ib(init=False, default=False)
+  _loading = attr.ib(init=False, default=False)
+  _loading_failed = attr.ib(init=False, default=False)
+  _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
+  _deferred_funcs = attr.ib(init=False, factory=list)
+
+  def _lazy_load(func):
+
+    @wraps(func)
+    def _wrapper(self, *args, **kwargs):
+      self._load()
+      if self._loading:
+        # So, curiously, this is more allowed than I would think. ctypes does this with _endian
+        # where ctypes imports some stuff from _endian and the latter imports everything from
+        # ctypes - however, the ordering seems carefully done such that the _endian import in
+        # ctypes is well after most of it's members are defined - so, the module is mostly defined.
+        warning(
+            f'Already lazy-loading LazyObject... dependency cycle? {self.name}
+        )
+      return func(self, *args, **kwargs)
+
+    return _wrapper
+
+  def _load(self):
+    if self._loaded_object is not None or self._loading_failed or self._loading:
+      return
+
+    self._loading = True
+    try:
+      self._loaded_object = self._loader()
+      assert isinstance(self._loaded_object, PObject)
+      # Okay, this is a touch questionable it feels like since theoretically, ordering of events
+      # *could* matter?
+      for name, value in self._dynamic_container.items():
+        self._loaded_object.set_attribute(name, value)
+
+      for func in self._deferred_funcs:
+        self._loaded_object.apply_to_values(func)
+    except LazyObjectLoadingError:
+      error(f'Unable to lazily load {self.filename}')
+      raise
+      self._loading_failed = True
+    else:
+      self._loaded = True
+    finally:
+      self._loading = False
+
+  @_lazy_load
+  def has_attribute(self, name) -> bool:
+    return self._loaded_object.has_attribute(name)
+
+  def _loaded() -> PObject:
+    self._load()
+    return self._loaded_object
+
+  def get_attribute(self, name):
+    return LazyObject(f'{self.name}.get_attribute({name})', lambda: self._loaded().get_attribute(name))
+    # return self._dynamic_container.get_attribute(name)
+
+  def set_attribute(self, name, value):
+    self._dynamic_container.set_attribute(name, value)
+
+  def apply_to_values(self, func):
+    self._deferred_funcs.append(func)
+
+  # def value_equals(self, other) -> FuzzyBoolean:
+  #   if isinstance(other, LazyObject):
+  #     return FuzzyBoolean.TRUE if self == other else FuzzyBoolean.MAYBE
+  #   else:
+
+  @_lazy_load
+  def value_is_a(self, type_) -> FuzzyBoolean:
+    return self._loaded_object(type_)
+
+  # TODO: Rename 'dereference'?
+  @_lazy_load
+  def value(self) -> object:
+    return self._loaded_object.value()
+
+  @_lazy_load
+  def bool_value(self) -> FuzzyBoolean:
+    return self._loaded_object.bool_value()
+
+  def call(self, curr_frame, args, kwargs):
+    return LazyObject(f'{self.name}.call({args}{kwargs})', lambda: self._loaded().call(args, kwargs))
+
+  def get_item_pobject_index(self, native_indicies):
+    return UnknownObject('get_item?')
+
+  def get_item(self, curr_frame, index_expression):
+    # TODO
+    # index_expression.evaluate()
+    return UnknownObject('get_item?')
+
+  def set_item(self, curr_frame, index_expression, value_expression):
+    # index_expression.evaluate()
+    # value_expression.evaluate()
+    ...
+
+  def __str__(self):
+    return f'UO[{self._dynamic_container}]'
+
+  def __repr__(self):
+    return str(self)
 
 @attr.s(str=False, repr=False, slots=True)
 class AugmentedObject(PObject):  # TODO: CallableInterface
   _object = attr.ib()
-  _dynamic_container = attr.ib(factory=DynamicContainer)
+  _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
     return self._object.has_attribute(
@@ -433,10 +544,10 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   def apply_to_values(self, func):
     func(self._object)
 
-  def value_equals(self, other) -> FuzzyBoolean:
-    if isinstance(other, PObject):
-      return other.value_equals(self._object)
-    return FuzzyBoolean.TRUE if self._object == other else FuzzyBoolean.FALSE
+  # def value_equals(self, other) -> FuzzyBoolean:
+  #   if isinstance(other, PObject):
+  #     return other.value_equals(self._object)
+  #   return FuzzyBoolean.TRUE if self._object == other else FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.TRUE if isinstance(self._object,
@@ -582,14 +693,14 @@ class FuzzyObject(PObject):
     for value in self._values:
       value.apply_to_values(func)
 
-  def value_equals(self, other) -> FuzzyBoolean:
-    truths = [value.value_equals(other) for value in self._values]
-    if all(truth == FuzzyBoolean.TRUE for truth in truths):
-      return FuzzyBoolean.TRUE
-    elif any(truth == FuzzyBoolean.TRUE or truth == FuzzyBoolean.MAYBE
-             for truth in truths):
-      return FuzzyBoolean.MAYBE
-    return FuzzyBoolean.FALSE
+  # def value_equals(self, other) -> FuzzyBoolean:
+  #   truths = [value.value_equals(other) for value in self._values]
+  #   if all(truth == FuzzyBoolean.TRUE for truth in truths):
+  #     return FuzzyBoolean.TRUE
+  #   elif any(truth == FuzzyBoolean.TRUE or truth == FuzzyBoolean.MAYBE
+  #            for truth in truths):
+  #     return FuzzyBoolean.MAYBE
+  #   return FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     truths = [value.value_is_a(type_) for value in self._values]

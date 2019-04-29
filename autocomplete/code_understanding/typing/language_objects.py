@@ -307,6 +307,7 @@ class Klass(Namespace, LanguageObject):
     # TODO: __init__
     instance = Instance(self)
     for name, member in self.items():
+      raise Vasdf
       if member.value_is_a(
           Function
       ) == FuzzyBoolean.TRUE:  # and value.type == FunctionType.UNBOUND_INSTANCE_METHOD:
