@@ -459,7 +459,7 @@ def expression_from_node(node):
   if node.type == 'comparison':
     return expression_from_comparison(node)
   if node.type == 'test':
-    return NotExpression(expression_from_test(node))
+    return expression_from_test(node)
   if node.type == 'not_test':
     return NotExpression(expression_from_node(node.children[1]))
   if node.type == 'lambdef':

@@ -29,8 +29,8 @@ from autocomplete.code_understanding.typing.expressions import (
     VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
 from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, NativeObject, PObjectType,
-    PObject, UnknownObject, pobject_from_object)
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject,
+    NativeObject, PObject, PObjectType, UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.serialization import type_name
 from autocomplete.code_understanding.typing.utils import (
     attrs_names_from_class, instance_memoize)
@@ -229,6 +229,7 @@ class LazyModule(ModuleImpl):
   On the first attribute access, this module is loaded from its filename.
   '''
   load_module_exports_from_filename = attr.ib(kw_only=True)
+  lazy = attr.ib(init=False, default=True)
   _loaded = attr.ib(init=False, default=False)
   _loading = attr.ib(init=False, default=False)
   _loading_failed = attr.ib(init=False, default=False)
@@ -252,31 +253,54 @@ class LazyModule(ModuleImpl):
 
     return _wrapper
 
+  def _passthrough_to_super_if_loaded(func):
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+      if self._loaded:
+        return getattr(super(), func.__name__)(*args, **kwargs)
+      return func(self, *args, **kwargs)
+
+    return wrapper
+
   def load(self):
     if self._loaded or self._loading_failed or self._loading:
       return
 
     self._loading = True
     try:
-      self._members = self.load_module_exports_from_filename(
-          self, self.filename)
+      new_members = self.load_module_exports_from_filename(self, self.filename)
     except UnableToReadModuleFileError:
       error(f'Unable to lazily load {self.filename}')
     else:
+      # Prefer existing members as these have essentially been manually added.
+      new_members.update(self._members)
+      self._members = new_members
       self._loaded = True
     finally:
       self._loading_failed = not self._loaded
       self._loading = False
 
+  def _get_loaded(self):
+    self.load()
+    return self
+
   @_lazy_load
   def __contains__(self, name):
     return super().__contains__(name)
 
-  @_lazy_load
-  def __getitem__(self, name):
+  def _get_item_loaded(self, name):
+    self.load()
     return super().__getitem__(name)
 
-  @_lazy_load
+  # @_passthrough_to_super_if_loaded
+  def __getitem__(self, name):
+    if self.lazy:
+      return LazyObject(
+          f'{self.name}.{name}', lambda: self._get_item_loaded(name))
+    return self._get_item_loaded(name)
+    # return super().__getitem__(name)
+
   def __setitem__(self, name, value):
     super().__setitem__(name, value)
 
@@ -307,8 +331,10 @@ class Klass(Namespace, LanguageObject):
     # TODO: __init__
     instance = Instance(self)
     for name, member in self.items():
-      # raise Vasdf
-      if member.value_is_a(
+      # This AugmentedObject bit is a small, but rather helpful cheat. Any functions
+      # actually defined within this class should be AugmentedObjects. This avoid's risking loading
+      # a LazyObject prematurely.
+      if isinstance(member, AugmentedObject) and member.value_is_a(
           Function
       ) == FuzzyBoolean.TRUE:  # and value.type == FunctionType.UNBOUND_INSTANCE_METHOD:
         value = member.value(
@@ -408,11 +434,10 @@ class FunctionImpl(Function):
     return BoundFunction(self, args, kwargs)
 
   def call_inner(self, curr_frame, args, kwargs, bound_locals):
-    info(f'Calling {self.name}')
     if curr_frame.contains_namespace_on_stack(self):
       debug(
           f'Call being made into {self.name} when it\'s already on the call stack. Returning an UnknownObject instead.'
-      )  
+      )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
     new_frame = curr_frame.make_child(

@@ -9,8 +9,8 @@ from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
     AmbiguousFuzzyValueDoesntHaveSingleValueError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, FuzzyObject, NativeObject, PObject, PObjectType,
-    UnknownObject, pobject_from_object)
+    AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, NativeObject,
+    PObject, PObjectType, UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, info, warning
 
@@ -65,7 +65,7 @@ class NotExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.expression.evaluate(curr_frame)
-    return pobject.bool_value().invert().to_pobject()
+    return pobject.invert()
 
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.expression.get_used_free_symbols()
@@ -81,9 +81,9 @@ class AndOrExpression(Expression):
     l = self.left_expression.evaluate(curr_frame)
     r = self.right_expression.evaluate(curr_frame)
     if self.operator == 'or':
-      return pobject_from_object(l.bool_value().or_expr(r.bool_value()))
+      return l.or_expr(r)
     assert self.operator == 'and'
-    return l.bool_value().and_expr(r.bool_value()).to_pobject()
+    return l.and_expr(r)
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -175,13 +175,12 @@ class CallExpression(Expression):
   kwargs: Dict[str, Expression] = attr.ib(factory=dict)
 
   def evaluate(self, curr_frame) -> PObject:
-    
     pobject = self.function_expression.evaluate(curr_frame)
-    info(f'evaluating for {pobject}: {self.args}')
     evaluated_args = [arg.evaluate(curr_frame) for arg in self.args]
-    evaluated_kwargs = {name: arg.evaluate(curr_frame) for name, arg in self.kwargs.items()}
+    evaluated_kwargs = {
+        name: arg.evaluate(curr_frame) for name, arg in self.kwargs.items()
+    }
     out = pobject.call(curr_frame, evaluated_args, evaluated_kwargs)
-    info(f'Evaluated {pobject}. {out}')
     return out
 
   @instance_memoize
@@ -320,29 +319,30 @@ class DictExpression(Expression):
                      KeyValueForComp]] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    out = {}
+    out = LazyObject('{}', lambda: NativeObject({}))
     for value in self.values:
       if isinstance(value, KeyValueAssignment):
         k = value.key.evaluate(curr_frame)
         v = value.value.evaluate(curr_frame)
-        try:
-          out[k.value()] = v.value()
-        except (TypeError, AmbiguousFuzzyValueDoesntHaveSingleValueError) as e:
-          # Unhashable.
-          debug(e)
+        # try:
+        out.set_item(curr_frame, k, v, deferred_value=False)
+        # except (AmbiguousFuzzyValueDoesntHaveSingleValueError) as e:
+        #   # Unhashable.
+        #   warning(e)
       elif isinstance(value, StarredExpression):
         assert value.operator == '**'
         base_pobject = value.base_expression.evaluate(curr_frame)
-        if isinstance(base_pobject, NativeObject):
-          try:
-            out.update(base_pobject.value())
-          except TypeError as e:
-            info(e)
-            pass
+        # TODO: Make work with LazyObject.
+        # if isinstance(base_pobject, NativeObject):
+        try:
+          out.update_dict(base_pobject)
+        except TypeError as e:
+          info(e)
+          pass
       else:
         assert isinstance(value, KeyValueForComp)
         pass  # TODO
-    return NativeObject(out)
+    return out
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -374,11 +374,13 @@ class SubscriptExpression(Expression):
 
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.get_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame))
+    return pobject.get_item(curr_frame,
+                            self.subscript_list_expression.evaluate(curr_frame))
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.set_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame),
+    return pobject.set_item(curr_frame,
+                            self.subscript_list_expression.evaluate(curr_frame),
                             value)
 
   @instance_memoize
@@ -395,15 +397,15 @@ class IfElseExpression(Expression):
 
   def evaluate(self, curr_frame) -> PObject:
     conditional = self.conditional_expression.evaluate(curr_frame)
-    fuzzy_bool = conditional.bool_value()
-    if fuzzy_bool == FuzzyBoolean.TRUE:
-      return self.false_expression.evaluate(curr_frame)
-    if fuzzy_bool == FuzzyBoolean.MAYBE:
-      return FuzzyObject([
-          self.true_expression.evaluate(curr_frame),
-          self.false_expression.evaluate(curr_frame)
-      ])
-    return self.true_expression.evaluate(curr_frame)
+    # fuzzy_bool = conditional.bool_value()
+    # if fuzzy_bool == FuzzyBoolean.TRUE:
+    #   return self.false_expression.evaluate(curr_frame)
+    # if fuzzy_bool == FuzzyBoolean.MAYBE:
+    return FuzzyObject([
+        self.true_expression.evaluate(curr_frame),
+        self.false_expression.evaluate(curr_frame)
+    ])
+    # return self.true_expression.evaluate(curr_frame)
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:

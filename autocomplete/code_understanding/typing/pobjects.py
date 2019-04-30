@@ -142,8 +142,20 @@ class PObject(ABC):
   def set_item(self, curr_frame, index_pobject, value_pobject):
     ...
 
-  # def set_item_native_index(self, native_indicies, value):
-  #   pass
+  def invert(self):
+    return self.bool_value().invert().to_pobject()
+
+  def and_expr(self, other):
+    # Don't care about shortcircuiting.
+    if isinstance(other, LazyObject):
+      return other.and_expr(self)
+    return self.bool_value().and_expr(other.bool_value()).to_pobject()
+
+  def or_expr(self, other):
+    # Don't care about shortcircuiting.
+    if isinstance(other, LazyObject):
+      return other.or_expr(self)
+    return self.bool_value().or_expr(other.bool_value()).to_pobject()
 
   def iterator(self):
     return iter([])
@@ -155,6 +167,9 @@ class PObject(ABC):
     '''Stand-in for __dict__.'''
     raise NoDictImplementationError()
     # assert False, 'Not Implemented.'  # Don't want to be caught by normal NotImplementedError logic..
+
+  def update_dict(self, pobject):
+    raise NotImplementedError()
 
   def __bool__(self):
     raise ValueError(
@@ -179,6 +194,9 @@ class DynamicContainer:
 
   def set_attribute(self, name, value):
     self.attributes[name] = value
+
+  def items(self):
+    return self.attributes.items()
 
   def __str__(self):
     return f'{list(self.attributes.keys())}'
@@ -323,9 +341,7 @@ class NativeObject(PObject):
     # TODO: item_dynamic_container?
     if hasattr(self._native_object, '__setitem__'):
       try:
-        self._native_object.__setitem__(
-            index.evaluate(curr_frame).value(),
-            value.evaluate(curr_frame).value())
+        self._native_object.__setitem__(index.value(), value.value())
       except (KeyError, AmbiguousFuzzyValueDoesntHaveSingleValueError):
         pass
       except Exception as e:
@@ -335,6 +351,15 @@ class NativeObject(PObject):
   def to_dict(self):
     items_iter = to_dict_iter(self._native_object)
     return {name: pobject_from_object(value) for name, value in items_iter}
+
+  def update_dict(self, pobject):
+    if isinstance(pobject, LazyObject):
+      pobject = pobject._loaded()
+    if isinstance(pobject, NativeObject) and isinstance(
+        pobject._native_object, dict) and isinstance(self._native_object, dict):
+      self._native_object.update(pobject._native_object)
+      return
+    raise NotImplementedError()
 
   def iterator(self):
     if hasattr(self._native_object, '__iter__'):
@@ -382,8 +407,10 @@ def pobject_from_object(obj):
 
   return NativeObject(obj)
 
+
 class LazyObjectLoadingError(Exception):
   ...
+
 
 @attr.s(str=False, repr=False, slots=True)
 class LazyObject(PObject):
@@ -394,22 +421,18 @@ class LazyObject(PObject):
   _loading = attr.ib(init=False, default=False)
   _loading_failed = attr.ib(init=False, default=False)
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
+  _deferred_operations = attr.ib(init=False, factory=list)
   _deferred_funcs = attr.ib(init=False, factory=list)
 
-  def _lazy_load(func):
+  def _passthrough_if_loaded(func):
 
     @wraps(func)
-    def _wrapper(self, *args, **kwargs):
-      self._load()
-      if self._loading:
-        # So, curiously, this is more allowed than I would think. ctypes does this with _endian
-        # where ctypes imports some stuff from _endian and the latter imports everything from
-        # ctypes - however, the ordering seems carefully done such that the _endian import in
-        # ctypes is well after most of it's members are defined - so, the module is mostly defined.
-        warning(f'Already lazy-loading LazyObject... dependency cycle? {self.name}')
+    def wrapper(self, *args, **kwargs):
+      if self._loaded_object is not None:
+        return getattr(self._loaded_object, func.__name__)(*args, **kwargs)
       return func(self, *args, **kwargs)
 
-    return _wrapper
+    return wrapper
 
   def _load(self):
     if self._loaded_object is not None or self._loading_failed or self._loading:
@@ -418,39 +441,48 @@ class LazyObject(PObject):
     self._loading = True
     try:
       self._loaded_object = self._loader()
-      assert isinstance(self._loaded_object, PObject)
-      # Okay, this is a touch questionable it feels like since theoretically, ordering of events
-      # *could* matter?
-      for name, value in self._dynamic_container.items():
-        self._loaded_object.set_attribute(name, value)
-
-      for func in self._deferred_funcs:
-        self._loaded_object.apply_to_values(func)
-    except LazyObjectLoadingError:
+    except Exception as e:
       error(f'Unable to lazily load {self.filename}')
-      raise
-      self._loading_failed = True
+      raise LazyObjectLoadingError(e)
     else:
-      self._loaded = True
+      assert isinstance(self._loaded_object, PObject)
     finally:
+      self._loading_failed = self._loaded_object is None
+      if self._loading_failed:
+        warning(f'Failed to load lazy object!')
+        self._loaded_object = UnknownObject(self.name)
+      self._apply_deferred_to_loaded()
       self._loading = False
 
-  @_lazy_load
-  def has_attribute(self, name) -> bool:
-    return self._loaded_object.has_attribute(name)
+  def _apply_deferred_to_loaded(self):
+    # Okay, this is a touch questionable it feels like since theoretically, ordering of events
+    # *could* matter?
+    for name, value in self._dynamic_container.items():
+      self._loaded_object.set_attribute(name, value)
 
-  def _loaded() -> PObject:
+    for operation in self._deferred_operations:
+      operation()
+
+    for func in self._deferred_funcs:
+      self._loaded_object.apply_to_values(func)
+
+  def has_attribute(self, name) -> bool:
+    return self._loaded().has_attribute(name)
+
+  def _loaded(self) -> PObject:
     self._load()
     return self._loaded_object
 
+  @_passthrough_if_loaded
   def get_attribute(self, name):
-    return LazyObject(f'{self.name}.get_attribute({name})', lambda: self.
-                      _loaded().get_attribute(name))
-    # return self._dynamic_container.get_attribute(name)
+    return LazyObject(
+        f'{self.name}.{name}', lambda: self._loaded().get_attribute(name))
 
+  @_passthrough_if_loaded
   def set_attribute(self, name, value):
     self._dynamic_container.set_attribute(name, value)
 
+  @_passthrough_if_loaded
   def apply_to_values(self, func):
     self._deferred_funcs.append(func)
 
@@ -459,38 +491,91 @@ class LazyObject(PObject):
   #     return FuzzyBoolean.TRUE if self == other else FuzzyBoolean.MAYBE
   #   else:
 
-  @_lazy_load
   def value_is_a(self, type_) -> FuzzyBoolean:
-    return self._loaded_object(type_)
+    return self._loaded().value_is_a(type_)
 
   # TODO: Rename 'dereference'?
-  @_lazy_load
   def value(self) -> object:
-    return self._loaded_object.value()
+    return self._loaded().value()
 
-  @_lazy_load
   def bool_value(self) -> FuzzyBoolean:
-    return self._loaded_object.bool_value()
+    return self._loaded().bool_value()
 
+  @_passthrough_if_loaded
+  def invert(self):
+    return LazyObject(
+        f'not {self.name}', lambda: self.bool_value().invert().to_pobject())
+
+  @_passthrough_if_loaded
+  def and_expr(self, other):
+    # Don't care about shortcircuiting.
+    return LazyObject(
+        f'{self.name} and {other}', lambda: self.bool_value().and_expr(
+            other.bool_value()).to_pobject())
+
+  @_passthrough_if_loaded
+  def or_expr(self, other):
+    # Don't care about shortcircuiting.
+    return LazyObject(
+        f'{self.name} and {other}', lambda: self.bool_value().or_expr(
+            other.bool_value()).to_pobject())
+
+  @_passthrough_if_loaded
   def call(self, curr_frame, args, kwargs):
-    return LazyObject(f'{self.name}.call({args}{kwargs})', lambda: self._loaded(
-    ).call(args, kwargs))
+    # Okay, so, this and get_item aren't really *super* valid since curr_frame will look very
+    # different later. Ideally, we should save a snapshot of the current frame......
+    # TODO: Snapshot frame.
+    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda:
+                      self._loaded().call(curr_frame, args, kwargs))
 
-  def get_item(self, curr_frame, index_pobject):
-    # TODO
-    # index_pobject.evaluate()
-    return UnknownObject('get_item?')
+  @_passthrough_if_loaded
+  def get_item(self, curr_frame, index_pobject, deferred_value=False):
+    # TODO: snapshot frame
+    return LazyObject(
+        f'{self.name}[{index_pobject}]', lambda: self._loaded().get_item(
+            curr_frame,
+            index_pobject.value() if deferred_value else index_pobject))
 
-  def set_item(self, curr_frame, index_pobject, value_pobject):
-    # index_pobject.evaluate()
-    # value_pobject.evaluate()
-    ...
+  @_passthrough_if_loaded
+  def set_item(self,
+               curr_frame,
+               index_pobject,
+               value_pobject,
+               deferred_value=False):
+
+    def _set_item():
+      self._loaded().set_item(
+          curr_frame,
+          index_pobject.value() if deferred_value else index_pobject,
+          value_pobject.value() if deferred_value else value_pobject)
+
+    self._deferred_operations.append(_set_item)
+    # self._loaded_object = LazyObject(
+    #     f'{self.name}[{index_pobject}]={value_pobject}', lambda:
+    # self._loaded = True
+    # self._apply_deferred_to_loaded()
+
+  @_passthrough_if_loaded
+  def update_dict(self, pobject):
+    if isinstance(pobject, (NativeObject, LazyObject)):
+      self._deferred_operations.append(lambda: self._loaded().update_dict(
+          pobject))
+      # self._loaded = True
+      # self._apply_deferred_to_loaded()
+    warning(f'Cannot do update_dict w/{pobject}.')
 
   def __str__(self):
-    return f'UO[{self._dynamic_container}]'
+    if self._loaded:
+      return f'LO({self._loaded_object})'
+    return f'LO({self.name})'
 
   def __repr__(self):
     return str(self)
+
+
+def _pretty(obj):
+  if isinstance(obj, (dict, list, tuple)):
+    return str(obj)[1:-1]  # Strip off brackets and parens.
 
 
 @attr.s(str=False, repr=False, slots=True)

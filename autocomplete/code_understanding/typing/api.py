@@ -11,7 +11,7 @@ from autocomplete.code_understanding.typing.expressions import (
 from autocomplete.code_understanding.typing.language_objects import (
     Function, Klass, create_main_module)
 from autocomplete.code_understanding.typing.pobjects import (
-    FuzzyBoolean, UnknownObject)
+    AugmentedObject, FuzzyBoolean, UnknownObject)
 from autocomplete.nsn_logging import debug, info
 
 
@@ -50,14 +50,20 @@ def analyze_file(filename):
 
 
 def _process(member, a_frame):
-  if member.value_is_a(Klass) == FuzzyBoolean.TRUE:
+  if isinstance(
+      member,
+      AugmentedObject) and member.value_is_a(Klass) == FuzzyBoolean.TRUE:
     instance = member.value().new(a_frame, [], {})
     for _, value in instance.items():
       _process(value, a_frame)
-  elif member.value_is_a(Function) == FuzzyBoolean.TRUE:
+  elif isinstance(
+      member,
+      AugmentedObject) and member.value_is_a(Function) == FuzzyBoolean.TRUE:
     func = member.value()
     debug(f'Calling {func.name}')
-    kwargs = {param.name: UnknownObject(param.name) for param in func.parameters}
+    kwargs = {
+        param.name: UnknownObject(param.name) for param in func.parameters
+    }
     func.call(a_frame, [], kwargs)
 
 

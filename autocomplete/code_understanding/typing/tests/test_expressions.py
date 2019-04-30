@@ -47,10 +47,10 @@ def test_and_or():
   '''
   module = module_loader.load_module_from_source(source)
   assert not module['a'].value()
-  assert module['b'].bool_value() == FuzzyBoolean.TRUE
-  assert module['c'].bool_value() == FuzzyBoolean.FALSE
-  assert module['d'].bool_value() == FuzzyBoolean.TRUE
-  assert module['e'].bool_value() == FuzzyBoolean.FALSE
+  assert module['b'].value()
+  assert not module['c'].value()
+  assert module['d'].value()
+  assert not module['e'].value()
 
 
 if __name__ == '__main__':

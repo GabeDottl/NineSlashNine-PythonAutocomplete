@@ -18,7 +18,7 @@ from autocomplete.code_understanding.typing.language_objects import (
     BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module,
     ModuleImpl, NativeModule, Parameter, SimplePackageModule)
 from autocomplete.code_understanding.typing.pobjects import (
-    FuzzyBoolean, FuzzyObject, UnknownObject)
+    AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, UnknownObject)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import error, info, warning
 
@@ -178,6 +178,13 @@ class ImportCfgNode(CfgNode):
       last_module.add_members({ancestor_module_hierarchy[-1]: module})
       curr_frame[root_module.name] = root_module
     else:  # Free module - e.g. import a.
+      # If this package has been partially imported, bring in the members that have been imported
+      # already.
+      if name in curr_frame and isinstance(name, SimplePackageModule):
+        assert module.is_package
+        for name, member in curr_frame[name].get_members().items():
+          module.set_attribute(name, member)
+
       curr_frame[module.name] = module
     collector.add_module_import(module.name, self.as_name)
 
@@ -207,6 +214,9 @@ class FromImportCfgNode(CfgNode):
                               self.as_name)
     # Example: from foo import *
     if self.from_import_name == '*':
+      # TODO: Create index of symbols in each package so this doesn't require loading object?
+      # This sort of import should be rather uncommon, so perhaps not super-worthwhile...
+
       # Python's kind of funny. If |module| is a package, this will only bring in the modules in
       # that package which have already been explcitly imported. So, given a.b and a.c modules,
       # if we have from a import *, b and c will only be brought in to the namespace if they were
@@ -220,8 +230,11 @@ class FromImportCfgNode(CfgNode):
     # Normal case.
     name = self.as_name if self.as_name else self.from_import_name
 
-    pobject = self.module_loader.get_pobject_from_module(
-        self.module_path, self.from_import_name)
+    pobject = LazyObject(
+        f'from {self.module_path} import {self.from_import_name}', lambda:
+        AugmentedObject(
+            self.module_loader.get_pobject_from_module(self.module_path, self.
+                                                       from_import_name)))
     curr_frame[name] = pobject
 
   @instance_memoize
@@ -472,17 +485,17 @@ class IfCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     for expression, node in self.expression_node_tuples:
-      result = expression.evaluate(curr_frame)
-      if result.bool_value() == FuzzyBoolean.TRUE:
-        # Expression is definitely true - evaluate and stop here.
-        node.process(curr_frame)
-        break
-      elif result.bool_value() == FuzzyBoolean.FALSE:
-        # Expression is definitely false - skip.
-        # TODO: Process for collector.
-        continue
-      else:  # Completely ambiguous / MAYBE.
-        node.process(curr_frame)
+      # result = expression.evaluate(curr_frame)
+      # if result.bool_value() == FuzzyBoolean.TRUE:
+      #   # Expression is definitely true - evaluate and stop here.
+      #   node.process(curr_frame)
+      #   break
+      # elif result.bool_value() == FuzzyBoolean.FALSE:
+      #   # Expression is definitely false - skip.
+      #   # TODO: Process for collector.
+      #   continue
+      # else:  # Completely ambiguous / MAYBE.
+      node.process(curr_frame)
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
