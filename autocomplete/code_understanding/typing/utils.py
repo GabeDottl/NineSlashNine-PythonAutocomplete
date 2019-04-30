@@ -1,17 +1,17 @@
 import sys
 from functools import wraps
-from typing import Dict
 
 
 def instance_memoize(func):
-  value = None
 
   @wraps(func)
   def _wrapper(self):
-    nonlocal value
-    if value is None:
-      value = func(self)
-    return value
+    memoized_name = f'_{func.__name__}_memoized'
+    if hasattr(self, memoized_name):
+      return getattr(self, memoized_name)
+    out = func(self)
+    setattr(self, memoized_name, out)
+    return out
 
   return _wrapper
 
@@ -21,7 +21,6 @@ def print_tree(node, indent='', file=sys.stdout):
   if hasattr(node, 'children'):
     for c in node.children:
       print_tree(c, indent + '  ', file=file)
-
 
 def to_dict_iter(obj):
   if hasattr(obj, '__dict__'):

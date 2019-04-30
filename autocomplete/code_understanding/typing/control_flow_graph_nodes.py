@@ -231,7 +231,7 @@ class FromImportCfgNode(CfgNode):
     name = self.as_name if self.as_name else self.from_import_name
 
     pobject = LazyObject(
-        f'from {self.module_path} import {self.from_import_name}', lambda:
+        f'{self.module_path}.{self.from_import_name}', lambda:
         AugmentedObject(
             self.module_loader.get_pobject_from_module(self.module_path, self.
                                                        from_import_name)))

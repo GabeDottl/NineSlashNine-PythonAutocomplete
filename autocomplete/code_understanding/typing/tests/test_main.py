@@ -31,7 +31,7 @@ import numpy, tensorflow.datasets, pytorch
 import os as whatever
 import hob.dob as blob
 from functools import wraps
-from a.b import c
+from importlib.util import find_spec
 from x.y.z import (q, r as s)'''
   module = module_loader.load_module_from_source(source)
   assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
@@ -45,8 +45,8 @@ from x.y.z import (q, r as s)'''
   assert module['blob'].value().name == 'hob.dob'
   assert 'wraps' in module
   assert module['wraps'].value().name == 'functools.wraps'
-  assert 'c' in module
-  assert module['c'].name == 'a.b.c'
+  assert 'find_spec' in module
+  assert module['find_spec'].value().name == 'importlib.util.find_spec'
   assert 'q' in module
   assert module['q'].name == 'x.y.z.q'
   assert 's' in module

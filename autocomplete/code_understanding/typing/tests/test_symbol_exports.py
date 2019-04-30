@@ -40,7 +40,7 @@ def test_cfg_symbol_visibility():
   assert_expected_iterable(klass_node.get_defined_and_exported_symbols(), ['X'])
   assert_expected_iterable(klass_node.suite.get_defined_and_exported_symbols(),
                            ['b', 'foo'])
-  func_node = klass_node.suite[2]
+  func_node = klass_node.suite[1]
   assert isinstance(func_node, FuncCfgNode)
   assert_expected_iterable(func_node.get_defined_and_exported_symbols(),
                            ['foo'])
@@ -72,13 +72,13 @@ def test_closure_scope():
   foo_func_node = graph[0]
   assert isinstance(foo_func_node, FuncCfgNode)
   assert not foo_func_node.closure()  # Should be empty.
-  foo2_func_node = foo_func_node.suite[5]
+  foo2_func_node = foo_func_node.suite[-1]
   assert isinstance(foo2_func_node, FuncCfgNode)
   assert_expected_iterable(foo2_func_node.closure(), ['b', 'w', 'q'])
-  foo3_func_node = foo2_func_node.suite[2]
+  foo3_func_node = foo2_func_node.suite[1]
   assert isinstance(foo3_func_node, FuncCfgNode)
   assert_expected_iterable(foo3_func_node.closure(), ['b', 'c'])
-  x_klass_node = foo2_func_node.suite[3]
+  x_klass_node = foo2_func_node.suite[-1]
   foo4_func_node = x_klass_node.suite[-1]
   assert_expected_iterable(foo4_func_node.closure(), ['c', 'q'])
 
@@ -114,8 +114,8 @@ def test_closure_values():
 
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
-  unresolved_imports_filename = os.path.join(typing_dir, 'examples',
-                                             'unresolved_symbols.py')
+  unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples',
+                                             'unresolved_symbols.py'))
   missing_symbols = find_missing_symbols.scan_missing_symbols(
       unresolved_imports_filename, include_context=False)
   print('Used symbols:',
@@ -139,7 +139,6 @@ def test_no_missing_symbols_in_typing_package():
     missing_symbols = find_missing_symbols.scan_missing_symbols(
         filename, include_context=False)
     assert not missing_symbols
-  print(len(module_loader.__module_dict.keys()))
 
 
 if __name__ == "__main__":

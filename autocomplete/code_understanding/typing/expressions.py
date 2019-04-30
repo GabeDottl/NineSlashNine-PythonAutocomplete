@@ -385,7 +385,7 @@ class SubscriptExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return self.base_expression.get_used_free_symbols().union(
+    return set(self.base_expression.get_used_free_symbols()).union(
         self.subscript_list_expression.get_used_free_symbols())
 
 
