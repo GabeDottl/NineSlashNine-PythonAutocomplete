@@ -530,7 +530,7 @@ def _search_for_module(frame):
 @attr.s(slots=True)
 class KlassCfgNode(CfgNode):
   name = attr.ib()
-  suite = attr.ib()
+  suite: GroupCfgNode = attr.ib()
   _module = attr.ib()
   parso_node = attr.ib()
 
@@ -554,7 +554,18 @@ class KlassCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    return self.suite.get_non_local_symbols()
+    out = set()
+    # Classes are weird - if I defined a symbol as a class member, it can be used by other non-func
+    # class members, but must be referenced as an attribute of the class or an instance within
+    # functions.
+    for child in filter(lambda x: not isinstance(x, FuncCfgNode), self.suite):
+      out = out.union(child.get_non_local_symbols())
+    # Drop locally defined symbols *before* we add in the missing symbols from and child functions.
+    for symbol in self.suite.get_defined_and_exported_symbols():
+      out.discard(symbol)
+    for child in filter(lambda x: isinstance(x, FuncCfgNode), self.suite):
+      out = out.union(child.get_non_local_symbols())
+    return out
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -640,11 +651,17 @@ class FuncCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    out = set()
+    out = self.suite.get_non_local_symbols()
+    # Note that we iterate through parameters twice because a symbol may be nonlocally used
+    # in a parameter default but defined by another parameter. We don't want to exclude the symbol
+    # in this case, thus we add-it back in in the 2nd loop.
+    for parameter in self.parameters:
+      out.discard(parameter.name)
+
     for parameter in self.parameters:
       if parameter.default_expression:
-        out = out.union(parameter.default.get_used_free_symbols())
-    out = out.union(self.suite.get_non_local_symbols())
+        out = out.union(parameter.default_expression.get_used_free_symbols())
+
     return out
 
   @instance_memoize

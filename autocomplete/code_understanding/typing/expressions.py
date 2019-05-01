@@ -289,7 +289,7 @@ class KeyValueForComp:
   value: Expression = attr.ib()
   for_comp = attr.ib()
 
-  @instance_memoize
+  # @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     out = set(self.value.get_used_free_symbols())
     for symbol in self.for_comp.get_defined_symbols():

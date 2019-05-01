@@ -2,7 +2,7 @@ import os
 from glob import glob
 
 from autocomplete.code_understanding.typing import (
-    collector, control_flow_graph, module_loader)
+    collector, control_flow_graph, module_loader, utils)
 from autocomplete.code_understanding.typing.api import graph_from_source
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     FuncCfgNode)
@@ -115,7 +115,8 @@ def test_closure_values():
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples',
-                                             'unresolved_symbols.py'))
+                                                'unresolved_symbols.py'))
+  
   missing_symbols = find_missing_symbols.scan_missing_symbols(
       unresolved_imports_filename, include_context=False)
   print('Used symbols:',
@@ -142,8 +143,8 @@ def test_no_missing_symbols_in_typing_package():
 
 
 if __name__ == "__main__":
+  test_missing_symbols()
   test_closure_values()
   test_cfg_symbol_visibility()
   test_closure_scope()
-  test_missing_symbols()
   test_no_missing_symbols_in_typing_package()

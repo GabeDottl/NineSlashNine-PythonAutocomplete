@@ -4,14 +4,19 @@ from glob import glob
 from pprint import pprint
 
 from autocomplete.code_understanding.typing import (
-    api, collector, module_loader)
+    api, collector, module_loader, utils)
 from autocomplete.nsn_logging import info
 
 
 def scan_missing_symbols(filename, include_context=False):
-  api.analyze_file(filename)
-  return collector.get_missing_symbols_in_file(filename, include_context=False)
-
+  # TODO: Add some platform configuration.
+  with open(filename) as f:
+    source = ''.join(f.readlines())
+  graph = api.graph_from_source(source)
+  missing_symbols = graph.get_non_local_symbols()
+  for builtin in utils.get_possible_builtin_symbols():
+    missing_symbols.discard(builtin)
+  return missing_symbols
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()

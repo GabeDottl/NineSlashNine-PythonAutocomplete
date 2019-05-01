@@ -1,6 +1,6 @@
 import sys
 from functools import wraps
-
+import itertools
 
 def instance_memoize(func):
 
@@ -15,6 +15,15 @@ def instance_memoize(func):
 
   return _wrapper
 
+PYTHON2_EXCLUSIVE_BUILTINS = [
+    'intern', 'unichr', 'StandardError', 'reduce', 'exit', 'reload', 'file',
+    'execfile', 'basestring', 'long', 'apply', 'quit', 'coerce', 'raw_input',
+    'cmp', 'xrange', 'unicode', 'buffer'
+]
+
+def get_possible_builtin_symbols():
+  return itertools.chain(['__builtins__', '__builtin__'], __builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)
+
 
 def print_tree(node, indent='', file=sys.stdout):
   print(f'{indent}{node.type}', file=file)
@@ -25,7 +34,7 @@ def print_tree(node, indent='', file=sys.stdout):
 def to_dict_iter(obj):
   if hasattr(obj, '__dict__'):
     return obj.__dict__.items()
-  elif isinstance(obj, Dict):
+  elif isinstance(obj, dict):
     return obj.items()
   elif hasattr(obj, '__slots__'):
 
