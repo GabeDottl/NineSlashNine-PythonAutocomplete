@@ -1,7 +1,5 @@
 import argparse
 
-import parso
-
 from autocomplete.code_understanding.typing import (
     collector, control_flow_graph, frame, module_loader)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
@@ -16,11 +14,10 @@ from autocomplete.nsn_logging import debug, info
 
 
 def graph_from_source(source: str, module=None) -> CfgNode:
-  basic_node = parso.parse(source)
   if not module:
     module = create_main_module()
-  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader, module)
-  return builder.graph_from_parso_node(basic_node)
+  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader)
+  return builder.graph_from_source(source, module)
 
 
 # def frame_from_source(source: str, filename: str) -> frame.Frame:
