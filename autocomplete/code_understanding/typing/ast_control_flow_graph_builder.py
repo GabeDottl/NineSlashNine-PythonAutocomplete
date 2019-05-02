@@ -25,6 +25,17 @@ class AstControlFlowGraphBuilder:
     visitor.visit(ast_node)
     return visitor.root
 
+@attr.s
+class ListPopper:
+  l = attr.ib()
+  value = attr.ib()
+
+  def __enter__(self):
+    self.l.append(self.value)
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    self.l.pop()
+
 
 # For a rather help
 # https://docs.python.org/3/library/ast.html#abstract-grammar
@@ -32,17 +43,7 @@ class AstControlFlowGraphBuilder:
 class Visitor(ast.NodeVisitor):
   _module = attr.ib()
   _container_stack = attr.ib(factory=list)
-  # _last_expression = attr.ib(None, init=False)
-  # _awaiting_expression= attr.ib(False, init=False)
   root = attr.ib(None, init=False)
-
-  # def container_context(self, cfg_node):
-  #   class ContainerContext:
-  #     def __enter__(self):
-  #   self._container_stack.append(cfg_node)
-
-  # def __exit__(self, exc_type, exc_value, traceback):
-  #   self._container_stack.pop()
 
   def generic_visit(self, ast_node):
     if isinstance(ast_node, EXPRESSIONS_TUPLE):
@@ -53,10 +54,18 @@ class Visitor(ast.NodeVisitor):
     assert not self.root
     self.root = GroupCfgNode()
     # with self.container_context(self.root):
-    self._container_stack.append(self.root)
-    self.generic_visit(ast_node)
-    self._container_stack.pop()
+    with ListPopper(self._container_stack, self.root):
+      self.generic_visit(ast_node)
+    # self._container_stack.pop()
     assert not self._container_stack
+
+  def visit_Interactive(self, ast_node):
+    # stmt* body)
+    self.generic_visit(ast_node)
+
+  def visit_Expression(self, ast_node):
+    # expr body)
+    self.generic_visit(ast_node)
 
   def visit_Assign(self, ast_node):
     self._container_stack[-1].children.append(
@@ -65,26 +74,98 @@ class Visitor(ast.NodeVisitor):
                               expression_from_node(ast_node.value),
                               parse_node=parse_from_ast(ast_node)))
 
-  def visit_Expr(self, ast_node):
-    pass
-
-  def visit_Import(self, ast_node):
-    pass
-
-  def visit_ImportFrom(self, ast_node):
-    pass
-
-  def visit_For(self, ast_node):
-    pass
-    self.generic_visit(node)
-
   def visit_FunctionDef(self, ast_node):
-    pass
-    self.generic_visit(node)
+    # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
+    self.generic_visit(ast_node)
+
+  def visit_AsyncFunctionDef(self, ast_node):
+    # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
+    self.generic_visit(ast_node)
 
   def visit_ClassDef(self, ast_node):
-    pass
-    self.generic_visit(node)
+    # (identifier name, expr* bases, keyword* keywords, stmt* body, expr* decorator_list)
+    self.generic_visit(ast_node)
+
+  def visit_Return(self, ast_node):
+    # (expr? value)
+    self.generic_visit(ast_node)
+
+  def visit_Delete(self, ast_node):
+    # (expr* targets)
+    self.generic_visit(ast_node)
+
+  def visit_AugAssign(self, ast_node):
+    # (expr target, operator op, expr value)
+    self.generic_visit(ast_node)
+
+  def visit_AnnAssign(self, ast_node):
+    # (expr target, expr annotation, expr? value, int simple)          -- 'simple' indicates that we annotate simple name without parens
+    self.generic_visit(ast_node)
+
+  def visit_For(self, ast_node):
+    # (expr target, expr iter, stmt* body, stmt* orelse) # use 'orelse' because else is a keyword in target languages
+    self.generic_visit(ast_node)
+
+  def visit_AsyncFor(self, ast_node):
+    # (expr target, expr iter, stmt* body, stmt* orelse)
+    self.generic_visit(ast_node)
+
+  def visit_While(self, ast_node):
+    # (expr test, stmt* body, stmt* orelse)
+    self.generic_visit(ast_node)
+
+  def visit_If(self, ast_node):
+    # (expr test, stmt* body, stmt* orelse)
+    self.generic_visit(ast_node)
+
+  def visit_With(self, ast_node):
+    # (withitem* items, stmt* body)
+    self.generic_visit(ast_node)
+
+  def visit_AsyncWith(self, ast_node):
+    # (withitem* items, stmt* body)
+    self.generic_visit(ast_node)
+
+  def visit_Raise(self, ast_node):
+    # (expr? exc, expr? cause)
+    self.generic_visit(ast_node)
+
+  def visit_Try(self, ast_node):
+    # (stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
+    self.generic_visit(ast_node)
+
+  def visit_Assert(self, ast_node):
+    # (expr test, expr? msg)
+    self.generic_visit(ast_node)
+
+  def visit_Import(self, ast_node):
+    # (alias* names)
+    self.generic_visit(ast_node)
+
+  def visit_ImportFrom(self, ast_node):
+    # (identifier? module, alias* names, int? level)
+    self.generic_visit(ast_node)
+
+  def visit_Global(self, ast_node):
+    # (identifier* names)
+    self.generic_visit(ast_node)
+
+  def visit_Nonlocal(self, ast_node):
+    # (identifier* names)
+    self.generic_visit(ast_node)
+
+  def visit_Expr(self, ast_node):
+    # (expr value)
+    self.generic_visit(ast_node)
+
+  # def visit_Pass(self, ast_node):
+  #   self.generic_visit(ast_node)
+
+  # def visit_Break(self, ast_node):
+  #   self.generic_visit(ast_node)
+
+  # def visit_Continue(self, ast_node):
+  #   self.generic_visit(ast_node)
 
 
 def variables_from_targets(ast_nodes):
