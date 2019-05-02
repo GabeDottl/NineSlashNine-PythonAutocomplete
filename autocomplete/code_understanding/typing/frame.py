@@ -257,10 +257,10 @@ class Frame:
 
   def get_code_context_string(self):
     filename = self._get_current_filename()
-    node = collector.get_current_parso_node()
+    node = collector.get_current_parse_node()
     if node:
-      code = node.get_code().strip()
-      line = node.start_pos[0]
+      code = node.native_node.get_code().strip()
+      line = node.lineno
       # f-string doesn't like \n.
       code = code if '\n' not in code else code[:code.index("\n")] + '[Trimmed]'
       if filename:

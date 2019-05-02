@@ -7,7 +7,7 @@ import attr
 
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueError, assert_unexpected_parso)
+    AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.pobjects import (
     AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, NativeObject,
     PObject, PObjectType, UnknownObject, pobject_from_object)
@@ -145,8 +145,8 @@ def _assign_variables_to_results(curr_frame, variable, result):
     variable = variable[0]
   if not hasattr(variable, '__iter__'):
     # collector.add_variable_assignment(variable,
-    #                                   f'({parso_node.get_code().strip()})')
-    assert_unexpected_parso(isinstance(variable, Expression), variable)
+    #                                   f'({parse_node.native_node.get_code().strip()})')
+    assert isinstance(variable, Expression), variable
     if isinstance(variable, SubscriptExpression):
       variable.set(curr_frame, result)
     else:
@@ -421,7 +421,7 @@ class IfElseExpression(Expression):
 class FactorExpression(Expression):
   operator = attr.ib()
   expression: Expression = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib()
 
   def evaluate(self, curr_frame):
     if self.operator == '+':
@@ -429,7 +429,7 @@ class FactorExpression(Expression):
     if self.operator == '-':
       return MathExpression(
           LiteralExpression(-1), '*', self.expression,
-          self.parso_node).evaluate(curr_frame)
+          self.parse_node).evaluate(curr_frame)
     if self.operator == '~':
       debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
@@ -444,7 +444,7 @@ class MathExpression(Expression):
   left_expression: Expression = attr.ib()
   operator = attr.ib()
   right_expression: Expression = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     # expr: xor_expr ('|' xor_expr)*
@@ -492,7 +492,7 @@ class MathExpression(Expression):
     except TypeError:
       ...
     debug(f'MathExpression failed: {l}{self.operator}{r}')
-    return UnknownObject(f'{self.parso_node.get_code()}')
+    return UnknownObject(f'{self.parse_node.native_node.get_code()}')
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:

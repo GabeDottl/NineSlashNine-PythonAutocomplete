@@ -143,7 +143,7 @@ class SymbolIndex:
     try:
       module = module_loader.get_module_from_filename('__main__', filename, lazy=False)
       self.add_module(module, file_index)
-    except Exception as e:
+    except OSError:#Exception as e:
       info(f'Failed on {filename}: {e}')
       self.failed_files.add(filename)
     else:

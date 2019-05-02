@@ -23,12 +23,17 @@ from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
 
+@attr.s
+class ParseNode:
+  lineno: int = attr.ib()
+  col_offset: int = attr.ib()
+  native_node: int = attr.ib(None)
 
 class CfgNode(ABC):
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def process(self, curr_frame):
-    with collector.ParsoNodeContext(self.parso_node):
+    with collector.ParseNodeContext(self.parse_node):
       self._process_impl(curr_frame)
 
   @abstractmethod
@@ -57,7 +62,7 @@ class CfgNode(ABC):
 @attr.s(slots=True)
 class GroupCfgNode(CfgNode):
   children: List[CfgNode] = attr.ib(factory=list)
-  parso_node = attr.ib(None)
+  parse_node = attr.ib(None)
 
   # Convenience
   def __getitem__(self, index) -> CfgNode:
@@ -105,7 +110,7 @@ class GroupCfgNode(CfgNode):
 @attr.s(slots=True)
 class ExpressionCfgNode(CfgNode):
   expression: Expression = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     self.expression.evaluate(curr_frame)
@@ -122,7 +127,7 @@ class ExpressionCfgNode(CfgNode):
 @attr.s(slots=True)
 class ImportCfgNode(CfgNode):
   module_path = attr.ib()  # TODO: Rename to name
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
 
@@ -206,7 +211,7 @@ class ImportCfgNode(CfgNode):
 class FromImportCfgNode(CfgNode):
   module_path = attr.ib()
   from_import_name = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
 
@@ -251,7 +256,7 @@ class FromImportCfgNode(CfgNode):
 
 @attr.s(slots=True)
 class NoOpCfgNode(CfgNode):
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     pass
@@ -273,7 +278,7 @@ class AssignmentStmtCfgNode(CfgNode):
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression: Expression = attr.ib()
   value_node = attr.ib()  # TODO: Delete.
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
@@ -285,8 +290,8 @@ class AssignmentStmtCfgNode(CfgNode):
 
   def _to_str(self):
     out = []
-    if self.parso_node.get_code():
-      out.append(f'{self.__class__.__name__}: {self.parso_node.get_code()}')
+    if self.parse_node.native_node.get_code():
+      out.append(f'{self.__class__.__name__}: {self.parse_node.native_node.get_code()}')
     return '\n'.join(out)
 
   @instance_memoize
@@ -304,7 +309,7 @@ class ForCfgNode(CfgNode):
   loop_variables: Expression = attr.ib()
   loop_expression: Expression = attr.ib()
   suite: 'GroupCfgNode' = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     _assign_variables_to_results(curr_frame, self.loop_variables,
@@ -333,7 +338,7 @@ class WhileCfgNode(CfgNode):
   conditional_expression: Expression = attr.ib()
   suite: 'CfgNode' = attr.ib()
   else_suite: 'CfgNode' = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     self.conditional_expression.evaluate(curr_frame)
@@ -362,7 +367,7 @@ class WithCfgNode(CfgNode):
   as_expression: Union[Expression, None] = attr.ib(
   )  # TODO: NoOpExpression instead?
   suite: 'GroupCfgNode' = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     if self.as_expression:
@@ -482,7 +487,7 @@ class ExceptCfgNode(CfgNode):
 class IfCfgNode(CfgNode):
   # For 'else', (True, node).
   expression_node_tuples: List[Tuple[Expression, CfgNode]] = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     for expression, node in self.expression_node_tuples:
@@ -533,7 +538,7 @@ class KlassCfgNode(CfgNode):
   name = attr.ib()
   suite: GroupCfgNode = attr.ib()
   _module = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     klass_name = f'{curr_frame.namespace.name}.{self.name}' if curr_frame.namespace else self.name
@@ -583,7 +588,7 @@ class FuncCfgNode(CfgNode):
   suite = attr.ib()
   _module = attr.ib(kw_only=True)
   _containing_func_node = attr.ib(kw_only=True)
-  parso_node = attr.ib(kw_only=True)
+  parse_node = attr.ib(kw_only=True)
   _child_functions = attr.ib(init=False, factory=list)
 
   def __attrs_post_init__(self):
@@ -676,7 +681,7 @@ class FuncCfgNode(CfgNode):
 @attr.s(slots=True)
 class ReturnCfgNode(CfgNode):
   expression: Expression = attr.ib()
-  parso_node = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     curr_frame.add_return(self.expression.evaluate(curr_frame))

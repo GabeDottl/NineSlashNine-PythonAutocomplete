@@ -8,7 +8,7 @@ from prettytable import PrettyTable
 # TODO: Dict on type?
 _filename_context = []
 _block_context = []  # Module, Function, Klass
-_parso_node_context = []
+_parse_node_context = []
 _missing_symbols = defaultdict(list)
 _referenced_symbols = defaultdict(set)
 
@@ -52,18 +52,18 @@ class BlockContext:
 
 
 @attr.s(slots=True)
-class ParsoNodeContext:
-  parso_node = attr.ib()
+class ParseNodeContext:
+  parse_node = attr.ib()
 
   def __enter__(self):
-    _parso_node_context.append(self.parso_node)
+    _parse_node_context.append(self.parse_node)
 
   def __exit__(self, exc_type, exc_value, traceback):
-    _parso_node_context.pop()
+    _parse_node_context.pop()
 
 
-def get_current_parso_node():
-  return _parso_node_context[-1]
+def get_current_parse_node():
+  return _parse_node_context[-1]
 
 
 def add_missing_symbol(filename, name, context):

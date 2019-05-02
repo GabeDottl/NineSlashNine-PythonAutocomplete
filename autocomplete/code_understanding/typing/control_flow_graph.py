@@ -31,7 +31,7 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode, TryCfgNode,
     WhileCfgNode, WithCfgNode)
 from autocomplete.code_understanding.typing.errors import (
-    ParsingError, assert_unexpected_parso)
+    ParsingError)
 from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
 from autocomplete.code_understanding.typing.expressions import (
     AnonymousExpression, Expression, LiteralExpression, UnknownExpression,
@@ -47,10 +47,10 @@ def condense_graph(graph):
   children = [condense_graph(child) for child in graph.children]
   children = list(filter(lambda x: not isinstance(x, NoOpCfgNode), children))
   if not children:
-    return NoOpCfgNode(graph.parso_node)
+    return NoOpCfgNode(graph.parse_node)
   elif len(children) == 1:
     return children[0]
-  return GroupCfgNode(children, parso_node=graph.parso_node)
+  return GroupCfgNode(children, parse_node=graph.parse_node)
 
 @attr.s
 class ControlFlowGraphBuilder:

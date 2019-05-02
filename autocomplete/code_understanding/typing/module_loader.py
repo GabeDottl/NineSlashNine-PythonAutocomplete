@@ -126,6 +126,12 @@ def _get_module_internal(name, filename, is_package, module_type,
   # Normal case, check if we have a module for the specified file already.
   if filename in __filename_module_dict:
     module = __filename_module_dict[filename]
+    if module is None:  # Oddly enough, a module is allowed to directly invoke itself when it's
+      # __main__ at least - see pdb.py where it imports itself when it is the main module.
+      if unknown_fallback:
+        return _create_empty_module(name, module_type)
+      raise InvalidModuleError(name)
+
     assert module is not None, collector._filename_context
 
     # Load module if it's not alread loaded and we're specifically retrieving a non-Lazy version.
