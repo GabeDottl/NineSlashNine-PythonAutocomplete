@@ -11,7 +11,7 @@ import msgpack
 
 from autocomplete.code_understanding.typing import (
     errors, language_objects, module_loader, utils)
-from autocomplete.nsn_logging import info
+from autocomplete.nsn_logging import info, warning
 
 
 class SymbolType(Enum):

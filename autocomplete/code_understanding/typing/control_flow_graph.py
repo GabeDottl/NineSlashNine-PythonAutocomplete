@@ -37,7 +37,7 @@ from autocomplete.code_understanding.typing.expressions import (
     AnonymousExpression, Expression, LiteralExpression, UnknownExpression,
     VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing.parsing_utils import (
+from autocomplete.code_understanding.typing.parso_control_graph_builder import (
     _assert_returns_type, expression_from_node, node_info,
     parameters_from_parameters, path_and_name_from_dotted_as_name,
     path_and_name_from_import_child, statement_node_from_expr_stmt,
