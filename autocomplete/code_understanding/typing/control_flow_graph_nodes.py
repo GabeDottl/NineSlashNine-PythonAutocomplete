@@ -7,27 +7,30 @@ from typing import Iterable, List, Set, Tuple, Union
 import attr
 
 from autocomplete.code_understanding.typing import collector
-from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueError, ParsingError, assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (
-    Expression, StarredExpression, SubscriptExpression, VariableExpression,
-    _assign_variables_to_results)
+from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError, ParsingError,
+                                                           assert_unexpected_parso)
+from autocomplete.code_understanding.typing.expressions import (Expression, StarredExpression,
+                                                                SubscriptExpression, VariableExpression,
+                                                                _assign_variables_to_results)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.language_objects import (
-    BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module,
-    ModuleImpl, NativeModule, Parameter, SimplePackageModule)
-from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, UnknownObject)
+from autocomplete.code_understanding.typing.language_objects import (BoundFunction, Function, FunctionImpl,
+                                                                     FunctionType, Klass, Module, ModuleImpl,
+                                                                     NativeModule, Parameter,
+                                                                     SimplePackageModule)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
+                                                             LazyObject, UnknownObject)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
+
 
 @attr.s
 class ParseNode:
   lineno: int = attr.ib()
   col_offset: int = attr.ib()
   native_node: int = attr.ib(None)
+
 
 class CfgNode(ABC):
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
@@ -86,25 +89,19 @@ class GroupCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    out = set(
-        itertools.chain(
-            *[node.get_non_local_symbols() for node in self.children]))
+    out = set(itertools.chain(*[node.get_non_local_symbols() for node in self.children]))
     for symbol in self.get_defined_and_exported_symbols():
       out.discard(symbol)
     return out
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
-    chained = set(
-        itertools.chain(*[
-            node.get_defined_and_exported_symbols() for node in self.children
-        ]))
+    chained = set(itertools.chain(*[node.get_defined_and_exported_symbols() for node in self.children]))
     return chained
 
   def pretty_print(self, indent=''):
     out = f'{super().pretty_print(indent)}\n'
-    return out + "\n".join(
-        child.pretty_print(indent + "  ") for child in self.children)
+    return out + "\n".join(child.pretty_print(indent + "  ") for child in self.children)
 
 
 @attr.s(slots=True)
@@ -166,22 +163,19 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
-          ancestor_module = SimplePackageModule(
-              current_name,
-              module.module_type,
-              filename=None,
-              is_package=True,
-              members={})
+          ancestor_module = SimplePackageModule(current_name,
+                                                module.module_type,
+                                                filename=None,
+                                                is_package=True,
+                                                members={})
 
         if last_module:
-          last_module.add_members(
-              {name: AugmentedObject(ancestor_module, imported=True)})
+          last_module.add_members({name: AugmentedObject(ancestor_module, imported=True)})
         else:
           root_module = ancestor_module
         last_module = ancestor_module
 
-      last_module[ancestor_module_hierarchy[-1]] = AugmentedObject(
-          module, imported=True)
+      last_module[ancestor_module_hierarchy[-1]] = AugmentedObject(module, imported=True)
       curr_frame[root_module.name] = AugmentedObject(root_module, imported=True)
     else:  # Free module - e.g. import a.
       # If this package has been partially imported, bring in the members that have been imported
@@ -216,8 +210,7 @@ class FromImportCfgNode(CfgNode):
   module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
-    collector.add_from_import(self.module_path, self.from_import_name,
-                              self.as_name)
+    collector.add_from_import(self.module_path, self.from_import_name, self.as_name)
     # Example: from foo import *
     if self.from_import_name == '*':
       # TODO: Create index of symbols in each package so this doesn't require loading object?
@@ -238,9 +231,8 @@ class FromImportCfgNode(CfgNode):
 
     pobject = LazyObject(
         f'{self.module_path}.{self.from_import_name}',
-        lambda: 
-            self.module_loader.get_pobject_from_module(self.module_path, self.
-                                                       from_import_name), imported=True)
+        lambda: self.module_loader.get_pobject_from_module(self.module_path, self.from_import_name),
+        imported=True)
     curr_frame[name] = pobject
 
   @instance_memoize
@@ -273,8 +265,7 @@ class NoOpCfgNode(CfgNode):
 @attr.s(slots=True)
 class AssignmentStmtCfgNode(CfgNode):
   # https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
-  left_variables: Expression = attr.ib(
-      validator=attr.validators.instance_of(Expression))
+  left_variables: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression: Expression = attr.ib()
   value_node = attr.ib()  # TODO: Delete.
@@ -312,15 +303,13 @@ class ForCfgNode(CfgNode):
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
-    _assign_variables_to_results(curr_frame, self.loop_variables,
-                                 self.loop_expression.evaluate(curr_frame))
+    _assign_variables_to_results(curr_frame, self.loop_variables, self.loop_expression.evaluate(curr_frame))
     self.suite.process(curr_frame)
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
     loop_symbols = set(self.loop_variables.get_used_free_symbols())
-    loop_expression_used_symbols = set(
-        self.loop_expression.get_used_free_symbols())
+    loop_expression_used_symbols = set(self.loop_expression.get_used_free_symbols())
     return loop_expression_used_symbols - loop_symbols
 
   @instance_memoize
@@ -347,8 +336,7 @@ class WhileCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    out = self.suite.get_non_local_symbols().union(
-        self.else_suite.get_non_local_symbols())
+    out = self.suite.get_non_local_symbols().union(self.else_suite.get_non_local_symbols())
     return out.union(self.conditional_expression.get_used_free_symbols())
 
   @instance_memoize
@@ -364,30 +352,24 @@ class WhileCfgNode(CfgNode):
 class WithCfgNode(CfgNode):
   # For 'else', (True, node).
   with_item_expression: Expression = attr.ib()
-  as_expression: Union[Expression, None] = attr.ib(
-  )  # TODO: NoOpExpression instead?
+  as_expression: Union[Expression, None] = attr.ib()  # TODO: NoOpExpression instead?
   suite: 'GroupCfgNode' = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     if self.as_expression:
-      _assign_variables_to_results(
-          curr_frame, self.as_expression,
-          self.with_item_expression.evaluate(curr_frame))
+      _assign_variables_to_results(curr_frame, self.as_expression,
+                                   self.with_item_expression.evaluate(curr_frame))
     else:
       self.with_item_expression.evaluate(curr_frame)
     self.suite.process(curr_frame)
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    with_item_expression_symbols = self.with_item_expression.get_used_free_symbols(
-    )
-    as_expression_symbols = set(self.as_expression.get_used_free_symbols()
-                               ) if self.as_expression else set()
+    with_item_expression_symbols = self.with_item_expression.get_used_free_symbols()
+    as_expression_symbols = set(self.as_expression.get_used_free_symbols()) if self.as_expression else set()
     suite_symbols = set(self.suite.get_non_local_symbols())
-    return set(
-        itertools.chain(with_item_expression_symbols,
-                        (suite_symbols - as_expression_symbols)))
+    return set(itertools.chain(with_item_expression_symbols, (suite_symbols - as_expression_symbols)))
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -418,22 +400,21 @@ class TryCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Iterable[str]:
     return set(
         itertools.chain(*[
-            node.get_non_local_symbols() for node in itertools.chain(
-                [self.suite, self.finally_suite], self.except_nodes)
+            node.get_non_local_symbols()
+            for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
         ]))
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(
         itertools.chain(*[
-            node.get_defined_and_exported_symbols() for node in itertools.chain(
-                [self.suite, self.finally_suite], self.except_nodes)
+            node.get_defined_and_exported_symbols()
+            for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
         ]))
 
   def pretty_print(self, indent=''):
     out = f'{indent}Try\n{self.suite.pretty_print(indent+"  ")}'
-    out += "\n".join(
-        node.pretty_print(indent + "  ") for node in self.except_nodes)
+    out += "\n".join(node.pretty_print(indent + "  ") for node in self.except_nodes)
     return out + f'\n{self.finally_suite.pretty_print(indent+"  ")}'
 
 
@@ -457,11 +438,9 @@ class ExceptCfgNode(CfgNode):
     For this reason, we do a bit of weird finagling here in which we create a new frame, and merge
     it into the current frame after deleting `e` from it.'''
 
-    new_frame = curr_frame.make_child(curr_frame.namespace,
-                                      FrameType.NORMAL)  # TODO: EXCEPT
+    new_frame = curr_frame.make_child(curr_frame.namespace, FrameType.NORMAL)  # TODO: EXCEPT
     if self.exception_variable:
-      new_frame[self.exception_variable] = UnknownObject(
-          f'{self.exception_variable}')
+      new_frame[self.exception_variable] = UnknownObject(f'{self.exception_variable}')
     self.suite.process(new_frame)
     if self.exception_variable:
       del new_frame[self.exception_variable]
@@ -520,9 +499,7 @@ class IfCfgNode(CfgNode):
 
   def pretty_print(self, indent=''):
     out = f'{indent}{type(self)}\n'
-    return out + "\n".join(
-        node.pretty_print(indent + "  ")
-        for _, node in self.expression_node_tuples)
+    return out + "\n".join(node.pretty_print(indent + "  ") for _, node in self.expression_node_tuples)
 
 
 def _search_for_module(frame):
@@ -545,8 +522,7 @@ class KlassCfgNode(CfgNode):
     klass = Klass(klass_name, self._module.name)
     curr_frame[self.name] = klass
 
-    new_frame = curr_frame.make_child(
-        frame_type=FrameType.KLASS, namespace=klass)
+    new_frame = curr_frame.make_child(frame_type=FrameType.KLASS, namespace=klass)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
     klass._members = new_frame._locals
@@ -600,8 +576,7 @@ class FuncCfgNode(CfgNode):
     out = self.suite.get_defined_and_exported_symbols()
     out = out.union([p.name for p in self.parameters])
     if self._containing_func_node:
-      return out.union(
-          self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
+      return out.union(self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
     return out
 
   @instance_memoize
@@ -618,18 +593,15 @@ class FuncCfgNode(CfgNode):
         processed_params.append(param)
       else:  # Process parameter defaults at the time of definition.
         default = param.default_expression.evaluate(curr_frame)
-        processed_params.append(
-            Parameter(param.name, param.parameter_type, default_value=default))
+        processed_params.append(Parameter(param.name, param.parameter_type, default_value=default))
     # Include full name.
-    func_name = '.'.join([curr_frame.namespace.name, self.name
-                         ]) if curr_frame.namespace else self.name
-    func = FunctionImpl(
-        name=func_name,
-        namespace=curr_frame.namespace,
-        parameters=processed_params,
-        module=self._module,
-        graph=self.suite,
-        cell_symbols=self._get_new_cell_symbols())
+    func_name = '.'.join([curr_frame.namespace.name, self.name]) if curr_frame.namespace else self.name
+    func = FunctionImpl(name=func_name,
+                        namespace=curr_frame.namespace,
+                        parameters=processed_params,
+                        module=self._module,
+                        graph=self.suite,
+                        cell_symbols=self._get_new_cell_symbols())
     collector.add_function_node(func)
 
     # Handle closures, if any.
@@ -646,8 +618,7 @@ class FuncCfgNode(CfgNode):
   def _get_new_cell_symbols(self):
     # New symbols are those that are in child closures but not in our own closure because they're
     # defined locally within this function.
-    out = set(
-        itertools.chain(*[func.closure() for func in self._child_functions]))
+    out = set(itertools.chain(*[func.closure() for func in self._child_functions]))
     for closure in self.closure():
       out.discard(closure)
     return out

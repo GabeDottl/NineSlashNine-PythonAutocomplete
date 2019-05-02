@@ -6,7 +6,6 @@ import astor
 
 
 class Visitor(ast.NodeVisitor):
-
   def __init__(self, trie):
     self.trie = trie
 

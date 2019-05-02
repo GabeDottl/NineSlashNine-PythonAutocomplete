@@ -10,11 +10,11 @@ import attr
 
 from autocomplete.code_understanding.typing import collector, utils
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
-from autocomplete.code_understanding.typing.expressions import (
-    AttributeExpression, SubscriptExpression, Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject,
-    UnknownObject, pobject_from_object)
+from autocomplete.code_understanding.typing.expressions import (AttributeExpression, SubscriptExpression,
+                                                                Variable, VariableExpression)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyObject,
+                                                             NativeObject, PObject, UnknownObject,
+                                                             pobject_from_object)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -39,7 +39,6 @@ class FrameType(Enum):
 
 
 def dereference_cell_object_returns(func):
-
   @wraps(func)
   def wrapper(self, *args, **kwargs):
     out = func(self, *args, **kwargs)
@@ -91,10 +90,7 @@ class Frame:
 
   def __attrs_post_init__(self):
     if not self._builtins:
-      self._builtins = {
-          key: UnknownObject(key)
-          for key in utils.get_possible_builtin_symbols()
-      }
+      self._builtins = {key: UnknownObject(key) for key in utils.get_possible_builtin_symbols()}
       # self._builtins['globals'] = NativeObject(lambda: return self._module.get_members())
       # self._builtins['locals'] = NativeObject(lambda: return self._locals)
       self._builtins['range'] = NativeObject(range)
@@ -114,24 +110,18 @@ class Frame:
       return self._back.contains_namespace_on_stack(namespace)
     return False
 
-  def make_child(self,
-                 namespace,
-                 frame_type=FrameType.NORMAL,
-                 *,
-                 module=None,
-                 cell_symbols=None) -> 'Frame':
+  def make_child(self, namespace, frame_type=FrameType.NORMAL, *, module=None, cell_symbols=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:
     if module is None:
       module = self._module
     if cell_symbols is None:
       cell_symbols = self._cell_symbols
-    return Frame(
-        frame_type=frame_type,
-        back=self,
-        module=module,
-        namespace=namespace,
-        builtins=self._builtins,
-        cell_symbols=cell_symbols)
+    return Frame(frame_type=frame_type,
+                 back=self,
+                 module=module,
+                 namespace=namespace,
+                 builtins=self._builtins,
+                 cell_symbols=cell_symbols)
 
   def _set_free_variable(self, name, value):
     if name in self._locals:
@@ -169,10 +159,7 @@ class Frame:
     del self._locals[variable.name]
 
   @dereference_cell_object_returns
-  def __getitem__(self,
-                  variable: Variable,
-                  raise_error_if_missing=False,
-                  nested=False) -> PObject:
+  def __getitem__(self, variable: Variable, raise_error_if_missing=False, nested=False) -> PObject:
 
     if isinstance(variable, SubscriptExpression):
       return variable.get()
@@ -208,8 +195,8 @@ class Frame:
     # We only want to dig into the stack up to the point of locals. If |name| isn't within any
     # frame on the backstack's locals, then we don't want to dig in. This way, if the name isn't
     # found at all, we are doing the logs from the highest-level frame as desired.
-    if (not nested or self._frame_type == FrameType.NORMAL
-       ) and self._back and self._back.__contains__(name, True):
+    if (not nested or self._frame_type == FrameType.NORMAL) and self._back and self._back.__contains__(
+        name, True):
       return self._back.__getitem__(name, nested=True)
 
     if nested and raise_error_if_missing:
@@ -226,12 +213,9 @@ class Frame:
       raise KeyError(f'{variable} doesn\'t exist in current context!')
     else:
       context_str = self.get_code_context_string()
-      collector.add_missing_symbol(self._get_current_filename(), name,
-                                   context_str)
+      collector.add_missing_symbol(self._get_current_filename(), name, context_str)
       warning(f'At: {context_str}')
-      warning(
-          f'`{name}` doesn\'t exist in current context! Returning UnknownObject.'
-      )
+      warning(f'`{name}` doesn\'t exist in current context! Returning UnknownObject.')
       return UnknownObject(f'frame[{name}]')
 
   def __contains__(self, variable, nested=False):

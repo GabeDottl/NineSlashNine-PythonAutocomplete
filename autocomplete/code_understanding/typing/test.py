@@ -26,8 +26,7 @@ import warnings
 import pyuno
 
 sys.path.append('/usr/lib/libreoffice/program')
-os.putenv('URE_BOOTSTRAP',
-          'vnd.sun.star.pathname:/usr/lib/libreoffice/program/fundamentalrc')
+os.putenv('URE_BOOTSTRAP', 'vnd.sun.star.pathname:/usr/lib/libreoffice/program/fundamentalrc')
 
 # Some Python 2/3 compatibility code copied from the six library
 PY2 = sys.version_info[0] == 2
@@ -241,19 +240,16 @@ class Char:
 
   def __init__(self, value):
     if PY2:
-      assert isinstance(
-          value,
-          unicode), "Expected unicode object, got %s instead." % type(value)
+      assert isinstance(value, unicode), "Expected unicode object, got %s instead." % type(value)
     else:
-      assert isinstance(
-          value, str), "Expected str object, got %s instead." % type(value)
+      assert isinstance(value, str), "Expected str object, got %s instead." % type(value)
 
     assert len(value) == 1, "Char value must have length of 1."
 
     self.value = value
 
   def __repr__(self):
-    return "<Char instance %s>" % (self.value,)
+    return "<Char instance %s>" % (self.value, )
 
   def __eq__(self, that):
     if isinstance(that, six_string_types):
@@ -284,11 +280,10 @@ class ByteSequence:
       self.value = value.value
 
     else:
-      raise TypeError("Expected bytes object or ByteSequence, got %s instead." %
-                      type(value))
+      raise TypeError("Expected bytes object or ByteSequence, got %s instead." % type(value))
 
   def __repr__(self):
-    return "<ByteSequence instance '%s'>" % (self.value,)
+    return "<ByteSequence instance '%s'>" % (self.value, )
 
   def __eq__(self, that):
     if isinstance(that, bytes):
@@ -427,12 +422,10 @@ def _uno_import(name, *optargs, **kwargs):
         # keeps the exception relevant to the primary failure point,
         # preventing us from re-processing our own import errors.
 
-        uno_import_exc = ImportError("%s (or '%s.%s' is unknown)" %
-                                     (py_import_exc, name, class_name))
+        uno_import_exc = ImportError("%s (or '%s.%s' is unknown)" % (py_import_exc, name, class_name))
 
         if sys.version_info[0] >= 3:
-          uno_import_exc = uno_import_exc.with_traceback(
-              py_import_exc.__traceback__)
+          uno_import_exc = uno_import_exc.with_traceback(py_import_exc.__traceback__)
 
         uno_import_exc._uno_import_failed = True
         raise uno_import_exc

@@ -4,7 +4,6 @@ from functools import wraps
 
 
 def instance_memoize(func):
-
   @wraps(func)
   def _wrapper(self):
     memoized_name = f'_{func.__name__}_memoized'
@@ -18,15 +17,13 @@ def instance_memoize(func):
 
 
 PYTHON2_EXCLUSIVE_BUILTINS = [
-    'intern', 'unichr', 'StandardError', 'reduce', 'exit', 'reload', 'file',
-    'execfile', 'basestring', 'long', 'apply', 'quit', 'coerce', 'raw_input',
-    'cmp', 'xrange', 'unicode', 'buffer'
+    'intern', 'unichr', 'StandardError', 'reduce', 'exit', 'reload', 'file', 'execfile', 'basestring', 'long',
+    'apply', 'quit', 'coerce', 'raw_input', 'cmp', 'xrange', 'unicode', 'buffer'
 ]
 
 
 def get_possible_builtin_symbols():
-  return itertools.chain(['__builtins__', '__builtin__'], __builtins__.keys(),
-                         PYTHON2_EXCLUSIVE_BUILTINS)
+  return itertools.chain(['__builtins__', '__builtin__'], __builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)
 
 
 def print_tree(node, indent='', file=sys.stdout):

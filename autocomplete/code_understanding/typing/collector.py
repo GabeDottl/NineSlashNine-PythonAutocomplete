@@ -89,18 +89,15 @@ class ModuleMember:
 
 
 def add_module_import(module, alias):
-  _modules_to_aliases[_filename_context[-1]][module].append(
-      alias)  # defaultdict.
+  _modules_to_aliases[_filename_context[-1]][module].append(alias)  # defaultdict.
 
 
 def add_from_import(module, member, alias):
-  _module_members[_filename_context[-1]].append(
-      ModuleMember(module, member, alias))
+  _module_members[_filename_context[-1]].append(ModuleMember(module, member, alias))
 
 
 def add_variable_assignment(variable_name, code):
-  _variable_assignments[_filename_context[-1]].append(
-      (variable_name, code))  # TODO: Wrap.
+  _variable_assignments[_filename_context[-1]].append((variable_name, code))  # TODO: Wrap.
 
 
 def add_function_node(function_node):
@@ -113,8 +110,7 @@ def print_stats(self):
     module_aliases_table.add_row([module, str(aliases)])
   module_members_table = PrettyTable(['Module', 'Member', 'Alias'])
   for module_member in _module_members:
-    module_members_table.add_row(
-        [module_member.module, module_member.member, module_member.alias])
+    module_members_table.add_row([module_member.module, module_member.member, module_member.alias])
   assignments_table = PrettyTable(['Name', 'Code'])
   for name, code in _variable_assignments:
     assignments_table.add_row([name, code])

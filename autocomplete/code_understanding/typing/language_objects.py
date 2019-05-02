@@ -21,19 +21,18 @@ from typing import Dict, Iterable
 import attr
 
 from autocomplete.code_understanding.typing import collector, serialization
-from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, NoDictImplementationError,
-    SourceAttributeError, UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.expressions import (
-    AnonymousExpression, LiteralExpression, StarredExpression,
-    VariableExpression)
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
+                                                           NoDictImplementationError, SourceAttributeError,
+                                                           UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, LiteralExpression,
+                                                                StarredExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject,
-    NativeObject, PObject, PObjectType, UnknownObject, pobject_from_object)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyBoolean,
+                                                             LanguageObject, LazyObject, NativeObject,
+                                                             PObject, PObjectType, UnknownObject,
+                                                             pobject_from_object)
 from autocomplete.code_understanding.typing.serialization import type_name
-from autocomplete.code_understanding.typing.utils import (
-    attrs_names_from_class, instance_memoize)
+from autocomplete.code_understanding.typing.utils import (attrs_names_from_class, instance_memoize)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 
@@ -101,12 +100,7 @@ class ModuleType(Enum):
 
 
 def create_main_module(filename=None):
-  return ModuleImpl(
-      '__main__',
-      ModuleType.MAIN,
-      members={},
-      filename=filename,
-      is_package=False)
+  return ModuleImpl('__main__', ModuleType.MAIN, members={}, filename=filename, is_package=False)
 
 
 @attr.s(slots=True)
@@ -180,10 +174,8 @@ class ModuleImpl(Module):
   _members: Dict = attr.ib(kw_only=True)
 
   def __attrs_post_init__(self):
-    self._members['__package__'] = self._members[
-        '__name__'] = pobject_from_object(self.name)
-    self._members['__path__'] = self._members['__file__'] = pobject_from_object(
-        self.filename)
+    self._members['__package__'] = self._members['__name__'] = pobject_from_object(self.name)
+    self._members['__path__'] = self._members['__file__'] = pobject_from_object(self.filename)
     self._members['__loader__'] = UnknownObject('__loader__')
 
   def __getitem__(self, name):
@@ -239,7 +231,6 @@ class LazyModule(ModuleImpl):
   _members: Dict = attr.ib(init=False, factory=dict)
 
   def _lazy_load(func):
-
     @wraps(func)
     def _wrapper(self, *args, **kwargs):
       self.load()
@@ -249,15 +240,12 @@ class LazyModule(ModuleImpl):
         # where ctypes imports some stuff from _endian and the latter imports everything from
         # ctypes - however, the ordering seems carefully done such that the _endian import in
         # ctypes is well after most of it's members are defined - so, the module is mostly defined.
-        warning(
-            f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?'
-        )
+        warning(f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?')
       return func(self, *args, **kwargs)
 
     return _wrapper
 
   def _passthrough_to_super_if_loaded(func):
-
     @wraps(func)
     def wrapper(self, *args, **kwargs):
       if self._loaded:
@@ -299,8 +287,7 @@ class LazyModule(ModuleImpl):
   # @_passthrough_to_super_if_loaded
   def __getitem__(self, name):
     if self.lazy:
-      return LazyObject(
-          f'{self.name}.{name}', lambda: self._get_item_loaded(name))
+      return LazyObject(f'{self.name}.{name}', lambda: self._get_item_loaded(name))
     return self._get_item_loaded(name)
     # return super().__getitem__(name)
 
@@ -342,10 +329,8 @@ class Klass(Namespace, LanguageObject):
       # actually defined within this class should be AugmentedObjects. This avoid's risking loading
       # a LazyObject prematurely.
       if isinstance(member, AugmentedObject) and member.value_is_a(
-          Function
-      ) == FuzzyBoolean.TRUE:  # and value.type == FunctionType.UNBOUND_INSTANCE_METHOD:
-        value = member.value(
-        )  # TODO: This can raise an exception for FuzzyObjects
+          Function) == FuzzyBoolean.TRUE:  # and value.type == FunctionType.UNBOUND_INSTANCE_METHOD:
+        value = member.value()  # TODO: This can raise an exception for FuzzyObjects
         new_func = value.bind([AugmentedObject(self)], {})
         new_func.function_type = FunctionType.BOUND_INSTANCE_METHOD
         instance[name] = AugmentedObject(new_func)
@@ -447,11 +432,10 @@ class FunctionImpl(Function):
       )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
-    new_frame = curr_frame.make_child(
-        frame_type=FrameType.FUNCTION,
-        namespace=self,
-        module=self._module,
-        cell_symbols=self._cell_symbols)
+    new_frame = curr_frame.make_child(frame_type=FrameType.FUNCTION,
+                                      namespace=self,
+                                      module=self._module,
+                                      cell_symbols=self._cell_symbols)
     new_frame._locals.update(bound_locals)
 
     self._process_args(args, kwargs, new_frame)
@@ -507,11 +491,9 @@ class FunctionImpl(Function):
                 else:
                   kwarg_remaining[key] = value
               if kwarg_param_name:
-                new_frame[kwarg_param_name] = pobject_from_object(
-                    kwarg_remaining)
+                new_frame[kwarg_param_name] = pobject_from_object(kwarg_remaining)
               elif kwarg_remaining:  # non-empty.
-                error(
-                    f'No **kwargs but had unassigned kwargs: {kwarg_remaining}')
+                error(f'No **kwargs but had unassigned kwargs: {kwarg_remaining}')
             except NoDictImplementationError:
               pass  # Non-NativeObject. Too fancy for us.
             break
@@ -529,9 +511,7 @@ class FunctionImpl(Function):
         new_frame[param.name] = pobject_from_object(args)
         break
       else:  # KWARGS
-        error(
-            f'Invalid number of positionals. {arg}: {args} fitting {self.parameters}'
-        )
+        error(f'Invalid number of positionals. {arg}: {args} fitting {self.parameters}')
 
     # Process keyword-arguments.
     kwargs_name = None
@@ -577,8 +557,7 @@ class BoundFunction(Function):
     self.name = self._function.name
     container_parameters = list(self._function.parameters)
     remaining_parameters = container_parameters[len(self._bound_args):]
-    self.parameters = filter(lambda param: param.name not in self._bound_kwargs,
-                             remaining_parameters)
+    self.parameters = filter(lambda param: param.name not in self._bound_kwargs, remaining_parameters)
 
   # TODO: Cell vars.
   def bind(self, args, kwargs) -> 'BoundFunction':
@@ -653,8 +632,7 @@ class ParameterType(Enum):
 class Parameter:
   name: str = attr.ib()
   parameter_type: 'ParameterType' = attr.ib()
-  default_expression: 'Expression' = attr.ib(
-      None, kw_only=True)  # TODO: Rename default_expression
+  default_expression: 'Expression' = attr.ib(None, kw_only=True)  # TODO: Rename default_expression
   default_value: 'PObject' = attr.ib(None, kw_only=True)
 
   def __attrs_post_init__(self):

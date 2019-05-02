@@ -8,10 +8,8 @@ from typing import List
 import attr
 import pandas as pd
 
-from autocomplete.code_understanding.typing import (
-    api, collector, module_loader)
-from autocomplete.nsn_logging import (
-    info, pop_context, push_context, set_verbosity)
+from autocomplete.code_understanding.typing import (api, collector, module_loader)
+from autocomplete.nsn_logging import (info, pop_context, push_context, set_verbosity)
 
 
 def extract_exports(source, filename):
@@ -48,11 +46,7 @@ def dataframe_from_symbol_index(symbol_index):
       symbol_list.append(symbol)
       type_list.append(definition.value)
       module_list.append(os.path.basename(definition.module.filename))
-  return pd.DataFrame({
-      'symbol': symbol_list,
-      'type': type_list,
-      'module': module_list
-  })
+  return pd.DataFrame({'symbol': symbol_list, 'type': type_list, 'module': module_list})
 
 
 @attr.s(slots=True)

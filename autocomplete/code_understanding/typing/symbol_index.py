@@ -9,8 +9,7 @@ from glob import glob
 import attr
 import msgpack
 
-from autocomplete.code_understanding.typing import (
-    errors, language_objects, module_loader, utils)
+from autocomplete.code_understanding.typing import (errors, language_objects, module_loader, utils)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -37,8 +36,7 @@ class SymbolType(Enum):
     type_ = type(obj)
     if isinstance(type_, type):
       return SymbolType.TYPE
-    if isinstance(type_, (types.BuiltinMethodType, types.FunctionType,
-                          types.BuiltinFunctionType)):
+    if isinstance(type_, (types.BuiltinMethodType, types.FunctionType, types.BuiltinFunctionType)):
       return SymbolType.FUNCTION
     if isinstance(type_, (bool, str, int, float, type(None), type)):
       return SymbolType.ASSIGNMENT
@@ -60,9 +58,7 @@ class SymbolEntry:
   @staticmethod
   def deserialize(tuple_):
     if tuple_[1] is not None:
-      return SymbolEntry(
-          SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]),
-          *tuple_[2:])
+      return SymbolEntry(SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]), *tuple_[2:])
     return SymbolEntry(SymbolType(tuple_[0]), *tuple_[1:])
 
 
@@ -79,12 +75,10 @@ class SymbolIndex:
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
       for symbol, value in __builtins__.items():
-        self.symbol_dict[symbol].append(
-            SymbolEntry(SymbolType.from_real_obj(value), None, 0))
+        self.symbol_dict[symbol].append(SymbolEntry(SymbolType.from_real_obj(value), None, 0))
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol].append(
-              SymbolEntry(SymbolType.UNKNOWN, None, 0))
+          self.symbol_dict[symbol].append(SymbolEntry(SymbolType.UNKNOWN, None, 0))
 
   def find_symbol(self, symbol):
     return self.symbol_dict[symbol]
@@ -101,10 +95,7 @@ class SymbolIndex:
   @staticmethod
   def _deserialize(unpacked):
     d, native_module_list, normal_module_list, failed_files = unpacked
-    symbol_dict = {
-        s: [SymbolEntry.deserialize(v) for v in values
-           ] for s, values in d.items()
-    }
+    symbol_dict = {s: [SymbolEntry.deserialize(v) for v in values] for s, values in d.items()}
     return SymbolIndex(symbol_dict, native_module_list, normal_module_list, set(failed_files))
 
   @staticmethod
@@ -112,11 +103,10 @@ class SymbolIndex:
     with open(filename, 'rb') as f:
       # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
       # cannot be appended to and thus make the SymbolIndex essentially readonly.
-      out = SymbolIndex._deserialize(
-          msgpack.unpack(f, raw=False, use_list=not readonly))
+      out = SymbolIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly))
     out.path = filename
     return out
-    
+
   def save(self, filename):
     with open(filename, 'wb') as f:
       msgpack.pack(self, f, default=SymbolIndex._serialize, use_bin_type=True)
@@ -129,8 +119,7 @@ class SymbolIndex:
       info(f'Adding dir: {path}')
       for filename in glob(os.path.join(path, '*.py')):
         self.add_file(filename)
-      for directory in filter(lambda p: os.path.isdir(os.path.join(path, p)),
-                              os.listdir(path)):
+      for directory in filter(lambda p: os.path.isdir(os.path.join(path, p)), os.listdir(path)):
         self.add_path(os.path.join(path, directory))
 
   def add_file(self, filename):
@@ -143,7 +132,7 @@ class SymbolIndex:
     try:
       module = module_loader.get_module_from_filename('__main__', filename, lazy=False)
       self.add_module(module, file_index)
-    except OSError:#Exception as e:
+    except OSError:  #Exception as e:
       info(f'Failed on {filename}: {e}')
       self.failed_files.add(filename)
     else:
@@ -157,16 +146,12 @@ class SymbolIndex:
   def add_module(self, module, file_index):
     module_type = module.module_type
     # filename = module.filename
-    for name, member in filter(lambda kv: _should_export_symbol(module, *kv),
-                               module.items()):
+    for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
       try:
         self.symbol_dict[name].append(
-            SymbolEntry(
-                SymbolType.from_pobject_value(member.value()), module_type,
-                file_index))
+            SymbolEntry(SymbolType.from_pobject_value(member.value()), module_type, file_index))
       except errors.AmbiguousFuzzyValueError:
-        self.symbol_dict[name].append(
-            SymbolEntry(SymbolType.AMBIGUOUS, module_type, file_index))
+        self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, file_index))
 
   @staticmethod
   def build_index(path):
@@ -175,6 +160,7 @@ class SymbolIndex:
     for path in sys.path:
       index.add_path(path, ignore_init=True)
     return index
+
 
 def _should_scan_file(filename, include_private_files):
   if include_private_files:

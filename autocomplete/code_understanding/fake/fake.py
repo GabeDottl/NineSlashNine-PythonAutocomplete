@@ -31,7 +31,6 @@ class Foo:
     print(cookoo)
 
   class Boo:  # inner class
-
     def test(self):
       pass
 

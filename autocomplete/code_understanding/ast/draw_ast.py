@@ -13,7 +13,6 @@ from autocomplete.code_understanding.utils import type_name
 
 
 class AstDrawer(ast.NodeVisitor):
-
   def __init__(self, path='/tmp/ast'):
     self.parent = None
     self.parent_lineno = 0
@@ -60,9 +59,7 @@ class AstDrawer(ast.NodeVisitor):
     if include_source:
       # We use '\l' instead of \n for left-justified lines:
       # http://www.graphviz.org/doc/info/attrs.html#k:escString
-      self.graph.node(
-          name=''.join(f'{i}: {line}\l' for i, line in enumerate(lines)),
-          shape='box')
+      self.graph.node(name=''.join(f'{i}: {line}\l' for i, line in enumerate(lines)), shape='box')
 
 
 if __name__ == '__main__':
@@ -76,5 +73,4 @@ if __name__ == '__main__':
   drawer.visit(tree)
   drawer.create_graph(source)
   drawer.graph.render(drawer.graph.filename)
-  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename +
-                                        '.pdf')
+  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename + '.pdf')

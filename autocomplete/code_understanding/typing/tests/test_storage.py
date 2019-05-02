@@ -2,11 +2,9 @@ import os
 
 import msgpack
 
-from autocomplete.code_understanding.typing import (
-    language_objects, module_loader, serialization)
+from autocomplete.code_understanding.typing import (language_objects, module_loader, serialization)
 from autocomplete.code_understanding.typing.module_index import ModuleIndex
-from autocomplete.code_understanding.typing.tests.utils import (
-    assert_expected_iterable)
+from autocomplete.code_understanding.typing.tests.utils import (assert_expected_iterable)
 
 
 def test_store_retrieve():
@@ -31,8 +29,7 @@ def test_serialization_deserialization():
     msgpack.pack(module, f, default=serialization.serialize, use_bin_type=True)
   with open('/tmp/tmp.msg', 'rb') as f:
     module_loaded = module_loader.deserialize(*msgpack.unpack(f, raw=False))
-  assert_expected_iterable(module_loaded.get_members().keys(),
-                           module.get_members().keys())
+  assert_expected_iterable(module_loaded.get_members().keys(), module.get_members().keys())
 
 
 if __name__ == "__main__":

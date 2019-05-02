@@ -11,7 +11,5 @@ setup(
     author='Flying Circus',
     author_email='flyingcircus@example.com',
     license='MIT',
-    packages=[
-        'autocomplete'
-    ],  #'naive_suggestion_sort', 'reverse_history', 'debug', 'code_understanding'],
+    packages=['autocomplete'],  #'naive_suggestion_sort', 'reverse_history', 'debug', 'code_understanding'],
     zip_safe=False)

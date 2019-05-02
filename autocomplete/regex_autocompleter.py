@@ -13,7 +13,6 @@ def wildcard_wrapper(s):
 
 
 class SimpleRegexAutocompleter:
-
   def __init__(self, path):
     start = time()
     paths = glob.glob(os.path.join(path, '*py'))

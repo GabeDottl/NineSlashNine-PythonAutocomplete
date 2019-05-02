@@ -66,8 +66,7 @@ def log(level, message, *args, **kwargs):
 
 def log_freq(level, message, log=True, n_seconds=5):
   if log and not _context_list:
-    logging.log_every_n_seconds(
-        level, 'clamped_log: %s' % message, n_seconds=n_seconds)
+    logging.log_every_n_seconds(level, 'clamped_log: %s' % message, n_seconds=n_seconds)
 
 
 # Make the Abseil logging module ignore the functions in this module when

@@ -6,17 +6,15 @@ from wsgiref.validate import validator
 import attr
 
 from autocomplete.code_understanding.typing import collector
-from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueError)
-from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, NativeObject,
-    PObject, PObjectType, UnknownObject, pobject_from_object)
+from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
+                                                             LazyObject, NativeObject, PObject, PObjectType,
+                                                             UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.utils import instance_memoize
 from autocomplete.nsn_logging import debug, info, warning
 
 
 class Expression(ABC):
-
   @abstractmethod
   def evaluate(self, curr_frame) -> PObject:
     raise NotImplementedError()  # abstract
@@ -94,8 +92,7 @@ class AndOrExpression(Expression):
 @attr.s(slots=True)
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
-  source_expression: Expression = attr.ib(
-      validator=attr.validators.instance_of(Expression))
+  source_expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
 
   def evaluate(self, curr_frame) -> PObject:
     return self.source_expression.evaluate(curr_frame)
@@ -115,8 +112,7 @@ class TupleExpression(ListExpression):
 @attr.s(slots=True)
 class ItemListExpression(Expression):
   '''Used for cased like: 1,2,3 - as in a tuple (1,2,3) or a list [1,2,3] or an arg list.'''
-  expressions: List[Expression] = attr.ib(
-      validator=[attr.validators.instance_of(list)])
+  expressions: List[Expression] = attr.ib(validator=[attr.validators.instance_of(list)])
 
   def evaluate(self, curr_frame) -> PObject:
     assert curr_frame
@@ -135,9 +131,7 @@ class ItemListExpression(Expression):
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     # TODO: set
-    return list(
-        itertools.chain(
-            *[expr.get_used_free_symbols() for expr in self.expressions]))
+    return list(itertools.chain(*[expr.get_used_free_symbols() for expr in self.expressions]))
 
 
 def _assign_variables_to_results(curr_frame, variable, result):
@@ -158,39 +152,31 @@ def _assign_variables_to_results(curr_frame, variable, result):
       if isinstance(variable_item, StarredExpression):
         debug(f'Mishandling star assignment')
         # TODO: a, *b = 1,2,3,4 # b = 2,3,4.
-        _assign_variables_to_results(
-            curr_frame, variable_item.base_expression,
-            result.get_item(curr_frame, pobject_from_object(i)))
+        _assign_variables_to_results(curr_frame, variable_item.base_expression,
+                                     result.get_item(curr_frame, pobject_from_object(i)))
       else:
-        _assign_variables_to_results(
-            curr_frame, variable_item,
-            result.get_item(curr_frame, pobject_from_object(i)))
+        _assign_variables_to_results(curr_frame, variable_item,
+                                     result.get_item(curr_frame, pobject_from_object(i)))
 
 
 @attr.s(slots=True)
 class CallExpression(Expression):
-  function_expression = attr.ib(
-      validator=[attr.validators.instance_of(Expression)])
+  function_expression = attr.ib(validator=[attr.validators.instance_of(Expression)])
   args: List[Expression] = attr.ib(factory=list)
   kwargs: Dict[str, Expression] = attr.ib(factory=dict)
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.function_expression.evaluate(curr_frame)
     evaluated_args = [arg.evaluate(curr_frame) for arg in self.args]
-    evaluated_kwargs = {
-        name: arg.evaluate(curr_frame) for name, arg in self.kwargs.items()
-    }
+    evaluated_kwargs = {name: arg.evaluate(curr_frame) for name, arg in self.kwargs.items()}
     out = pobject.call(curr_frame, evaluated_args, evaluated_kwargs)
     return out
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
     out = set(self.function_expression.get_used_free_symbols())
-    out = out.union(
-        itertools.chain(*[expr.get_used_free_symbols() for expr in self.args]))
-    out = out.union(
-        itertools.chain(
-            *[expr.get_used_free_symbols() for expr in self.kwargs.values()]))
+    out = out.union(itertools.chain(*[expr.get_used_free_symbols() for expr in self.args]))
+    out = out.union(itertools.chain(*[expr.get_used_free_symbols() for expr in self.kwargs.values()]))
     return out
 
 
@@ -221,8 +207,7 @@ class ForComprehension:
   @instance_memoize
   def get_defined_symbols(self):
     target_symbols = self.target_variables.get_used_free_symbols()
-    comp_iter_symbols = self.comp_iter.get_used_free_symbols(
-    ) if self.comp_iter else []
+    comp_iter_symbols = self.comp_iter.get_used_free_symbols() if self.comp_iter else []
 
     return itertools.chain(target_symbols, comp_iter_symbols)
 
@@ -250,12 +235,10 @@ class ForComprehensionExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    generator_free_symbols = set(
-        self.generator_expression.get_used_free_symbols())
+    generator_free_symbols = set(self.generator_expression.get_used_free_symbols())
     for symbol in self.for_comprehension.get_defined_symbols():
       generator_free_symbols.discard(symbol)
-    return generator_free_symbols.union(
-        self.for_comprehension.get_used_free_symbols())
+    return generator_free_symbols.union(self.for_comprehension.get_used_free_symbols())
 
 
 @attr.s(slots=True)
@@ -265,8 +248,7 @@ class StarredExpression(Expression):
   base_expression: Expression = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    out = pobject_from_object(
-        self.base_expression.evaluate(curr_frame).iterator())
+    out = pobject_from_object(self.base_expression.evaluate(curr_frame).iterator())
     out.pobject_type = PObjectType.STARRED if self.operator == '*' else PObjectType.DOUBLE_STARRED
     return out
 
@@ -300,23 +282,19 @@ class KeyValueForComp:
 
 @attr.s(slots=True)
 class SetExpression(Expression):
-  values: List[Union[StarredExpression, Expression,
-                     ForComprehensionExpression]] = attr.ib()
+  values: List[Union[StarredExpression, Expression, ForComprehensionExpression]] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(set())  # TODO
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(
-        itertools.chain(
-            *[value.get_used_free_symbols() for value in self.values]))
+    return set(itertools.chain(*[value.get_used_free_symbols() for value in self.values]))
 
 
 @attr.s(slots=True)
 class DictExpression(Expression):
-  values: List[Union[StarredExpression, KeyValueAssignment,
-                     KeyValueForComp]] = attr.ib()
+  values: List[Union[StarredExpression, KeyValueAssignment, KeyValueForComp]] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     out = LazyObject('{}', lambda: NativeObject({}))
@@ -346,9 +324,7 @@ class DictExpression(Expression):
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
-    return set(
-        itertools.chain(
-            *[value.get_used_free_symbols() for value in self.values]))
+    return set(itertools.chain(*[value.get_used_free_symbols() for value in self.values]))
 
 
 @attr.s(slots=True)
@@ -374,14 +350,11 @@ class SubscriptExpression(Expression):
 
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.get_item(curr_frame,
-                            self.subscript_list_expression.evaluate(curr_frame))
+    return pobject.get_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame))
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.set_item(curr_frame,
-                            self.subscript_list_expression.evaluate(curr_frame),
-                            value)
+    return pobject.set_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame), value)
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -401,10 +374,9 @@ class IfElseExpression(Expression):
     # if fuzzy_bool == FuzzyBoolean.TRUE:
     #   return self.false_expression.evaluate(curr_frame)
     # if fuzzy_bool == FuzzyBoolean.MAYBE:
-    return FuzzyObject([
-        self.true_expression.evaluate(curr_frame),
-        self.false_expression.evaluate(curr_frame)
-    ])
+    return FuzzyObject(
+        [self.true_expression.evaluate(curr_frame),
+         self.false_expression.evaluate(curr_frame)])
     # return self.true_expression.evaluate(curr_frame)
 
   @instance_memoize
@@ -412,8 +384,7 @@ class IfElseExpression(Expression):
     return set(
         itertools.chain(*[
             expr.get_used_free_symbols()
-            for expr in (self.true_expression, self.conditional_expression,
-                         self.false_expression)
+            for expr in (self.true_expression, self.conditional_expression, self.false_expression)
         ]))
 
 
@@ -427,9 +398,7 @@ class FactorExpression(Expression):
     if self.operator == '+':
       return self.expression.evaluate(curr_frame)
     if self.operator == '-':
-      return MathExpression(
-          LiteralExpression(-1), '*', self.expression,
-          self.parse_node).evaluate(curr_frame)
+      return MathExpression(LiteralExpression(-1), '*', self.expression, self.parse_node).evaluate(curr_frame)
     if self.operator == '~':
       debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)

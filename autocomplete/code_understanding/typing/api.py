@@ -1,15 +1,10 @@
 import argparse
 
-from autocomplete.code_understanding.typing import (
-    collector, control_flow_graph, frame, module_loader)
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    CfgNode)
-from autocomplete.code_understanding.typing.expressions import (
-    UnknownExpression)
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, Klass, create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (
-    AugmentedObject, FuzzyBoolean, UnknownObject)
+from autocomplete.code_understanding.typing import (collector, control_flow_graph, frame, module_loader)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode)
+from autocomplete.code_understanding.typing.expressions import (UnknownExpression)
+from autocomplete.code_understanding.typing.language_objects import (Function, Klass, create_main_module)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, UnknownObject)
 from autocomplete.nsn_logging import debug, info
 
 
@@ -33,8 +28,7 @@ def analyze_file(filename):
   #       return collector_from_source(source)
 
   # def collector_from_source(source: str):
-  module = module_loader.get_module_from_filename(
-      '', filename, is_package=False, lazy=False)
+  module = module_loader.get_module_from_filename('', filename, is_package=False, lazy=False)
   # graph = graph_from_source(source)
   # a_frame = frame.Frame()
   # graph.process(a_frame)
@@ -47,20 +41,14 @@ def analyze_file(filename):
 
 
 def _process(member, a_frame):
-  if isinstance(
-      member,
-      AugmentedObject) and member.value_is_a(Klass) == FuzzyBoolean.TRUE:
+  if isinstance(member, AugmentedObject) and member.value_is_a(Klass) == FuzzyBoolean.TRUE:
     instance = member.value().new(a_frame, [], {})
     for _, value in instance.items():
       _process(value, a_frame)
-  elif isinstance(
-      member,
-      AugmentedObject) and member.value_is_a(Function) == FuzzyBoolean.TRUE:
+  elif isinstance(member, AugmentedObject) and member.value_is_a(Function) == FuzzyBoolean.TRUE:
     func = member.value()
     debug(f'Calling {func.name}')
-    kwargs = {
-        param.name: UnknownObject(param.name) for param in func.parameters
-    }
+    kwargs = {param.name: UnknownObject(param.name) for param in func.parameters}
     func.call(a_frame, [], kwargs)
 
 

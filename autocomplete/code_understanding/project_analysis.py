@@ -10,8 +10,7 @@ import pandas as pd
 import _ast
 import graphviz
 from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
-from autocomplete.code_understanding.reference_ast_node_visitor import (
-    ReferenceAstNodeVisitor)
+from autocomplete.code_understanding.reference_ast_node_visitor import (ReferenceAstNodeVisitor)
 from autocomplete.code_understanding.utils import *
 from autocomplete.nsn_logging import *
 
@@ -52,8 +51,7 @@ def join_names(a, b):
 
 def _get_complete_attribute_path(node, suffix=''):
   if isinstance(node.value, _ast.Attribute):
-    return _get_complete_attribute_path(
-        node.value, suffix=join_names(node.attr, suffix))
+    return _get_complete_attribute_path(node.value, suffix=join_names(node.attr, suffix))
   # assert isinstance(node.value, _ast.Name)
   if isinstance(node.value, _ast.Call):
     return join_names(node.value.func, join_names(node.attr, suffix))
@@ -68,11 +66,8 @@ def get_statistics_about_python_source(path, source=None, shorten_path=True):
   traveler.traverse()
   source = traveler.module_source
   # return traveler.nodes
-  columns = [
-      'path', 'type', 'name', 'complete_name', 'lineno', 'node', 'parent'
-  ]
-  values = list(
-      zip(itertools.repeat(path, len(traveler.nodes)), *zip(*traveler.nodes)))
+  columns = ['path', 'type', 'name', 'complete_name', 'lineno', 'node', 'parent']
+  values = list(zip(itertools.repeat(path, len(traveler.nodes)), *zip(*traveler.nodes)))
 
   df = pd.DataFrame(values, columns=columns)
   _append_code(df, source)
@@ -100,10 +95,8 @@ def get_statistics_about_project(path):
 
 def _append_code(df, source):
   lines = source.splitlines()
-  df['code'] = pd.Series([
-      lines[int(index - 1)] if index == index else ''
-      for index in df['lineno'].values
-  ], df.index)
+  df['code'] = pd.Series([lines[int(index - 1)] if index == index else '' for index in df['lineno'].values],
+                         df.index)
   return df
 
 

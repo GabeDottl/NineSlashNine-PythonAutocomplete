@@ -1,15 +1,11 @@
 import os
 from glob import glob
 
-from autocomplete.code_understanding.typing import (
-    collector, control_flow_graph, module_loader, utils)
+from autocomplete.code_understanding.typing import (collector, control_flow_graph, module_loader, utils)
 from autocomplete.code_understanding.typing.api import graph_from_source
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    FuncCfgNode)
-from autocomplete.code_understanding.typing.project_analysis import (
-    find_missing_symbols)
-from autocomplete.code_understanding.typing.tests.utils import (
-    assert_expected_iterable)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FuncCfgNode)
+from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols)
+from autocomplete.code_understanding.typing.tests.utils import (assert_expected_iterable)
 from autocomplete.nsn_logging import debug, info
 
 
@@ -38,15 +34,12 @@ def test_cfg_symbol_visibility():
   assert_expected_iterable(graph.get_defined_and_exported_symbols(), ['a', 'X'])
   klass_node = graph[1]
   assert_expected_iterable(klass_node.get_defined_and_exported_symbols(), ['X'])
-  assert_expected_iterable(klass_node.suite.get_defined_and_exported_symbols(),
-                           ['b', 'foo'])
+  assert_expected_iterable(klass_node.suite.get_defined_and_exported_symbols(), ['b', 'foo'])
   func_node = klass_node.suite[1]
   assert isinstance(func_node, FuncCfgNode)
-  assert_expected_iterable(func_node.get_defined_and_exported_symbols(),
-                           ['foo'])
-  assert_expected_iterable(
-      func_node.suite.get_defined_and_exported_symbols(),
-      ['c', 'f', 'd', 'e', 'g', 'i', 'h', 'j', 'k', 'foo2'])
+  assert_expected_iterable(func_node.get_defined_and_exported_symbols(), ['foo'])
+  assert_expected_iterable(func_node.suite.get_defined_and_exported_symbols(),
+                           ['c', 'f', 'd', 'e', 'g', 'i', 'h', 'j', 'k', 'foo2'])
 
 
 def test_closure_scope():
@@ -114,13 +107,11 @@ def test_closure_values():
 
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
-  unresolved_imports_filename = os.path.abspath(
-      os.path.join(typing_dir, 'examples', 'unresolved_symbols.py'))
+  unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples', 'unresolved_symbols.py'))
 
-  missing_symbols = find_missing_symbols.scan_missing_symbols(
-      unresolved_imports_filename, include_context=False)
-  print('Used symbols:',
-        collector._referenced_symbols[unresolved_imports_filename])
+  missing_symbols = find_missing_symbols.scan_missing_symbols(unresolved_imports_filename,
+                                                              include_context=False)
+  print('Used symbols:', collector._referenced_symbols[unresolved_imports_filename])
   # Should be missing unresolved 1 - 4.
   assert len(missing_symbols) == 5, missing_symbols
   for i in range(1, 6):
@@ -133,15 +124,12 @@ def test_no_missing_symbols_in_typing_package():
   for filename in filter(lambda f: 'grammar.py' not in f, filenames):
     info(f'filename: {filename}')
     name = os.path.splitext(os.path.basename(filename))[0]
-    missing_symbols = find_missing_symbols.scan_missing_symbols(
-        filename, include_context=False)
+    missing_symbols = find_missing_symbols.scan_missing_symbols(filename, include_context=False)
     assert not missing_symbols
 
 
 def test_module_exports():
-  with open(
-      '/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py'
-  ) as f:
+  with open('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py') as f:
     source = ''.join(f.readlines())
   graph = graph_from_source(source)
   exports = graph.get_defined_and_exported_symbols()

@@ -12,7 +12,6 @@ import graphviz
 
 
 class ParsoDrawer:
-
   def __init__(self, path='/tmp/parso'):
     self.parent = None
     self.parent_lineno = 0
@@ -22,8 +21,7 @@ class ParsoDrawer:
   def traverse(self, node):
     # We start indexing at 0 while in the AST it starts at 1, so we shift
     # lineno immediately by 1.
-    lineno = node.get_start_pos_prefix()[0] if hasattr(
-        node, 'get_start_pos_prefix') else None
+    lineno = node.get_start_pos_prefix()[0] if hasattr(node, 'get_start_pos_prefix') else None
     lineno = lineno if lineno is not None else self.parent_lineno
     if lineno in self.line_to_nodes:
       arr = self.line_to_nodes[lineno]
@@ -78,9 +76,7 @@ class ParsoDrawer:
     if include_source:
       # We use '\l' instead of \n for left-justified lines:
       # http://www.graphviz.org/doc/info/attrs.html#k:escString
-      self.graph.node(
-          name=''.join(f'{i}: ln{line}' for i, line in enumerate(lines)),
-          shape='box')
+      self.graph.node(name=''.join(f'{i}: ln{line}' for i, line in enumerate(lines)), shape='box')
 
 
 if __name__ == '__main__':
@@ -94,5 +90,4 @@ if __name__ == '__main__':
   drawer.traverse(tree)
   drawer.create_graph(source)
   drawer.graph.render(drawer.graph.filename)
-  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename +
-                                        '.pdf')
+  webbrowser.get('chrome').open_new_tab('file://' + drawer.graph.filename + '.pdf')

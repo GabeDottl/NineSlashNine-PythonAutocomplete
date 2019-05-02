@@ -4,11 +4,9 @@ from glob import glob
 
 import parso
 
-from autocomplete.code_understanding.typing import (
-    control_flow_graph, module_loader)
+from autocomplete.code_understanding.typing import (control_flow_graph, module_loader)
 # from autocomplete.code_understanding.typing.api import modulefrom_source
-from autocomplete.code_understanding.typing.language_objects import (
-    Function, Instance, Klass, Module)
+from autocomplete.code_understanding.typing.language_objects import (Function, Instance, Klass, Module)
 from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
 from autocomplete.nsn_logging import debug
 
@@ -35,8 +33,7 @@ from importlib.util import find_spec
 from x.y.z import (q, r as s)'''
   module = module_loader.load_module_from_source(source)
   assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
-  assert 'tensorflow' in module and isinstance(module['tensorflow'].value(),
-                                               Module)
+  assert 'tensorflow' in module and isinstance(module['tensorflow'].value(), Module)
   assert 'pytorch' in module and isinstance(module['pytorch'].value(), Module)
   assert module['numpy'].value().name == 'numpy'
   assert 'whatever' in module and isinstance(module['whatever'].value(), Module)

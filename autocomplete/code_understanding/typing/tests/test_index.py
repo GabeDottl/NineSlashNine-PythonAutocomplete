@@ -8,9 +8,7 @@ def test_build_typing_index():
   index.add_file('/usr/lib/python3.7/asyncio/__init__.py')
   index.add_file('/home/gabe/code/autocomplete/autocomplete/debug/tcp_echo_server.py')
   # index.add_file('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/language_objects.py')
-  index.add_path(
-      '/home/gabe/code/autocomplete/autocomplete/code_understanding/typing',
-      ignore_init=True)
+  index.add_path('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing', ignore_init=True)
   symbol_entries = index.find_symbol('Function')
   assert len(symbol_entries) == 1
   assert symbol_entries[0].symbol_type == symbol_index.SymbolType.TYPE

@@ -13,17 +13,15 @@ def overrides(interface_class):
     if method.__name__ not in dir(interface_class):
       raise NotImplementedError('function "%s" is an @override but that'
                                 ' function is not implemented in base'
-                                ' class %s' %
-                                (method.__name__, interface_class))
+                                ' class %s' % (method.__name__, interface_class))
 
     attr = getattr(interface_class, method.__name__)
     if not isinstance(attr, types.FunctionType):
-      raise NotImplementedError(
-          'function "%s" is an @override'
-          ' but that is implemented as type %s'
-          ' in base class %s, expected implemented'
-          ' type %s' %
-          (method.__name__, type(attr), interface_class, types.FunctionType))
+      raise NotImplementedError('function "%s" is an @override'
+                                ' but that is implemented as type %s'
+                                ' in base class %s, expected implemented'
+                                ' type %s' %
+                                (method.__name__, type(attr), interface_class, types.FunctionType))
     return method
 
   return confirm_override

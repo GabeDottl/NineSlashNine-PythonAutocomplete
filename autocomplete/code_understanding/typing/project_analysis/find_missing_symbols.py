@@ -3,8 +3,7 @@ import os
 from glob import glob
 from pprint import pprint
 
-from autocomplete.code_understanding.typing import (
-    api, collector, module_loader, utils)
+from autocomplete.code_understanding.typing import (api, collector, module_loader, utils)
 from autocomplete.nsn_logging import info
 
 
@@ -27,9 +26,7 @@ if __name__ == "__main__":
 
   if os.path.isdir(args.directory_or_file):
     missing_map = {}
-    filenames = glob(
-        os.path.join(args.directory_or_file, '**/*.py'),
-        recursive=args.recursive)
+    filenames = glob(os.path.join(args.directory_or_file, '**/*.py'), recursive=args.recursive)
     for filename in filenames:
       info(f'Scanning {filename}')
       missing_map[filename] = scan_missing_symbols(filename)

@@ -23,6 +23,5 @@ def _complete_name(node, node_to_parent_dict, base_name='', descendents=None):
 
   descendents.add(node)
   if parent is not None:
-    return _complete_name(
-        parent, node_to_parent_dict, base_name=name, descendents=descendents)
+    return _complete_name(parent, node_to_parent_dict, base_name=name, descendents=descendents)
   return name

@@ -10,17 +10,16 @@ from typing import Dict, List
 import attr
 
 from autocomplete.code_understanding.typing import collector, serialization
-from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueError, LoadingModuleAttributeError,
-    NoDictImplementationError, SourceAttributeError)
+from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError,
+                                                           LoadingModuleAttributeError,
+                                                           NoDictImplementationError, SourceAttributeError)
 from autocomplete.code_understanding.typing.utils import to_dict_iter
 from autocomplete.nsn_logging import debug, error, info, warning
 
 _OPERATORS = [
-    '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__',
-    '__mod__', '__mul__', '__ne__', '__or__', '__pow__', '__radd__', '__rand__',
-    '__rdivmod__', '__rfloordiv__', '__rlshift__', '__rmod__', '__rmul__',
-    '__sub__', '__truediv__', '__xor__'
+    '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__', '__mod__', '__mul__',
+    '__ne__', '__or__', '__pow__', '__radd__', '__rand__', '__rdivmod__', '__rfloordiv__', '__rlshift__',
+    '__rmod__', '__rmul__', '__sub__', '__truediv__', '__xor__'
 ]
 
 
@@ -50,8 +49,7 @@ class FuzzyBoolean(Enum):
       return FuzzyBoolean.FALSE
     elif self == FuzzyBoolean.TRUE and other == FuzzyBoolean.TRUE:
       return FuzzyBoolean.TRUE
-    return FuzzyBoolean.MAYBE if self.maybe_true() and other.maybe_true(
-    ) else FuzzyBoolean.FALSE
+    return FuzzyBoolean.MAYBE if self.maybe_true() and other.maybe_true() else FuzzyBoolean.FALSE
 
   def or_expr(self, other):
     assert isinstance(other, FuzzyBoolean)
@@ -60,8 +58,7 @@ class FuzzyBoolean(Enum):
       return FuzzyBoolean.FALSE
     elif self == FuzzyBoolean.TRUE or other == FuzzyBoolean.TRUE:
       return FuzzyBoolean.TRUE
-    return FuzzyBoolean.MAYBE if self.maybe_true() or other.maybe_true(
-    ) else FuzzyBoolean.FALSE
+    return FuzzyBoolean.MAYBE if self.maybe_true() or other.maybe_true() else FuzzyBoolean.FALSE
 
   def maybe_true(self):
     return self == FuzzyBoolean.MAYBE or self == FuzzyBoolean.TRUE
@@ -173,9 +170,7 @@ class PObject(ABC):
     raise NotImplementedError()
 
   def __bool__(self):
-    raise ValueError(
-        'Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.'
-    )
+    raise ValueError('Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.')
 
 
 @attr.s(str=False, repr=False, slots=True)
@@ -273,8 +268,7 @@ class NativeObject(PObject):
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
-    return hasattr(self._native_object,
-                   name) or self._dynamic_container.has_attribute(name)
+    return hasattr(self._native_object, name) or self._dynamic_container.has_attribute(name)
 
   def get_attribute(self, name):
     try:
@@ -302,8 +296,7 @@ class NativeObject(PObject):
   #   return FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
-    return FuzzyBoolean.TRUE if isinstance(self._native_object,
-                                           type_) else FuzzyBoolean.FALSE
+    return FuzzyBoolean.TRUE if isinstance(self._native_object, type_) else FuzzyBoolean.FALSE
 
   def value(self) -> object:
     return self._native_object
@@ -360,10 +353,7 @@ class NativeObject(PObject):
 
   def to_dict(self):
     items_iter = to_dict_iter(self._native_object)
-    return {
-        name: pobject_from_object(value, read_only=self._read_only)
-        for name, value in items_iter
-    }
+    return {name: pobject_from_object(value, read_only=self._read_only) for name, value in items_iter}
 
   def update_dict(self, pobject):
     if self._read_only:
@@ -372,8 +362,8 @@ class NativeObject(PObject):
 
     if isinstance(pobject, LazyObject):
       pobject = pobject._load_and_ret()
-    if isinstance(pobject, NativeObject) and isinstance(
-        pobject._native_object, dict) and isinstance(self._native_object, dict):
+    if isinstance(pobject, NativeObject) and isinstance(pobject._native_object, dict) and isinstance(
+        self._native_object, dict):
       self._native_object.update(pobject._native_object)
       return
     raise NotImplementedError()
@@ -396,13 +386,10 @@ class NativeObject(PObject):
 
   def serialize(self, **kwargs):
     if isinstance(self._native_object, NATIVE_TYPES):
-      return NativeObject.__qualname__, serialization.serialize(
-          self._native_object, **kwargs)
+      return NativeObject.__qualname__, serialization.serialize(self._native_object, **kwargs)
     # TODO: return native_conversion_func, object.path'
     if hasattr(self._native_object, '__module__'):
-      return UnknownObject(
-          f'{self._native_object.__module__}.{self._native_object.__class__.__qualname__}'
-      )
+      return UnknownObject(f'{self._native_object.__module__}.{self._native_object.__class__.__qualname__}')
     if hasattr(self._native_object, '__name__'):
       return UnknownObject(self._native_object.__name__)
     return UnknownObject(str(self._native_object))
@@ -447,7 +434,6 @@ class LazyObject(PObject):
     self._loader_filecontext = collector._filename_context[-1]
 
   def _passthrough_if_loaded(func):
-
     @wraps(func)
     def wrapper(self, *args, **kwargs):
       if self._loaded_object is not None:
@@ -501,8 +487,7 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def get_attribute(self, name):
-    return LazyObject(
-        f'{self.name}.{name}', lambda: self._load_and_ret().get_attribute(name))
+    return LazyObject(f'{self.name}.{name}', lambda: self._load_and_ret().get_attribute(name))
 
   @_passthrough_if_loaded
   def set_attribute(self, name, value):
@@ -529,31 +514,27 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def invert(self):
-    return LazyObject(
-        f'not {self.name}', lambda: self.bool_value().invert().to_pobject())
+    return LazyObject(f'not {self.name}', lambda: self.bool_value().invert().to_pobject())
 
   @_passthrough_if_loaded
   def and_expr(self, other):
     # Don't care about shortcircuiting.
     return LazyObject(
-        f'{self.name} and {other}', lambda: self.bool_value().and_expr(
-            other.bool_value()).to_pobject())
+        f'{self.name} and {other}', lambda: self.bool_value().and_expr(other.bool_value()).to_pobject())
 
   @_passthrough_if_loaded
   def or_expr(self, other):
     # Don't care about shortcircuiting.
     return LazyObject(
-        f'{self.name} and {other}', lambda: self.bool_value().or_expr(
-            other.bool_value()).to_pobject())
+        f'{self.name} and {other}', lambda: self.bool_value().or_expr(other.bool_value()).to_pobject())
 
   @_passthrough_if_loaded
   def call(self, curr_frame, args, kwargs):
     # Okay, so, this and get_item aren't really *super* valid since curr_frame will look very
     # different later. Ideally, we should save a snapshot of the current frame......
     # TODO: Snapshot frame.
-    return LazyObject(
-        f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda: self.
-        _load_and_ret().call(curr_frame, args, kwargs))
+    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda: self._load_and_ret().call(
+        curr_frame, args, kwargs))
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):
@@ -564,17 +545,11 @@ class LazyObject(PObject):
             index_pobject.value() if deferred_value else index_pobject))
 
   @_passthrough_if_loaded
-  def set_item(self,
-               curr_frame,
-               index_pobject,
-               value_pobject,
-               deferred_value=False):
-
+  def set_item(self, curr_frame, index_pobject, value_pobject, deferred_value=False):
     def _set_item():
-      self._load_and_ret().set_item(
-          curr_frame,
-          index_pobject.value() if deferred_value else index_pobject,
-          value_pobject.value() if deferred_value else value_pobject)
+      self._load_and_ret().set_item(curr_frame,
+                                    index_pobject.value() if deferred_value else index_pobject,
+                                    value_pobject.value() if deferred_value else value_pobject)
 
     self._deferred_operations.append(_set_item)
     # self._loaded_object = LazyObject(
@@ -585,8 +560,7 @@ class LazyObject(PObject):
   @_passthrough_if_loaded
   def update_dict(self, pobject):
     if isinstance(pobject, (NativeObject, LazyObject)):
-      self._deferred_operations.append(lambda: self._load_and_ret().update_dict(
-          pobject))
+      self._deferred_operations.append(lambda: self._load_and_ret().update_dict(pobject))
       # self._loaded = True
       # self._apply_deferred_to_loaded()
     warning(f'Cannot do update_dict w/{pobject}.')
@@ -612,8 +586,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
-    return self._object.has_attribute(
-        name) or self._dynamic_container.has_attribute(name)
+    return self._object.has_attribute(name) or self._dynamic_container.has_attribute(name)
 
   def get_attribute(self, name):
     try:
@@ -641,8 +614,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   #   return FuzzyBoolean.TRUE if self._object == other else FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
-    return FuzzyBoolean.TRUE if isinstance(self._object,
-                                           type_) else FuzzyBoolean.FALSE
+    return FuzzyBoolean.TRUE if isinstance(self._object, type_) else FuzzyBoolean.FALSE
 
   def value(self) -> object:
     if isinstance(self._object, PObject):
@@ -678,8 +650,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
       return getitem.call(curr_frame, [index_pobject, value_pobject], {})
     else:
       # TODO: item_dynamic_container
-      warning(
-          f'Skipping setting {self._object}[{index_pobject}] = {value_pobject}')
+      warning(f'Skipping setting {self._object}[{index_pobject}] = {value_pobject}')
 
   def serialize(self, **kwargs):
     return serialization.serialize(self._object, **kwargs)
@@ -747,8 +718,7 @@ class FuzzyObject(PObject):
 
   def value(self) -> object:
     if not self.has_single_value():
-      raise AmbiguousFuzzyValueError(
-          f'Does not have a single value: {self._values}')
+      raise AmbiguousFuzzyValueError(f'Does not have a single value: {self._values}')
     if isinstance(self._values[0], PObject):  # Follow the rabbit hole.
       return self._values[0].value()
     return self._values[0]
@@ -789,8 +759,7 @@ class FuzzyObject(PObject):
     truths = [value.value_is_a(type_) for value in self._values]
     if all(truth == FuzzyBoolean.TRUE for truth in truths):
       return FuzzyBoolean.TRUE
-    elif any(truth == FuzzyBoolean.TRUE or truth == FuzzyBoolean.MAYBE
-             for truth in truths):
+    elif any(truth == FuzzyBoolean.TRUE or truth == FuzzyBoolean.MAYBE for truth in truths):
       return FuzzyBoolean.MAYBE
     return FuzzyBoolean.FALSE
 
@@ -854,9 +823,7 @@ class FuzzyObject(PObject):
       return FuzzyObject(values, types)
 
   def serialize(self, **kwargs):
-    return FuzzyObject.__qualname__, [
-        serialization.serialize(value, **kwargs) for value in self._values
-    ]
+    return FuzzyObject.__qualname__, [serialization.serialize(value, **kwargs) for value in self._values]
 
 
 # Add various operators too FuzzyObject class.

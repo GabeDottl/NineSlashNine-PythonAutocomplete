@@ -19,7 +19,7 @@ import pandas as pd
 def get_module_infos_for_path(path, filter_list=None):
   out = []
   if isinstance(filter_list, str):
-    filter_list = (filter_list,)
+    filter_list = (filter_list, )
 
   for module_info in pkgutil.iter_modules([path]):
     if module_info.ispkg:
@@ -59,8 +59,7 @@ def create_dataframe_summary_of_modules(modules):
   MemberInfo = namedtuple('MemberInfo', columns)
   mi = MemberInfo(*([] for _ in columns))
   for module in modules:
-    for member_name, member in filter(lambda x: _is_public_func_or_class(*x),
-                                      inspect.getmembers(module)):
+    for member_name, member in filter(lambda x: _is_public_func_or_class(*x), inspect.getmembers(module)):
       mi.module.append(module.__name__)
       mi.member_name.append(member_name)
       mi.member.append(member)

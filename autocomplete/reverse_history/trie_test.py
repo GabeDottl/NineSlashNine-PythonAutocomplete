@@ -4,10 +4,7 @@ from autocomplete.reverse_history import trie
 
 
 def test_trie():
-  examples = [
-      'abcde', 'abcde', 'abcdf', 'abc', 'abcdfg', 'qres', 'abcde', 'abc', 'abd',
-      'abd', 'abde'
-  ]
+  examples = ['abcde', 'abcde', 'abcdf', 'abc', 'abcdfg', 'qres', 'abcde', 'abc', 'abd', 'abd', 'abde']
   counter = Counter(examples)
   counts = dict(zip(counter.keys(), counter.values()))
   t = trie.AutocompleteTrie()

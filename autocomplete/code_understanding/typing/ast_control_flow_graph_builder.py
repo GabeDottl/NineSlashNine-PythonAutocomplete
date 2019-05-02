@@ -1,6 +1,7 @@
 import ast
 import attr
 
+
 @attr.s
 class ParsoControlFlowGraphBuilder:
   module_loader = attr.ib()

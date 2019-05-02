@@ -2,8 +2,7 @@ from typing import Iterable
 
 import attr
 
-from autocomplete.code_understanding.typing.utils import (
-    attrs_names_from_class, to_dict_iter)
+from autocomplete.code_understanding.typing.utils import (attrs_names_from_class, to_dict_iter)
 from autocomplete.nsn_logging import info
 
 NONE_TYPE = type(None)
@@ -11,9 +10,9 @@ NONE_TYPE = type(None)
 
 def deserialize(type_str, serialized_obj, hook_fn=None):
   from autocomplete.code_understanding.typing.pobjects import UnknownObject, NativeObject, AugmentedObject, FuzzyBoolean
-  from autocomplete.code_understanding.typing.language_objects import (
-      Parameter, ParameterType, StubFunction, FunctionType, ModuleImpl,
-      ModuleType, Klass, LazyInstance)
+  from autocomplete.code_understanding.typing.language_objects import (Parameter, ParameterType, StubFunction,
+                                                                       FunctionType, ModuleImpl, ModuleType,
+                                                                       Klass, LazyInstance)
   if serialized_obj is None:
     return None
   if type_str in __builtins__:
@@ -58,13 +57,10 @@ def serialize(obj, hook_fn=None, **kwargs):
     return type_name(obj), out
 
   if isinstance(obj, dict):
-    return type_name(obj), {
-        k: serialize(v, hook_fn=hook_fn, **kwargs) for k, v in obj.items()
-    }
+    return type_name(obj), {k: serialize(v, hook_fn=hook_fn, **kwargs) for k, v in obj.items()}
 
   if isinstance(obj, Iterable):
-    return type_name(obj), list(
-        serialize(x, hook_fn=hook_fn, **kwargs) for x in obj)
+    return type_name(obj), list(serialize(x, hook_fn=hook_fn, **kwargs) for x in obj)
 
   raise NotImplementedError()
 

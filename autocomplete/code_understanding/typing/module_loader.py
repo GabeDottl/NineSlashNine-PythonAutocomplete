@@ -21,19 +21,15 @@ from typing import Dict, Set, Tuple
 
 import typeshed
 
-from autocomplete.code_understanding.typing import (
-    api, collector, frame, serialization)
+from autocomplete.code_understanding.typing import (api, collector, frame, serialization)
 from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, SourceAttributeError,
-    UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.expressions import (
-    AugmentedObject, NativeObject)
-from autocomplete.code_understanding.typing.language_objects import (
-    LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module
-)
-from autocomplete.code_understanding.typing.pobjects import (
-    NativeObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError,
+                                                           UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.expressions import (AugmentedObject, NativeObject)
+from autocomplete.code_understanding.typing.language_objects import (LazyModule, Module, ModuleImpl,
+                                                                     ModuleType, NativeModule,
+                                                                     create_main_module)
+from autocomplete.code_understanding.typing.pobjects import (NativeObject, PObject, UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 __filename_module_dict: Dict[str, Module] = {}
@@ -57,8 +53,7 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   else:
     full_pobject_name = f'{module_name}.{pobject_name}'
   try:
-    return AugmentedObject(
-        get_module(full_pobject_name, unknown_fallback=False), imported=True)
+    return AugmentedObject(get_module(full_pobject_name, unknown_fallback=False), imported=True)
   except InvalidModuleError:
     pass
 
@@ -67,8 +62,7 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   # If the module is already loading, then we don't want to check if pobject_name is in module
 
   # because it will cause headaches. So try getting full_object_name as a package instead.
-  if (not isinstance(module, LazyModule) or
-      not module._loading) and pobject_name in module:
+  if (not isinstance(module, LazyModule) or not module._loading) and pobject_name in module:
     return AugmentedObject(module[pobject_name], imported=True)
 
   return UnknownObject(full_pobject_name, imported=True)
@@ -76,27 +70,20 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
 
 def get_module(name: str, unknown_fallback=True, lazy=True) -> Module:
   filename, is_package, module_type = _module_info_from_name(name)
-  return _get_module_internal(name, filename, is_package, module_type,
-                              unknown_fallback, lazy)
+  return _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy)
 
 
-def get_module_from_filename(name,
-                             filename,
-                             is_package=False,
-                             unknown_fallback=False,
-                             lazy=True) -> Module:
+def get_module_from_filename(name, filename, is_package=False, unknown_fallback=False, lazy=True) -> Module:
   filename = os.path.abspath(filename)  # Ensure its absolute.
-  return _get_module_internal(
-      name,
-      filename,
-      is_package,
-      _module_type_from_filename(filename),
-      unknown_fallback=unknown_fallback,
-      lazy=lazy)
+  return _get_module_internal(name,
+                              filename,
+                              is_package,
+                              _module_type_from_filename(filename),
+                              unknown_fallback=unknown_fallback,
+                              lazy=lazy)
 
 
-def _get_module_internal(name, filename, is_package, module_type,
-                         unknown_fallback, lazy):
+def _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy):
   if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
     if unknown_fallback:
       return _create_empty_module(name, module_type)
@@ -111,13 +98,12 @@ def _get_module_internal(name, filename, is_package, module_type,
   if name in NATIVE_MODULE_WHITELIST or module_type == ModuleType.BUILTIN:
     if name in __native_module_dict:
       return __native_module_dict[name]
-    out = __native_module_dict[name] = _load_module_from_module_info(
-        name,
-        filename,
-        is_package,
-        module_type,
-        unknown_fallback=unknown_fallback,
-        lazy=lazy)
+    out = __native_module_dict[name] = _load_module_from_module_info(name,
+                                                                     filename,
+                                                                     is_package,
+                                                                     module_type,
+                                                                     unknown_fallback=unknown_fallback,
+                                                                     lazy=lazy)
     return out
 
   assert filename is not None and os.path.exists(filename)
@@ -145,13 +131,12 @@ def _get_module_internal(name, filename, is_package, module_type,
   # an object is this dict is None and we check if a value retrieved from it is None above.
   __filename_module_dict[filename] = None
 
-  module = _load_module_from_module_info(
-      name,
-      filename,
-      is_package,
-      module_type,
-      unknown_fallback=unknown_fallback,
-      lazy=lazy)
+  module = _load_module_from_module_info(name,
+                                         filename,
+                                         is_package,
+                                         module_type,
+                                         unknown_fallback=unknown_fallback,
+                                         lazy=lazy)
   assert module is not None
   debug(f'Adding {filename} to module dict.')
   # Note: This will essentially stop us from storing modules which are unreadable because they are
@@ -164,8 +149,7 @@ def _get_module_internal(name, filename, is_package, module_type,
 def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
   with FileContext(filename):
     debug(f'len(__loaded_paths): {len(__loaded_paths)}')
-    a_frame = frame.Frame(
-        module=module, namespace=module, locals=module._members)
+    a_frame = frame.Frame(module=module, namespace=module, locals=module._members)
     graph = api.graph_from_source(source, module)
     graph.process(a_frame)
   # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
@@ -186,23 +170,17 @@ def _get_module_stub_source_filename(name) -> str:
   for top_level in ('stdlib', 'third_party'):
     # Sorting half to start with the lowest python level, half for consistency across runs.
     # Skip the version-2-only python files.
-    for version in filter(
-        lambda x: x != '2',
-        sorted(os.listdir(os.path.join(typeshed_dir, top_level)))):
-      for module_path in (os.path.join(module_path_base, "__init__.pyi"),
-                          f'{module_path_base}.pyi'):
-        abs_module_path = os.path.join(typeshed_dir, top_level, version,
-                                       module_path)
+    for version in filter(lambda x: x != '2', sorted(os.listdir(os.path.join(typeshed_dir, top_level)))):
+      for module_path in (os.path.join(module_path_base, "__init__.pyi"), f'{module_path_base}.pyi'):
+        abs_module_path = os.path.join(typeshed_dir, top_level, version, module_path)
         if os.path.exists(abs_module_path):
-          return abs_module_path, os.path.basename(
-              module_path) == '__init__.pyi'
+          return abs_module_path, os.path.basename(module_path) == '__init__.pyi'
   raise ValueError(f'Did not find typeshed for {name}')
 
 
 def load_module_from_source(source):
   module = create_main_module()
-  module._members = _module_exports_from_source(
-      module, source, filename='__main__')
+  module._members = _module_exports_from_source(module, source, filename='__main__')
   return module
 
 
@@ -258,8 +236,7 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   is_package = False
   if name[0] == '.':
     relative_path = _relative_path_from_relative_module(name)
-    absolute_path = os.path.abspath(
-        os.path.join(collector.get_current_context_dir(), relative_path))
+    absolute_path = os.path.abspath(os.path.join(collector.get_current_context_dir(), relative_path))
     if os.path.exists(absolute_path):
       if os.path.isdir(absolute_path):
         is_package = True
@@ -289,8 +266,7 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
       if ext != '.pyi' and ext != '.py':
         debug(f'Cannot read module filetype - {filename}')
         return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
-      return os.path.abspath(filename), _is_init(
-          filename), _module_type_from_filename(filename)
+      return os.path.abspath(filename), _is_init(filename), _module_type_from_filename(filename)
     return None, False, ModuleType.BUILTIN
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
@@ -299,8 +275,7 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
 def _load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
   debug(f'Loading module: {name}')
   filename, is_package, module_type = _module_info_from_name(name)
-  return _load_module_from_module_info(name, filename, is_package, module_type,
-                                       unknown_fallback, lazy)
+  return _load_module_from_module_info(name, filename, is_package, module_type, unknown_fallback, lazy)
 
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
@@ -311,11 +286,10 @@ def deserialize_hook_fn(type_str, obj):
     return True, get_module(obj)
   if type_str == 'import_module':
     name, filename = obj
-    return get_module_from_filename(
-        name,
-        filename,
-        is_package=_is_init(filename),
-        module_type=_module_type_from_filename(filename))
+    return get_module_from_filename(name,
+                                    filename,
+                                    is_package=_is_init(filename),
+                                    module_type=_module_type_from_filename(filename))
   if type_str == 'from_import':
     filename = obj
     index = filename.rindex('.')
@@ -349,13 +323,11 @@ def _load_module_from_module_info(name: str,
     except ImportError:
       return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
     else:
-      return NativeModule(
-          name,
-          module_type,
-          filename=filename,
-          native_module=NativeObject(python_module, read_only=True))
-  return _load_module_from_filename(
-      name, filename, is_package=is_package, module_type=module_type, lazy=lazy)
+      return NativeModule(name,
+                          module_type,
+                          filename=filename,
+                          native_module=NativeObject(python_module, read_only=True))
+  return _load_module_from_filename(name, filename, is_package=is_package, module_type=module_type, lazy=lazy)
 
 
 def _is_init(filename):
@@ -376,26 +348,23 @@ def _load_module_from_filename(name,
     else:
       return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   if lazy:
-    return _create_lazy_module(
-        name, filename, is_package=is_package, module_type=module_type)
+    return _create_lazy_module(name, filename, is_package=is_package, module_type=module_type)
 
-  module = ModuleImpl(
-      name=name,
-      module_type=module_type,
-      filename=filename,
-      members={},
-      is_package=is_package)
+  module = ModuleImpl(name=name,
+                      module_type=module_type,
+                      filename=filename,
+                      members={},
+                      is_package=is_package)
   module._members = _load_module_exports_from_filename(module, filename)
   return module
 
 
 def _create_lazy_module(name, filename, is_package, module_type) -> LazyModule:
-  return LazyModule(
-      name=name,
-      module_type=module_type,
-      filename=filename,
-      load_module_exports_from_filename=_load_module_exports_from_filename,
-      is_package=is_package)
+  return LazyModule(name=name,
+                    module_type=module_type,
+                    filename=filename,
+                    load_module_exports_from_filename=_load_module_exports_from_filename,
+                    is_package=is_package)
 
 
 def _create_empty_module(name, module_type):
