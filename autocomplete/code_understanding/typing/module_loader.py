@@ -60,7 +60,6 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   module = get_module(module_name)
   # Try to get pobject_name as a member of module if module is a package.
   # If the module is already loading, then we don't want to check if pobject_name is in module
-
   # because it will cause headaches. So try getting full_object_name as a package instead.
   if (not isinstance(module, LazyModule) or not module._loading) and pobject_name in module:
     return AugmentedObject(module[pobject_name], imported=True)
@@ -345,8 +344,7 @@ def _load_module_from_filename(name,
   if not os.path.exists(filename):
     if not unknown_fallback:
       raise InvalidModuleError(filename)
-    else:
-      return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
+    return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   if lazy:
     return _create_lazy_module(name, filename, is_package=is_package, module_type=module_type)
 
@@ -355,7 +353,12 @@ def _load_module_from_filename(name,
                       filename=filename,
                       members={},
                       is_package=is_package)
-  module._members = _load_module_exports_from_filename(module, filename)
+  try:
+    module._members = _load_module_exports_from_filename(module, filename)
+  except UnableToReadModuleFileError:
+    if not unknown_fallback:
+      raise InvalidModuleError(filename)
+    return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   return module
 
 

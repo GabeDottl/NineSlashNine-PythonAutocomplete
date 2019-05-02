@@ -1,7 +1,7 @@
 import os
 import sys
 import types
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from enum import Enum
 from functools import partial
 from glob import glob

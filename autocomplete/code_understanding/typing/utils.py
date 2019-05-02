@@ -55,3 +55,16 @@ def to_dict_iter(obj):
 def attrs_names_from_class(class_):
   for x in class_.__attrs_attrs__:
     yield x.name
+
+
+def assert_returns_type(type_):
+  def wrapper(func):
+    @wraps(func)
+    def inner_wrapper(*args, **kwargs):
+      cfg_node = func(*args, **kwargs)
+      assert isinstance(cfg_node, type_)
+      return cfg_node
+
+    return inner_wrapper
+
+  return wrapper

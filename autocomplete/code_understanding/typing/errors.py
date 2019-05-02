@@ -29,6 +29,10 @@ class AmbiguousFuzzyValueError(Exception):
   ...
 
 
+class AstUnableToParse(Exception):
+  pass
+
+
 def assert_unexpected_parso(assertion, *error):
   if not assertion:
     caller = getframeinfo(stack()[1][0])

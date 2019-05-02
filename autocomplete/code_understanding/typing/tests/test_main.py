@@ -13,8 +13,8 @@ from autocomplete.nsn_logging import debug
 
 def test_simple_assignments():
   source = '''
-  a=1
-  b,(c, d) = a,(2,3)
+a=1
+b,(c, d) = a,(2,3)
   '''
   module = module_loader.load_module_from_source(source)
   assert module['a'].value() == 1
@@ -157,8 +157,8 @@ def test_processing_all_typing_dir():
 
 if __name__ == '__main__':
   test_simple_assignments()
-  test_stubs()
-  test_classes()
-  test_arrays()
-  test_imports()
-  test_processing_all_typing_dir()
+  # test_stubs()
+  # test_classes()
+  # test_arrays()
+  # test_imports()
+  # test_processing_all_typing_dir()

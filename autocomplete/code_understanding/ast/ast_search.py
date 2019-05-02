@@ -7,6 +7,7 @@ class AstTypeFinder(ast.NodeVisitor):
     self.target_node = None
 
   def find_type(self, ast_node, target_type):
+    self.target_type = target_type
     self.generic_visit(ast_node)
     tmp = self.target_node
     self.target_node = None

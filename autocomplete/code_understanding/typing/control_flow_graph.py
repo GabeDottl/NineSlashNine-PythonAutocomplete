@@ -24,19 +24,19 @@ from typing import List, Tuple
 
 import attr
 
-from autocomplete.code_understanding.typing import parso_control_flow_graph_builder
+from autocomplete.code_understanding.typing import (ast_control_flow_graph_builder, language_objects,
+                                                    parso_control_flow_graph_builder)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode,
     FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode, TryCfgNode,
     WhileCfgNode, WithCfgNode)
-from autocomplete.code_understanding.typing.errors import (ParsingError)
-from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
+from autocomplete.code_understanding.typing.errors import ParsingError
 from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, Expression,
                                                                 LiteralExpression, UnknownExpression,
                                                                 VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
+from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
 from autocomplete.nsn_logging import debug, error, info, warning
-from autocomplete.code_understanding.typing import language_objects
 
 
 def condense_graph(graph):
@@ -57,5 +57,8 @@ class ControlFlowGraphBuilder:
   module_loader = attr.ib()
 
   def graph_from_source(self, source, module):
-    builder = parso_control_flow_graph_builder.ParsoControlFlowGraphBuilder(self.module_loader, module)
+    try:
+      builder = ast_control_flow_graph_builder.AstControlFlowGraphBuilder(self.module_loader, module)
+    except errors.AstUnableToParse:
+      builder = parso_control_flow_graph_builder.ParsoControlFlowGraphBuilder(self.module_loader, module)
     return builder.graph_from_source(source)

@@ -269,7 +269,7 @@ class KeyValueAssignment:
 class KeyValueForComp:
   key: Expression = attr.ib()
   value: Expression = attr.ib()
-  for_comp = attr.ib()
+  for_comp: ForComprehension = attr.ib()
 
   # @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:
@@ -338,6 +338,13 @@ class AttributeExpression(Expression):
 
   def get_used_free_symbols(self) -> Iterable[str]:
     return self.base_expression.get_used_free_symbols()
+
+
+@attr.s
+class Slice:
+  lower = attr.ib(None, kw_only=True)
+  upper = attr.ib(None, kw_only=True)
+  step = attr.ib(None, kw_only=True)
 
 
 @attr.s(slots=True)

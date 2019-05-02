@@ -5,10 +5,10 @@ import itertools
 import os
 import webbrowser
 
+import graphviz
 import pandas as pd
 
 import _ast
-import graphviz
 from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
 from autocomplete.code_understanding.reference_ast_node_visitor import (ReferenceAstNodeVisitor)
 from autocomplete.code_understanding.utils import *

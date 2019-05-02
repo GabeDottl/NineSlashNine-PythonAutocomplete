@@ -268,7 +268,6 @@ class AssignmentStmtCfgNode(CfgNode):
   left_variables: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression: Expression = attr.ib()
-  value_node = attr.ib()  # TODO: Delete.
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame, strict=False):

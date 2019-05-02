@@ -6,9 +6,8 @@ https://graphviz.readthedocs.io/en/stable/examples.html
 import argparse
 import webbrowser
 
-import parso
-
 import graphviz
+import parso
 
 
 class ParsoDrawer:
