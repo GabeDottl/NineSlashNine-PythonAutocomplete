@@ -16,7 +16,10 @@ https://docs.python.org/3/tutorial/modules.html
 '''
 import importlib
 import os
+import pkgutil
 from typing import Dict, Set, Tuple
+
+import typeshed
 
 from autocomplete.code_understanding.typing import (
     api, collector, frame, serialization)
@@ -24,7 +27,8 @@ from autocomplete.code_understanding.typing.collector import FileContext
 from autocomplete.code_understanding.typing.errors import (
     LoadingModuleAttributeError, SourceAttributeError,
     UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.expressions import NativeObject
+from autocomplete.code_understanding.typing.expressions import (
+    AugmentedObject, NativeObject)
 from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module
 )
@@ -45,9 +49,16 @@ class InvalidModuleError(Exception):
 
 def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.
-  full_pobject_name = f'{module_name}.{pobject_name}'
+  # module_name will only end with '.' if it's purely periods- 1 or more. In that
+  # case, we don't want to mess things up by adding an additional period at the
+  # end of the module name.
+  if module_name[-1] == '.':
+    full_pobject_name = f'{module_name}{pobject_name}'
+  else:
+    full_pobject_name = f'{module_name}.{pobject_name}'
   try:
-    return get_module(full_pobject_name, unknown_fallback=False)
+    return AugmentedObject(
+        get_module(full_pobject_name, unknown_fallback=False), imported=True)
   except InvalidModuleError:
     pass
 
@@ -58,9 +69,9 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   # because it will cause headaches. So try getting full_object_name as a package instead.
   if (not isinstance(module, LazyModule) or
       not module._loading) and pobject_name in module:
-    return module[pobject_name]
+    return AugmentedObject(module[pobject_name], imported=True)
 
-  return UnknownObject(full_pobject_name)
+  return UnknownObject(full_pobject_name, imported=True)
 
 
 def get_module(name: str, unknown_fallback=True, lazy=True) -> Module:
@@ -162,7 +173,6 @@ def _get_module_stub_source_filename(name) -> str:
   This currently only relies on typeshed, but in the future should also pull from some local repo.'''
   # TODO: local install + TYPESHED_HOME env variable like pytype:
   # https://github.com/google/pytype/blob/309a87fab8a861241823592157208e65c970f7b6/pytype/pytd/typeshed.py#L24
-  import typeshed
   typeshed_dir = os.path.dirname(typeshed.__file__)
   if name != '.' or name[0] != '.':
     raise ValueError()
@@ -194,7 +204,7 @@ def _load_module_exports_from_filename(module, filename):
   try:
     with open(filename) as f:
       source = ''.join(f.readlines())
-    # info(f'Loading {module.name}')
+    info(f'Loading {filename}')
     assert filename not in __loaded_paths
     __loaded_paths.add(filename)
     return _module_exports_from_source(module, source, filename)
@@ -213,8 +223,6 @@ def _module_type_from_filename(filename) -> ModuleType:
 
 
 def _relative_path_from_relative_module(name):
-  # assert name[0] == '.'
-
   if name == '.':
     return '.'
 
@@ -263,23 +271,21 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
         return filename, False, _module_type_from_filename(filename)
     return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
   try:
-    spec = importlib.util.find_spec(name)
-  except (ImportError, AttributeError, ModuleNotFoundError, ValueError) as e:
+    loader = pkgutil.find_loader(name)
+  except ImportError as e:
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')
     debug(e)
   else:
-    if spec:
-      if spec.has_location:
-        filename = spec.loader.get_filename()
-        ext = os.path.splitext(filename)[1]
-        if ext != '.pyi' and ext != '.py':
-          debug(f'Cannot read module filetype - {filename}')
-          return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
-        return os.path.abspath(filename), _is_init(
-            filename), _module_type_from_filename(filename)
-      else:  # System module
-        return None, False, ModuleType.BUILTIN
+    if hasattr(loader, 'get_filename'):
+      filename = loader.get_filename()
+      ext = os.path.splitext(filename)[1]
+      if ext != '.pyi' and ext != '.py':
+        debug(f'Cannot read module filetype - {filename}')
+        return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
+      return os.path.abspath(filename), _is_init(
+          filename), _module_type_from_filename(filename)
+    return None, False, ModuleType.BUILTIN
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
@@ -341,7 +347,7 @@ def _load_module_from_module_info(name: str,
           name,
           module_type,
           filename=filename,
-          native_module=NativeObject(python_module))
+          native_module=NativeObject(python_module, read_only=True))
   return _load_module_from_filename(
       name, filename, is_package=is_package, module_type=module_type, lazy=lazy)
 

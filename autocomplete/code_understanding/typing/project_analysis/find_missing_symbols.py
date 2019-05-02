@@ -18,6 +18,7 @@ def scan_missing_symbols(filename, include_context=False):
     missing_symbols.discard(builtin)
   return missing_symbols
 
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('directory_or_file')

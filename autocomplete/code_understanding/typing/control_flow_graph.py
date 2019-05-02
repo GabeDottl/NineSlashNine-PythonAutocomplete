@@ -32,8 +32,10 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     WhileCfgNode, WithCfgNode)
 from autocomplete.code_understanding.typing.errors import (
     ParsingError, assert_unexpected_parso)
+from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
 from autocomplete.code_understanding.typing.expressions import (
-    Expression, LiteralExpression, UnknownExpression, VariableExpression)
+    AnonymousExpression, Expression, LiteralExpression, UnknownExpression,
+    VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.parsing_utils import (
     _assert_returns_type, expression_from_node, node_info,
@@ -62,9 +64,11 @@ class TypingException(Exception):
 
 EXPRESSION_NODES = {
     'testlist_star_expr', 'comparison', 'star_expr', 'expr', 'xor_expr',
-    'and_expr', 'shift_expr', 'arith_expr', 'term', 'factor', 'atom_exr',
-    'atom', 'exprlist', 'testlist_comp', 'dictorsetmaker', 'name', 'number',
-    'string'
+    'arith_expr',
+    'and_expr', 'and_test', 'or_test', 'not_test', 'comparison', 'comp_op',
+    'shift_expr', 'arith_expr', 'term', 'factor', 'power', 'atom_expr', 'atom',
+    'starexpr', 'lambda', 'lambdef_nocond', 'exprlist', 'testlist_comp',
+    'dictorsetmaker', 'name', 'number', 'string', 'strings'
 }
 
 
@@ -181,11 +185,11 @@ class ControlFlowGraphBuilder:
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_keyword(self, node):
-    if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield' or node.value == 'raise':
-      return NoOpCfgNode(node)
     if node.value == 'return':
       return ReturnCfgNode(LiteralExpression(None), parso_node=node)
-    assert_unexpected_parso(False, node_info)
+    # if node.value == 'pass' or node.value == 'break' or node.value == 'continue' or node.value == 'yield' or node.value == 'raise':
+    return NoOpCfgNode(node)
+    # assert_unexpected_parso(False, node_info)
 
   @_assert_returns_type(CfgNode)
   def _create_cfg_node_for_if_stmt(self, node):
@@ -274,7 +278,8 @@ class ControlFlowGraphBuilder:
     path_node = node.children[node_index]
     path = ''
     # Example from . import y
-    while path_node.type == 'operator' and path_node.value == '.':
+    while path_node.type == 'operator' and (path_node.value == '.' or
+                                            path_node.value == '...'):
       path += path_node.value
       node_index += 1
       path_node = node.children[node_index]
@@ -385,11 +390,12 @@ class ControlFlowGraphBuilder:
         if keyword.value == 'finally' or keyword.value == 'else':
           break
         assert keyword.value == 'except'
-        except_nodes.append(ExceptCfgNode([], None, suite_node))
+        except_nodes.append(
+            ExceptCfgNode(AnonymousExpression(NONE_POBJECT), None, suite_node))
       else:
         assert keyword.type == 'except_clause'
         except_clause = keyword
-        exceptions = variables_from_node(except_clause.children[1])
+        exceptions = expression_from_node(except_clause.children[1])
         if len(except_clause.children) == 4:
           exception_variable = VariableExpression(
               except_clause.children[-1].value)

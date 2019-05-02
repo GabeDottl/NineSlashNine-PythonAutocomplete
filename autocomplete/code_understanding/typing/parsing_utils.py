@@ -246,8 +246,7 @@ def expression_from_testlist_comp(node) -> TupleExpression:
   else:  # expr(x), expr(b), ...,
     out = []
     for child in node.children:
-      if child.type == 'operator':
-        assert_unexpected_parso(child.value == ',')
+      if child.type == 'operator' and child.value == ',':
         continue
       out.append(expression_from_node(child))
     return TupleExpression(ItemListExpression(out))
@@ -437,6 +436,8 @@ def expression_from_node(node):
     return LiteralExpression(num(node.value))
   if node.type == 'string':
     return LiteralExpression(node.value[1:-1])  # Strip surrounding quotes.
+  if node.type == 'strings':
+    return LiteralExpression(node.get_code().strip())#''.join(c.value[1:-1] for c in node.children))  # Strip surrounding quotes.
   if node.type == 'keyword':
     return LiteralExpression(keyword_eval(node.value))
   if node.type == 'operator' and node.value == '...':
@@ -462,7 +463,7 @@ def expression_from_node(node):
     return expression_from_test(node)
   if node.type == 'not_test':
     return NotExpression(expression_from_node(node.children[1]))
-  if node.type == 'lambdef':
+  if node.type == 'lambdef' or node.type == 'lambdef_nocond':
     debug(f'Failed to process lambdef - unknown.')
     return UnknownExpression(node.get_code())
   if node.type == 'fstring':
@@ -725,8 +726,10 @@ def num(s):
   try:
     return int(s, 0)  # 0 allows hex to be read like 0xdeadbeef.
   except ValueError:
-    return float(s)
-
+    try:
+      return float(s)
+    except ValueError:
+      return complex(s)
 
 def keyword_eval(keyword_str):
   if keyword_str == 'True':
@@ -737,4 +740,6 @@ def keyword_eval(keyword_str):
     return None
   elif keyword_str == 'Ellipsis' or keyword_str == '...':
     return Ellipsis
+  elif keyword_str == 'yield':
+    return None
   assert_unexpected_parso(False, keyword_str)

@@ -9,9 +9,9 @@ from typing import Dict, List
 
 import attr
 
-from autocomplete.code_understanding.typing import serialization
+from autocomplete.code_understanding.typing import collector, serialization
 from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueDoesntHaveSingleValueError, LoadingModuleAttributeError,
+    AmbiguousFuzzyValueError, LoadingModuleAttributeError,
     NoDictImplementationError, SourceAttributeError)
 from autocomplete.code_understanding.typing.utils import to_dict_iter
 from autocomplete.nsn_logging import debug, error, info, warning
@@ -97,6 +97,7 @@ class PObject(ABC):
   of the |object| type.
   '''
   pobject_type = PObjectType.NORMAL
+  imported = False
 
   @abstractmethod
   def has_attribute(self, name):
@@ -208,6 +209,7 @@ class DynamicContainer:
 @attr.s(str=False, repr=False, slots=True)
 class UnknownObject(PObject):
   name = attr.ib()  # For recording source of value - e.g. functools.wraps.
+  imported = attr.ib(False)
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
@@ -266,6 +268,8 @@ class NativeObject(PObject):
   and thus cannot create our Module instances. Instead, these modules can be loaded as
   NativeObjects and be run in relative isolation.'''
   _native_object = attr.ib()
+  _read_only = attr.ib(False)
+  imported = attr.ib(False)
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
@@ -279,7 +283,7 @@ class NativeObject(PObject):
       # TODO: Support for some native objects - str, int, list perhaps.
       debug(f'Failed to access {name} from {self._native_object}. {e}')
     else:
-      return pobject_from_object(native_object)
+      return pobject_from_object(native_object, self._read_only)
     return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):
@@ -293,7 +297,7 @@ class NativeObject(PObject):
   #     value = other.value()
   #     if value == self.value:
   #       return FuzzyBoolean.TRUE
-  #   except AmbiguousFuzzyValueDoesntHaveSingleValueError:
+  #   except AmbiguousFuzzyValueError:
   #     return FuzzyBoolean.MAYBE  # TODO
   #   return FuzzyBoolean.FALSE
 
@@ -311,7 +315,7 @@ class NativeObject(PObject):
     # try:
     #   arg_values = [arg.value() for arg in args]
     #   kwarg_values = {name: value.value() for name, value in kwargs.items()}
-    # except AmbiguousFuzzyValueDoesntHaveSingleValueError as e:
+    # except AmbiguousFuzzyValueError as e:
     #   debug(e)
     # else:
     # try:
@@ -325,7 +329,7 @@ class NativeObject(PObject):
   def get_item(self, curr_frame, index_pobject):
     try:
       index = index_pobject.value()
-    except AmbiguousFuzzyValueDoesntHaveSingleValueError:
+    except AmbiguousFuzzyValueError:
       return UnknownObject(f'{self._native_object}[{index_pobject}]')
     try:
       value = self._native_object.__getitem__(index)
@@ -333,16 +337,22 @@ class NativeObject(PObject):
       return UnknownObject(f'{self._native_object}[{index_pobject}]')
     else:
       if isinstance(value, PObject):
+        if isinstance(value, NativeObject):
+          value._read_only = self._read_only
         return value
-      return pobject_from_object(value)
+      return pobject_from_object(value, read_only=self._read_only)
     return UnknownObject(f'{self._native_object}[{index_pobject}]')
 
   def set_item(self, curr_frame, index, value):
+    if self._read_only:
+      info(f'Cannot set {index} on read-only NO.')
+      return
+
     # TODO: item_dynamic_container?
     if hasattr(self._native_object, '__setitem__'):
       try:
         self._native_object.__setitem__(index.value(), value.value())
-      except (KeyError, AmbiguousFuzzyValueDoesntHaveSingleValueError):
+      except (KeyError, AmbiguousFuzzyValueError):
         pass
       except Exception as e:
         error(f'While setting {self._native_object}[{index}] = {value}')
@@ -350,11 +360,18 @@ class NativeObject(PObject):
 
   def to_dict(self):
     items_iter = to_dict_iter(self._native_object)
-    return {name: pobject_from_object(value) for name, value in items_iter}
+    return {
+        name: pobject_from_object(value, read_only=self._read_only)
+        for name, value in items_iter
+    }
 
   def update_dict(self, pobject):
+    if self._read_only:
+      warning(f'Cannot update dictionary of read-only native object')
+      return
+
     if isinstance(pobject, LazyObject):
-      pobject = pobject._loaded()
+      pobject = pobject._load_and_ret()
     if isinstance(pobject, NativeObject) and isinstance(
         pobject._native_object, dict) and isinstance(self._native_object, dict):
       self._native_object.update(pobject._native_object)
@@ -397,7 +414,7 @@ class NativeObject(PObject):
     return str(self)
 
 
-def pobject_from_object(obj):
+def pobject_from_object(obj, read_only=False):
   if isinstance(obj, LanguageObject):
     return AugmentedObject(obj)
   if isinstance(obj, PObject):
@@ -405,7 +422,7 @@ def pobject_from_object(obj):
   if isinstance(obj, FuzzyBoolean):
     return obj.to_pobject()
 
-  return NativeObject(obj)
+  return NativeObject(obj, read_only=read_only)
 
 
 class LazyObjectLoadingError(Exception):
@@ -416,6 +433,8 @@ class LazyObjectLoadingError(Exception):
 class LazyObject(PObject):
   name = attr.ib()
   _loader = attr.ib()
+  imported = attr.ib(False)
+  _loader_filecontext = attr.ib(None, init=False)
   _loaded_object = attr.ib(init=False, default=None)
   # _loaded = attr.ib(init=False, default=False)
   _loading = attr.ib(init=False, default=False)
@@ -423,6 +442,9 @@ class LazyObject(PObject):
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
   _deferred_operations = attr.ib(init=False, factory=list)
   _deferred_funcs = attr.ib(init=False, factory=list)
+
+  def __attrs_post_init__(self):
+    self._loader_filecontext = collector._filename_context[-1]
 
   def _passthrough_if_loaded(func):
 
@@ -440,10 +462,14 @@ class LazyObject(PObject):
 
     self._loading = True
     try:
-      self._loaded_object = self._loader()
+      with collector.FileContext(self._loader_filecontext):
+        self._loaded_object = self._loader()
     except Exception as e:
-      error(f'Unable to lazily load {self.filename}')
-      raise LazyObjectLoadingError(e)
+      error(f'Unable to lazily load {self.name}')
+      import traceback
+      traceback.print_tb(e.__traceback__)
+      print(e)
+      raise e
     else:
       assert isinstance(self._loaded_object, PObject)
     finally:
@@ -467,16 +493,16 @@ class LazyObject(PObject):
       self._loaded_object.apply_to_values(func)
 
   def has_attribute(self, name) -> bool:
-    return self._loaded().has_attribute(name)
+    return self._load_and_ret().has_attribute(name)
 
-  def _loaded(self) -> PObject:
+  def _load_and_ret(self) -> PObject:
     self._load()
     return self._loaded_object
 
   @_passthrough_if_loaded
   def get_attribute(self, name):
     return LazyObject(
-        f'{self.name}.{name}', lambda: self._loaded().get_attribute(name))
+        f'{self.name}.{name}', lambda: self._load_and_ret().get_attribute(name))
 
   @_passthrough_if_loaded
   def set_attribute(self, name, value):
@@ -492,14 +518,14 @@ class LazyObject(PObject):
   #   else:
 
   def value_is_a(self, type_) -> FuzzyBoolean:
-    return self._loaded().value_is_a(type_)
+    return self._load_and_ret().value_is_a(type_)
 
   # TODO: Rename 'dereference'?
   def value(self) -> object:
-    return self._loaded().value()
+    return self._load_and_ret().value()
 
   def bool_value(self) -> FuzzyBoolean:
-    return self._loaded().bool_value()
+    return self._load_and_ret().bool_value()
 
   @_passthrough_if_loaded
   def invert(self):
@@ -525,14 +551,15 @@ class LazyObject(PObject):
     # Okay, so, this and get_item aren't really *super* valid since curr_frame will look very
     # different later. Ideally, we should save a snapshot of the current frame......
     # TODO: Snapshot frame.
-    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda:
-                      self._loaded().call(curr_frame, args, kwargs))
+    return LazyObject(
+        f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda: self.
+        _load_and_ret().call(curr_frame, args, kwargs))
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):
     # TODO: snapshot frame
     return LazyObject(
-        f'{self.name}[{index_pobject}]', lambda: self._loaded().get_item(
+        f'{self.name}[{index_pobject}]', lambda: self._load_and_ret().get_item(
             curr_frame,
             index_pobject.value() if deferred_value else index_pobject))
 
@@ -544,7 +571,7 @@ class LazyObject(PObject):
                deferred_value=False):
 
     def _set_item():
-      self._loaded().set_item(
+      self._load_and_ret().set_item(
           curr_frame,
           index_pobject.value() if deferred_value else index_pobject,
           value_pobject.value() if deferred_value else value_pobject)
@@ -558,14 +585,14 @@ class LazyObject(PObject):
   @_passthrough_if_loaded
   def update_dict(self, pobject):
     if isinstance(pobject, (NativeObject, LazyObject)):
-      self._deferred_operations.append(lambda: self._loaded().update_dict(
+      self._deferred_operations.append(lambda: self._load_and_ret().update_dict(
           pobject))
       # self._loaded = True
       # self._apply_deferred_to_loaded()
     warning(f'Cannot do update_dict w/{pobject}.')
 
   def __str__(self):
-    if self._loaded:
+    if self._loaded_object is not None:
       return f'LO({self._loaded_object})'
     return f'LO({self.name})'
 
@@ -581,6 +608,7 @@ def _pretty(obj):
 @attr.s(str=False, repr=False, slots=True)
 class AugmentedObject(PObject):  # TODO: CallableInterface
   _object = attr.ib()
+  imported = attr.ib(False)
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
   def has_attribute(self, name):
@@ -634,7 +662,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
 
   def get_item(self, curr_frame, index_pobject):
     if isinstance(self._object, PObject):
-      return self._object.get_item(index_pobject)
+      return self._object.get_item(curr_frame, index_pobject)
     if self._object.has_attribute('__getitem__'):
       getitem = self._object.get_attribute('__getitem__')
       return getitem.call(curr_frame, [index_pobject], {})
@@ -644,7 +672,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
 
   def set_item(self, curr_frame, index_pobject, value_pobject):
     if isinstance(self._object, PObject):
-      self._object.set_item(index_pobject, value_pobject)
+      self._object.set_item(curr_frame, index_pobject, value_pobject)
     elif self._object.has_attribute('__setitem__'):
       getitem = self._object.get_attribute('__setitem__')
       return getitem.call(curr_frame, [index_pobject, value_pobject], {})
@@ -684,6 +712,7 @@ class FuzzyObject(PObject):
   """
 
   _values: List = attr.ib()  # Tuple of possible values
+  imported = attr.ib(False)
 
   @_values.validator
   def _values_valid(self, attribute, values):
@@ -718,7 +747,7 @@ class FuzzyObject(PObject):
 
   def value(self) -> object:
     if not self.has_single_value():
-      raise AmbiguousFuzzyValueDoesntHaveSingleValueError(
+      raise AmbiguousFuzzyValueError(
           f'Does not have a single value: {self._values}')
     if isinstance(self._values[0], PObject):  # Follow the rabbit hole.
       return self._values[0].value()

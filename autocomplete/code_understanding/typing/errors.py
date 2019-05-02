@@ -25,7 +25,7 @@ class LoadingModuleAttributeError(Exception):
   ...
 
 
-class AmbiguousFuzzyValueDoesntHaveSingleValueError(Exception):
+class AmbiguousFuzzyValueError(Exception):
   ...
 
 

@@ -117,3 +117,23 @@ Still not apples-to-apples though. In the case of the deserialized result, we're
 stubs. For what I think is a more fair comparison, I short-circuited FunctionImpl#call_inner to
 return an UnknownObject, and it only shaves time by ~1s to 2.85s - which is substantial, but it
 would seem we're still just loading a ton of modules.
+
+# Symbol table estimates
+Neat memory counting lib:
+https://pythonhosted.org/Pympler/
+
+I'd ballpark estimate there are around 10k global symbols in standard python, averaging in length
+around 10 characters. Assuming some simple symbol-tuple of info including a symbol type, path, and
+some numerical score, we're only looking at a dictionary of <2MB:
+
+    >>> from pympler import asizeof
+        symbol_tuple = ('a'*10, 'a'*30, 4)
+        d = {f'{i}'*10: symbol_tuple  for i in range(10000)}
+        print(asizeof.asized(d).format())
+        byte_size_to_readable(1238376)
+    {'0000000000': ('aaaaaaaaaa', 'aaaaaaa.... 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 4)} size=1238376 flat=295008
+    Out[36]: '1MB185KB'
+
+So pretty safe to say we can make a msgpack and save it to memory. In fact, I think it'd be quite
+reasonable to do 10 or maybe even 100x that in which case we can easily store additional information
+such as parameter names, types, and perhaps some simple context for input into a scoring func?

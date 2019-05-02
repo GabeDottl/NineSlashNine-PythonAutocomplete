@@ -8,8 +8,7 @@ from typing import Dict, List
 
 import attr
 
-
-from autocomplete.code_understanding.typing import (collector, utils)
+from autocomplete.code_understanding.typing import collector, utils
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (
     AttributeExpression, SubscriptExpression, Variable, VariableExpression)
@@ -93,7 +92,8 @@ class Frame:
   def __attrs_post_init__(self):
     if not self._builtins:
       self._builtins = {
-          key: UnknownObject(key) for key in utils.get_possible_builtin_symbols()
+          key: UnknownObject(key)
+          for key in utils.get_possible_builtin_symbols()
       }
       # self._builtins['globals'] = NativeObject(lambda: return self._module.get_members())
       # self._builtins['locals'] = NativeObject(lambda: return self._locals)
@@ -128,7 +128,6 @@ class Frame:
     return Frame(
         frame_type=frame_type,
         back=self,
-        # root=self._root,
         module=module,
         namespace=namespace,
         builtins=self._builtins,

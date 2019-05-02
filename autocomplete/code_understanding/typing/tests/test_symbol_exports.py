@@ -114,9 +114,9 @@ def test_closure_values():
 
 def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
-  unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples',
-                                                'unresolved_symbols.py'))
-  
+  unresolved_imports_filename = os.path.abspath(
+      os.path.join(typing_dir, 'examples', 'unresolved_symbols.py'))
+
   missing_symbols = find_missing_symbols.scan_missing_symbols(
       unresolved_imports_filename, include_context=False)
   print('Used symbols:',
@@ -130,19 +130,26 @@ def test_missing_symbols():
 def test_no_missing_symbols_in_typing_package():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
-  for filename in filenames:
+  for filename in filter(lambda f: 'grammar.py' not in f, filenames):
     info(f'filename: {filename}')
-    if os.path.basename(filename) == 'grammar.py':
-      debug(f'Skipping {filename}')
-      continue
     name = os.path.splitext(os.path.basename(filename))[0]
-    module_loader.get_module_from_filename(name, filename)
     missing_symbols = find_missing_symbols.scan_missing_symbols(
         filename, include_context=False)
     assert not missing_symbols
 
 
+def test_module_exports():
+  with open(
+      '/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py'
+  ) as f:
+    source = ''.join(f.readlines())
+  graph = graph_from_source(source)
+  exports = graph.get_defined_and_exported_symbols()
+  assert len(exports) > 40
+
+
 if __name__ == "__main__":
+  test_module_exports()
   test_missing_symbols()
   test_closure_values()
   test_cfg_symbol_visibility()

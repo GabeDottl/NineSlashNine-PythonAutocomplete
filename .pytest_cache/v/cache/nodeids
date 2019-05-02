@@ -2,6 +2,9 @@
   "autocomplete/code_understanding/typing/tests/test_expressions.py::test_dicts",
   "autocomplete/code_understanding/typing/tests/test_expressions.py::test_sets",
   "autocomplete/code_understanding/typing/tests/test_expressions.py::test_and_or",
+  "autocomplete/code_understanding/typing/tests/test_index.py::test_build_typing_index",
+  "autocomplete/code_understanding/typing/tests/test_index.py::test_build_full_index",
+  "autocomplete/code_understanding/typing/tests/test_index.py::test_load_index",
   "autocomplete/code_understanding/typing/tests/test_main.py::test_simple_assignments",
   "autocomplete/code_understanding/typing/tests/test_main.py::test_imports",
   "autocomplete/code_understanding/typing/tests/test_main.py::test_classes",
@@ -15,5 +18,6 @@
   "autocomplete/code_understanding/typing/tests/test_symbol_exports.py::test_closure_values",
   "autocomplete/code_understanding/typing/tests/test_symbol_exports.py::test_missing_symbols",
   "autocomplete/code_understanding/typing/tests/test_symbol_exports.py::test_no_missing_symbols_in_typing_package",
+  "autocomplete/code_understanding/typing/tests/test_symbol_exports.py::test_module_exports",
   "autocomplete/reverse_history/trie_test.py::test_trie"
 ]

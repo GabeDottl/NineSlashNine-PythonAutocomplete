@@ -7,7 +7,7 @@ import attr
 
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueDoesntHaveSingleValueError, assert_unexpected_parso)
+    AmbiguousFuzzyValueError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.pobjects import (
     AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, NativeObject,
     PObject, PObjectType, UnknownObject, pobject_from_object)
@@ -326,7 +326,7 @@ class DictExpression(Expression):
         v = value.value.evaluate(curr_frame)
         # try:
         out.set_item(curr_frame, k, v, deferred_value=False)
-        # except (AmbiguousFuzzyValueDoesntHaveSingleValueError) as e:
+        # except (AmbiguousFuzzyValueError) as e:
         #   # Unhashable.
         #   warning(e)
       elif isinstance(value, StarredExpression):

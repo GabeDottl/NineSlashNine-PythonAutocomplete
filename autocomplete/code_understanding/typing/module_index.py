@@ -6,7 +6,7 @@ import h5py
 
 from autocomplete.code_understanding.typing import module_loader
 from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueDoesntHaveSingleValueError)
+    AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.language_objects import (
     Function, Instance, Klass, ModuleImpl, ModuleType)
 from autocomplete.code_understanding.typing.pobjects import (
@@ -32,7 +32,7 @@ class ModuleIndex:
   def add_hdf_value_from_pobject(self, group, name, pobject):
     try:
       value = pobject.value()
-    except AmbiguousFuzzyValueDoesntHaveSingleValueError:
+    except AmbiguousFuzzyValueError:
       pass
     # FuzzyObject is ambiguous - just YOLO and make empty.
     if isinstance(value, FuzzyObject):

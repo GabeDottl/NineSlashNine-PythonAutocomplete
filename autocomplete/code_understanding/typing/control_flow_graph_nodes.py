@@ -8,8 +8,7 @@ import attr
 
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueDoesntHaveSingleValueError, ParsingError,
-    assert_unexpected_parso)
+    AmbiguousFuzzyValueError, ParsingError, assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
     Expression, StarredExpression, SubscriptExpression, VariableExpression,
     _assign_variables_to_results)
@@ -91,11 +90,11 @@ class GroupCfgNode(CfgNode):
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
-    chained = list(
+    chained = set(
         itertools.chain(*[
             node.get_defined_and_exported_symbols() for node in self.children
         ]))
-    return set(chained)
+    return chained
 
   def pretty_print(self, indent=''):
     out = f'{super().pretty_print(indent)}\n'
@@ -132,7 +131,7 @@ class ImportCfgNode(CfgNode):
     module = self.module_loader.get_module(self.module_path)
 
     if self.as_name:
-      curr_frame[name] = module
+      curr_frame[name] = AugmentedObject(module, imported=True)
     elif '.' in self.module_path:
       # When python imports a module, it does not include information about containing packages
       # in it, so we dynamically add a structure to our module. Because we cache imported modules,
@@ -153,7 +152,7 @@ class ImportCfgNode(CfgNode):
         if obj is not None:
           try:
             ancestor_module = obj.value()
-          except AmbiguousFuzzyValueDoesntHaveSingleValueError:
+          except AmbiguousFuzzyValueError:
             pass
 
         # Module importing is kind of funny. Essentially, when importing a path like `import a.b.c`
@@ -170,13 +169,15 @@ class ImportCfgNode(CfgNode):
               members={})
 
         if last_module:
-          last_module.add_members({name: ancestor_module})
+          last_module.add_members(
+              {name: AugmentedObject(ancestor_module, imported=True)})
         else:
           root_module = ancestor_module
         last_module = ancestor_module
 
-      last_module.add_members({ancestor_module_hierarchy[-1]: module})
-      curr_frame[root_module.name] = root_module
+      last_module[ancestor_module_hierarchy[-1]] = AugmentedObject(
+          module, imported=True)
+      curr_frame[root_module.name] = AugmentedObject(root_module, imported=True)
     else:  # Free module - e.g. import a.
       # If this package has been partially imported, bring in the members that have been imported
       # already.
@@ -185,7 +186,7 @@ class ImportCfgNode(CfgNode):
         for name, member in curr_frame[name].get_members().items():
           module.set_attribute(name, member)
 
-      curr_frame[module.name] = module
+      curr_frame[module.name] = AugmentedObject(module, imported=True)
     collector.add_module_import(module.name, self.as_name)
 
   @instance_memoize
@@ -224,17 +225,17 @@ class FromImportCfgNode(CfgNode):
       module = self.module_loader.get_module(self.module_path)
       # Python does not include private members when importing with star.
       for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
-        curr_frame[name] = pobject
+        curr_frame[name] = AugmentedObject(pobject, imported=True)
       return
 
     # Normal case.
     name = self.as_name if self.as_name else self.from_import_name
 
     pobject = LazyObject(
-        f'{self.module_path}.{self.from_import_name}', lambda:
-        AugmentedObject(
+        f'{self.module_path}.{self.from_import_name}',
+        lambda: 
             self.module_loader.get_pobject_from_module(self.module_path, self.
-                                                       from_import_name)))
+                                                       from_import_name), imported=True)
     curr_frame[name] = pobject
 
   @instance_memoize
@@ -464,7 +465,7 @@ class ExceptCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    out = set(self.suite.get_non_local_symbols())
+    out = set(self.suite.get_non_local_symbols()).union(self.exceptions.get_used_free_symbols())
     if self.exception_variable:
       out.discard(self.exception_variable.name)
     return out

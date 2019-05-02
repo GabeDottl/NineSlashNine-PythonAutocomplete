@@ -20,7 +20,7 @@ from typing import Dict, Iterable
 
 import attr
 
-from autocomplete.code_understanding.typing import serialization
+from autocomplete.code_understanding.typing import collector, serialization
 from autocomplete.code_understanding.typing.errors import (
     LoadingModuleAttributeError, NoDictImplementationError,
     SourceAttributeError, UnableToReadModuleFileError)
@@ -76,9 +76,12 @@ class Namespace:
     return name in self
 
   def get_attribute(self, name):
-    return self[name]
+    out = self[name]
+    assert isinstance(out, PObject)
+    return out
 
   def set_attribute(self, name, value):
+    assert isinstance(value, PObject)
     self[name] = value
 
 
@@ -305,6 +308,10 @@ class LazyModule(ModuleImpl):
     super().__setitem__(name, value)
 
   @_lazy_load
+  def get_members(self):
+    return super().get_members()
+
+  @_lazy_load
   def items(self):
     return super().items()
 
@@ -448,7 +455,8 @@ class FunctionImpl(Function):
     new_frame._locals.update(bound_locals)
 
     self._process_args(args, kwargs, new_frame)
-    self.graph.process(new_frame)
+    with collector.FileContext(self._module.filename):
+      self.graph.process(new_frame)
 
     return new_frame.get_returns()
 

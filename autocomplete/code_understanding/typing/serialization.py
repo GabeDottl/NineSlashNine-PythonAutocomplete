@@ -35,7 +35,6 @@ def deserialize(type_str, serialized_obj, hook_fn=None):
     return type_(**d)
 
   return type_(serialized_obj)
-  # raise NotImplementedError()
 
 
 def serialize(obj, hook_fn=None, **kwargs):
