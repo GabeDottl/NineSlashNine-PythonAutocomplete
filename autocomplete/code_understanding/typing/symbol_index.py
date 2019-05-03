@@ -131,8 +131,13 @@ class SymbolIndex:
     file_index = len(self.normal_module_list)
     try:
       module = module_loader.get_module_from_filename('__main__', filename, lazy=False)
+      if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
+        info(f'Failed on {filename} - unreadable')
+        self.failed_files.add(filename)
+        return
+
       self.add_module(module, file_index)
-    except OSError:  #Exception as e:
+    except Exception as e:
       info(f'Failed on {filename}: {e}')
       self.failed_files.add(filename)
     else:

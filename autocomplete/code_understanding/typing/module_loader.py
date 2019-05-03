@@ -72,7 +72,7 @@ def get_module(name: str, unknown_fallback=True, lazy=True) -> Module:
   return _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy)
 
 
-def get_module_from_filename(name, filename, is_package=False, unknown_fallback=False, lazy=True) -> Module:
+def get_module_from_filename(name, filename, is_package=False, unknown_fallback=True, lazy=True) -> Module:
   filename = os.path.abspath(filename)  # Ensure its absolute.
   return _get_module_internal(name,
                               filename,
