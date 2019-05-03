@@ -67,22 +67,23 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   return UnknownObject(full_pobject_name, imported=True)
 
 
-def get_module(name: str, unknown_fallback=True, lazy=True) -> Module:
-  filename, is_package, module_type = _module_info_from_name(name)
-  return _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy)
+def get_module(name: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
+  filename, is_package, module_type = get_module_info_from_name(name)
+  return _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy, include_graph)
 
 
-def get_module_from_filename(name, filename, is_package=False, unknown_fallback=True, lazy=True) -> Module:
+def get_module_from_filename(name, filename, is_package=False, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   filename = os.path.abspath(filename)  # Ensure its absolute.
   return _get_module_internal(name,
                               filename,
                               is_package,
                               _module_type_from_filename(filename),
                               unknown_fallback=unknown_fallback,
-                              lazy=lazy)
+                              lazy=lazy,
+                              include_graph=include_graph)
 
 
-def _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy):
+def _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy, include_graph):
   if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
     if unknown_fallback:
       return _create_empty_module(name, module_type)
@@ -102,7 +103,8 @@ def _get_module_internal(name, filename, is_package, module_type, unknown_fallba
                                                                      is_package,
                                                                      module_type,
                                                                      unknown_fallback=unknown_fallback,
-                                                                     lazy=lazy)
+                                                                     lazy=lazy,
+                                                                     include_graph=include_graph)
     return out
 
   assert filename is not None and os.path.exists(filename)
@@ -135,7 +137,8 @@ def _get_module_internal(name, filename, is_package, module_type, unknown_fallba
                                          is_package,
                                          module_type,
                                          unknown_fallback=unknown_fallback,
-                                         lazy=lazy)
+                                         lazy=lazy,
+                                         include_graph=include_graph)
   assert module is not None
   debug(f'Adding {filename} to module dict.')
   # Note: This will essentially stop us from storing modules which are unreadable because they are
@@ -145,7 +148,7 @@ def _get_module_internal(name, filename, is_package, module_type, unknown_fallba
   return module
 
 
-def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
+def _module_exports_from_source(module, source, filename, return_graph=False) -> Dict[str, PObject]:
   with FileContext(filename):
     debug(f'len(__loaded_paths): {len(__loaded_paths)}')
     a_frame = frame.Frame(module=module, namespace=module, locals=module._members)
@@ -153,6 +156,8 @@ def _module_exports_from_source(module, source, filename) -> Dict[str, PObject]:
     graph.process(a_frame)
   # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
   # when running, so we through them in anyway for the heck of it.
+  if return_graph:
+    return a_frame._locals, graph
   return a_frame._locals
 
 
@@ -177,20 +182,24 @@ def _get_module_stub_source_filename(name) -> str:
   raise ValueError(f'Did not find typeshed for {name}')
 
 
-def load_module_from_source(source):
+def load_module_from_source(source, include_graph=False):
   module = create_main_module()
-  module._members = _module_exports_from_source(module, source, filename='__main__')
+  if include_graph:
+    module._members, graph = _module_exports_from_source(module, source, filename='__main__', return_graph=True)
+    module.graph = graph
+  else:
+    module._members = _module_exports_from_source(module, source, filename='__main__')
   return module
 
 
-def _load_module_exports_from_filename(module, filename):
+def _load_module_exports_from_filename(module, filename, return_graph=False):
   try:
     with open(filename) as f:
       source = ''.join(f.readlines())
     info(f'Loading {filename}')
     assert filename not in __loaded_paths
     __loaded_paths.add(filename)
-    return _module_exports_from_source(module, source, filename)
+    return _module_exports_from_source(module, source, filename, return_graph=return_graph)
   except UnicodeDecodeError as e:
     warning(f'{filename}: {e}')
     raise UnableToReadModuleFileError(e)
@@ -225,7 +234,7 @@ def _relative_path_from_relative_module(name):
   return f'{relative_prefix}{remaining_name.replace(".", os.sep)}'
 
 
-def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
+def get_module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   try:
     stub_filename, is_package = _get_module_stub_source_filename(name)
     module_type = ModuleType.PUBLIC if 'third_party' in stub_filename else ModuleType.SYSTEM
@@ -271,10 +280,10 @@ def _module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
 
-def _load_module(name: str, unknown_fallback=True, lazy=True) -> Module:
+def _load_module(name: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   debug(f'Loading module: {name}')
-  filename, is_package, module_type = _module_info_from_name(name)
-  return _load_module_from_module_info(name, filename, is_package, module_type, unknown_fallback, lazy)
+  filename, is_package, module_type = get_module_info_from_name(name)
+  return _load_module_from_module_info(name, filename, is_package, module_type, unknown_fallback, lazy, include_graph)
 
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
@@ -307,7 +316,8 @@ def _load_module_from_module_info(name: str,
                                   is_package,
                                   module_type,
                                   unknown_fallback=True,
-                                  lazy=True) -> Module:
+                                  lazy=True,
+                                  include_graph=False) -> Module:
   if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
     if unknown_fallback:
       return _create_empty_module(name, module_type)
@@ -326,7 +336,7 @@ def _load_module_from_module_info(name: str,
                           module_type,
                           filename=filename,
                           native_module=NativeObject(python_module, read_only=True))
-  return _load_module_from_filename(name, filename, is_package=is_package, module_type=module_type, lazy=lazy)
+  return _load_module_from_filename(name, filename, is_package=is_package, module_type=module_type, lazy=lazy, include_graph=include_graph)
 
 
 def _is_init(filename):
@@ -340,13 +350,15 @@ def _load_module_from_filename(name,
                                is_package,
                                module_type=ModuleType.SYSTEM,
                                unknown_fallback=False,
-                               lazy=True) -> Module:
+                               lazy=True,
+                               include_graph=False) -> Module:
   if not os.path.exists(filename):
     if not unknown_fallback:
       raise InvalidModuleError(filename)
     return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   if lazy:
-    return _create_lazy_module(name, filename, is_package=is_package, module_type=module_type)
+    return _create_lazy_module(name, filename, is_package=is_package, module_type=module_type,
+                               include_graph=include_graph)
 
   module = ModuleImpl(name=name,
                       module_type=module_type,
@@ -354,7 +366,10 @@ def _load_module_from_filename(name,
                       members={},
                       is_package=is_package)
   try:
-    module._members = _load_module_exports_from_filename(module, filename)
+    if include_graph:
+      module._members, module.graph = _load_module_exports_from_filename(module, filename, include_graph)
+    else:
+      module._members = _load_module_exports_from_filename(module, filename)
   except UnableToReadModuleFileError:
     if not unknown_fallback:
       raise InvalidModuleError(filename)
@@ -362,12 +377,13 @@ def _load_module_from_filename(name,
   return module
 
 
-def _create_lazy_module(name, filename, is_package, module_type) -> LazyModule:
+def _create_lazy_module(name, filename, is_package, module_type, include_graph) -> LazyModule:
   return LazyModule(name=name,
                     module_type=module_type,
                     filename=filename,
                     load_module_exports_from_filename=_load_module_exports_from_filename,
-                    is_package=is_package)
+                    is_package=is_package,
+                    keep_graph=include_graph)
 
 
 def _create_empty_module(name, module_type):

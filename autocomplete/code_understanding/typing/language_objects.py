@@ -109,6 +109,7 @@ class Module(Namespace, LanguageObject, ABC):
   module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib()
   filename = attr.ib(kw_only=True)
+  graph = attr.ib(None, kw_only=True)
 
   def add_members(self, members):
     self._members.update(members)
@@ -124,6 +125,7 @@ class NativeModule(Module):
   filename = attr.ib(kw_only=True)
   _native_module: NativeObject = attr.ib(kw_only=True)
   _members: Dict = attr.ib(init=False, default=None)  # TODO: Remove.
+  graph = attr.ib(None, init=False)
 
   def __contains__(self, name):
     return self._native_module.has_attribute(name)
@@ -172,6 +174,7 @@ class ModuleImpl(Module):
   filename = attr.ib(kw_only=True)
   _is_package = attr.ib(kw_only=True)
   _members: Dict = attr.ib(kw_only=True)
+  graph = attr.ib(None, kw_only=True)
 
   def __attrs_post_init__(self):
     self._members['__package__'] = self._members['__name__'] = pobject_from_object(self.name)
@@ -229,6 +232,8 @@ class LazyModule(ModuleImpl):
   _loading = attr.ib(init=False, default=False)
   _loading_failed = attr.ib(init=False, default=False)
   _members: Dict = attr.ib(init=False, factory=dict)
+  keep_graph = attr.ib(False, kw_only=True)
+  graph = attr.ib(None, init=False)
 
   def _lazy_load(func):
     @wraps(func)
@@ -260,7 +265,10 @@ class LazyModule(ModuleImpl):
 
     self._loading = True
     try:
-      new_members = self.load_module_exports_from_filename(self, self.filename)
+      if self.keep_graph:
+        new_members, self.graph = self.load_module_exports_from_filename(self, self.filename, return_graph=True)
+      else:
+        new_members = self.load_module_exports_from_filename(self, self.filename)
     except UnableToReadModuleFileError:
       error(f'Unable to lazily load {self.filename}')
     else:

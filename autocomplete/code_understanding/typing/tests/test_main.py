@@ -4,7 +4,7 @@ from glob import glob
 
 import parso
 
-from autocomplete.code_understanding.typing import (control_flow_graph, module_loader)
+from autocomplete.code_understanding.typing import (control_flow_graph, control_flow_graph_nodes, module_loader)
 # from autocomplete.code_understanding.typing.api import modulefrom_source
 from autocomplete.code_understanding.typing.language_objects import (Function, Instance, Klass, Module)
 from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
@@ -31,7 +31,9 @@ import hob.dob as blob
 from functools import wraps
 from importlib.util import find_spec
 from x.y.z import (q, r as s)'''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, include_graph=True)
+  imports = module.graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode, control_flow_graph_nodes.FromImportCfgNode))
+  assert len(list(imports)) == 9
   assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
   assert 'tensorflow' in module and isinstance(module['tensorflow'].value(), Module)
   assert 'pytorch' in module and isinstance(module['pytorch'].value(), Module)

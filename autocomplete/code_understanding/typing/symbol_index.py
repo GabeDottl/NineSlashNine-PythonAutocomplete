@@ -71,6 +71,7 @@ class SymbolIndex:
   files_added = attr.ib(0, init=False)
   path = attr.ib(None, init=False)
 
+
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
@@ -110,6 +111,44 @@ class SymbolIndex:
   def save(self, filename):
     with open(filename, 'wb') as f:
       msgpack.pack(self, f, default=SymbolIndex._serialize, use_bin_type=True)
+
+  @staticmethod
+  def build_index(target_index_filename):
+    index = SymbolIndex()
+    index.path = target_index_filename
+    for path in sys.path:
+      index.add_path(path, ignore_init=True)
+    return index
+
+  @staticmethod
+  def build_index_from_package(target_index_filename, package_path):
+    index = SymbolIndex()
+    index.path = target_index_filename
+    index.add_path(package_path, ignore_init=True)
+    # TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
+    # get_imported_modules from each module in package, add import to module_reference_map.
+    for module_name, value in index.module_reference_map.items():
+      self.add_module_by_name(module_name)
+      
+    return index
+
+  def add_module_by_name(self, module_name):
+    filename, is_package, package_type = module_loader.get_module_info_from_name(key)
+    if filename in self.normal_module_list:
+      return  # Already added.
+    if package_type == language_objects.ModuleType.BUILTIN:
+      if module_name in self.native_module_list:
+        return  # Already loaded.
+    if package_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
+      info(f'Cannot load: {module_name}')
+      return
+
+    if os.path.exists(filename):
+      self.add_file(filename)
+    else:
+      module = module_loader.get_module(module_name, lazy=False)
+      self.add_module(module)
+
 
   def add_path(self, path, ignore_init=False, include_private_files=False):
     if not os.path.exists(path):
@@ -158,14 +197,9 @@ class SymbolIndex:
       except errors.AmbiguousFuzzyValueError:
         self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, file_index))
 
-  @staticmethod
-  def build_index(path):
-    index = SymbolIndex()
-    index.path = path
-    for path in sys.path:
-      index.add_path(path, ignore_init=True)
-    return index
-
+def get_imported_modules(graph):
+  import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode, control_flow_graph_nodes.FromImportCfgNode))
+  return set([node.module_path for node in import_nodes])
 
 def _should_scan_file(filename, include_private_files):
   if include_private_files:

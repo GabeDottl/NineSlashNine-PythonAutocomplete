@@ -64,6 +64,9 @@ class CfgNode(ABC):
     this will generally include all of their assignments.
     '''
 
+  def get_descendents_of_types(self, type_):
+    return []
+
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}'
 
@@ -104,6 +107,9 @@ class GroupCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     chained = set(itertools.chain(*[node.get_defined_and_exported_symbols() for node in self.children]))
     return chained
+
+  def get_descendents_of_types(self, type_):
+    return itertools.chain(filter(lambda x: isinstance(x, type_), self.children), *[c.get_descendents_of_types(type_) for c in self.children])
 
   def pretty_print(self, indent=''):
     out = f'{super().pretty_print(indent)}\n'
@@ -323,6 +329,10 @@ class ForCfgNode(CfgNode):
     return set(self.loop_variables.get_used_free_symbols()).union(
         set(self.suite.get_defined_and_exported_symbols())).union(self.else_suite.get_defined_and_exported_symbols())
 
+  def get_descendents_of_types(self, type_):
+    return itertools.chain(self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
+
+
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
@@ -349,6 +359,9 @@ class WhileCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.suite.get_defined_and_exported_symbols()).union(
         set(self.else_suite.get_defined_and_exported_symbols()))
+
+  def get_descendents_of_types(self, type_):
+    return itertools.chain(self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}\n{indent}Else\n{self.else_suite.pretty_print(indent=indent+"  ")}'
@@ -384,6 +397,9 @@ class WithCfgNode(CfgNode):
           set(self.suite.get_defined_and_exported_symbols()))
     return set(self.suite.get_defined_and_exported_symbols())
 
+  def get_descendents_of_types(self, type_):
+    return self.suite.get_descendents_of_types(type_)
+
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
@@ -417,6 +433,10 @@ class TryCfgNode(CfgNode):
             node.get_defined_and_exported_symbols()
             for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
         ]))
+
+  def get_descendents_of_types(self, type_):
+    return itertools.chain(self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_),self.finally_suite.get_descendents_of_types(type_))
+
 
   def pretty_print(self, indent=''):
     out = f'{indent}Try\n{self.suite.pretty_print(indent+"  ")}'
@@ -466,6 +486,9 @@ class ExceptCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.suite.get_defined_and_exported_symbols()
 
+  def get_descendents_of_types(self, type_):
+    return self.suite.get_descendents_of_types(type_)
+
   def pretty_print(self, indent=''):
     return f'{indent}except {self.exceptions} as {self.exception_variable}\n{self.suite.pretty_print(indent+"  ")}'
 
@@ -504,6 +527,9 @@ class IfCfgNode(CfgNode):
     for _, node in self.expression_node_tuples:
       out = out.union(node.get_defined_and_exported_symbols())
     return out
+
+  def get_descendents_of_types(self, type_):
+    return itertools.chain(*[c.get_descendents_of_types(type_) for e, c in self.expression_node_tuples])
 
   def pretty_print(self, indent=''):
     out = f'{indent}{type(self)}\n'
@@ -560,6 +586,10 @@ class KlassCfgNode(CfgNode):
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
+
+  def get_descendents_of_types(self, type_):
+    return self.suite.get_descendents_of_types(type_)
+
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
@@ -652,6 +682,9 @@ class FuncCfgNode(CfgNode):
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
+
+  def get_descendents_of_types(self, type_):
+    return self.suite.get_descendents_of_types(type_)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
