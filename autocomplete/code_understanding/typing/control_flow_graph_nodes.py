@@ -31,6 +31,12 @@ class ParseNode:
   col_offset: int = attr.ib()
   native_node: int = attr.ib(None)
 
+  def get_code(self):
+    if hasattr(self.native_node, 'get_code'):
+      return self.native_node.get_code()
+    import astor
+    return astor.to_source(self.native_node)
+
 
 class CfgNode(ABC):
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
@@ -106,7 +112,7 @@ class GroupCfgNode(CfgNode):
 
 @attr.s(slots=True)
 class ExpressionCfgNode(CfgNode):
-  expression: Expression = attr.ib()
+  expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
@@ -248,7 +254,7 @@ class FromImportCfgNode(CfgNode):
 
 @attr.s(slots=True)
 class NoOpCfgNode(CfgNode):
-  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
+  parse_node = attr.ib(None)
 
   def _process_impl(self, curr_frame):
     pass
@@ -280,8 +286,8 @@ class AssignmentStmtCfgNode(CfgNode):
 
   def _to_str(self):
     out = []
-    if self.parse_node.native_node.get_code():
-      out.append(f'{self.__class__.__name__}: {self.parse_node.native_node.get_code()}')
+    if self.parse_node.get_code():
+      out.append(f'{self.__class__.__name__}: {self.parse_node.get_code()}')
     return '\n'.join(out)
 
   @instance_memoize
@@ -300,6 +306,7 @@ class ForCfgNode(CfgNode):
   loop_expression: Expression = attr.ib()
   suite: 'GroupCfgNode' = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
+  else_suite: 'GroupCfgNode' = attr.ib(factory=NoOpCfgNode)  # TODO: Remove default
 
   def _process_impl(self, curr_frame):
     _assign_variables_to_results(curr_frame, self.loop_variables, self.loop_expression.evaluate(curr_frame))
@@ -314,7 +321,7 @@ class ForCfgNode(CfgNode):
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.loop_variables.get_used_free_symbols()).union(
-        set(self.suite.get_defined_and_exported_symbols()))
+        set(self.suite.get_defined_and_exported_symbols())).union(self.else_suite.get_defined_and_exported_symbols())
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
@@ -448,7 +455,9 @@ class ExceptCfgNode(CfgNode):
 
   @instance_memoize
   def get_non_local_symbols(self) -> Iterable[str]:
-    out = set(self.suite.get_non_local_symbols()).union(self.exceptions.get_used_free_symbols())
+    out = set(self.suite.get_non_local_symbols())
+    if self.exceptions:
+      out = out.union(self.exceptions.get_used_free_symbols())
     if self.exception_variable:
       out.discard(self.exception_variable.name)
     return out

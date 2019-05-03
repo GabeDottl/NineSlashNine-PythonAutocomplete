@@ -7,6 +7,7 @@ import _ast
 from autocomplete.code_understanding.typing import errors
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import *  # Temporary.
 from autocomplete.code_understanding.typing.expressions import *  # Temporary.
+from autocomplete.code_understanding.typing.language_objects import *  # Temporary.
 from autocomplete.nsn_logging import warning
 
 
@@ -21,9 +22,10 @@ class AstControlFlowGraphBuilder:
       ast_node = ast.parse(source)
     except SyntaxError as e:
       raise errors.AstUnableToParse(e)
-    visitor = Visitor(module=self._module, container_stack=[])
+    visitor = Visitor(self.module_loader, module=self._module, container_stack=[])
     visitor.visit(ast_node)
     return visitor.root
+
 
 @attr.s
 class ListPopper:
@@ -41,122 +43,220 @@ class ListPopper:
 # https://docs.python.org/3/library/ast.html#abstract-grammar
 @attr.s
 class Visitor(ast.NodeVisitor):
+  module_loader = attr.ib()
   _module = attr.ib()
   _container_stack = attr.ib(factory=list)
   root = attr.ib(None, init=False)
+  _containing_func_node = None
+
+  def new_group(self):
+    group = GroupCfgNode()
+    self.push(group)
+    return ListPopper(self._container_stack, group.children)
 
   def generic_visit(self, ast_node):
+    # TODO: verify if this is actually necessary - in theory, all should be wrapped in Expression.
     if isinstance(ast_node, EXPRESSIONS_TUPLE):
-      return ExpressionCfgNode(expression_from_node(ast_node))
+      return ExpressionCfgNode(expression_from_node(ast_node), parse_node=parse_from_ast(ast_node))
     super().generic_visit(ast_node)
 
   def visit_Module(self, ast_node):
     assert not self.root
-    self.root = GroupCfgNode()
+    self.root = self._group_from_body(ast_node.body)
     # with self.container_context(self.root):
-    with ListPopper(self._container_stack, self.root):
-      self.generic_visit(ast_node)
+    # with ListPopper(self._container_stack, self.root.children):
+    #   self.visit(ast_node)
     # self._container_stack.pop()
     assert not self._container_stack
 
   def visit_Interactive(self, ast_node):
-    # stmt* body)
-    self.generic_visit(ast_node)
+    self.push(self._group_from_body(ast_node))
 
   def visit_Expression(self, ast_node):
-    # expr body)
-    self.generic_visit(ast_node)
+    # expr body
+    self.push(ExpressionCfgNode(expression_from_node(ast_node.body), parse_node=parse_from_ast(ast_node)))
+
+  def visit_FunctionDef(self, ast_node):
+    # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
+    suite = GroupCfgNode()
+    old_containing_func = self._containing_func_node
+    out = FuncCfgNode(ast_node.name,
+                      parameters_from_arguments(ast_node.args),
+                      suite,
+                      module=self._module,
+                      containing_func_node=old_containing_func,
+                      parse_node=parse_from_ast(ast_node))
+    self._containing_func_node = out
+    with ListPopper(self._container_stack, suite.children):
+      for stmt in ast_node.body:
+        self.visit(stmt)
+    self._containing_func_node = old_containing_func
+    self.push(out)
+
+  def visit_AsyncFunctionDef(self, ast_node):
+    # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
+    self.visit_FunctionDef(ast_node)
+
+  def visit_ClassDef(self, ast_node):
+    # (identifier name, expr* bases, keyword* keywords, stmt* body, expr* decorator_list)
+    # TODO: Base classes.
+    suite = GroupCfgNode()
+    with ListPopper(self._container_stack, suite.children):
+      for stmt in ast_node.body:
+        self.visit(stmt)
+    self.push(KlassCfgNode(ast_node.name, suite, module=self._module, parse_node=parse_from_ast(ast_node)))
+
+  def visit_Return(self, ast_node):
+    # (expr? value)
+    self.push(
+        ReturnCfgNode(expression_from_node(ast_node.value), parse_node=parse_from_ast(ast_node)))
+
+  def visit_Delete(self, ast_node):
+    # (expr* targets)
+    # TODO
+    with self.new_group():
+      for expr in ast_node.targets:
+        self.push(ExpressionCfgNode(expression_from_node(expr), parse_node=parse_from_ast(ast_node)))
 
   def visit_Assign(self, ast_node):
-    self._container_stack[-1].children.append(
+    self.push(
         AssignmentStmtCfgNode(variables_from_targets(ast_node.targets),
                               '=',
                               expression_from_node(ast_node.value),
                               parse_node=parse_from_ast(ast_node)))
 
-  def visit_FunctionDef(self, ast_node):
-    # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
-    self.generic_visit(ast_node)
-
-  def visit_AsyncFunctionDef(self, ast_node):
-    # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
-    self.generic_visit(ast_node)
-
-  def visit_ClassDef(self, ast_node):
-    # (identifier name, expr* bases, keyword* keywords, stmt* body, expr* decorator_list)
-    self.generic_visit(ast_node)
-
-  def visit_Return(self, ast_node):
-    # (expr? value)
-    self.generic_visit(ast_node)
-
-  def visit_Delete(self, ast_node):
-    # (expr* targets)
-    self.generic_visit(ast_node)
-
   def visit_AugAssign(self, ast_node):
     # (expr target, operator op, expr value)
-    self.generic_visit(ast_node)
+    self.push(
+        AssignmentStmtCfgNode(expression_from_node(ast_node.target),
+                              f'{operator_symbol_from_operator(ast_node.op)}=',
+                              expression_from_node(ast_node.value),
+                              parse_node=parse_from_ast(ast_node)))
 
   def visit_AnnAssign(self, ast_node):
-    # (expr target, expr annotation, expr? value, int simple)          -- 'simple' indicates that we annotate simple name without parens
-    self.generic_visit(ast_node)
+    # (expr target, expr annotation, expr? value, int simple)
+    # 'simple' indicates that we annotate simple name without parens
+    self.push(
+        AssignmentStmtCfgNode(expression_from_node(ast_node.target),
+                              '=',
+                              expression_from_node(ast_node.value),
+                              parse_node=parse_from_ast(ast_node)))
+
+  def _group_from_body(self, body):
+    suite = GroupCfgNode()
+    with ListPopper(self._container_stack, suite.children):
+      for stmt in body:
+        self.visit(stmt)
+    return suite
 
   def visit_For(self, ast_node):
     # (expr target, expr iter, stmt* body, stmt* orelse) # use 'orelse' because else is a keyword in target languages
-    self.generic_visit(ast_node)
+    suite = self._group_from_body(ast_node.body)
+    else_suite = self._group_from_body(ast_node.orelse)
+    self.push(
+        ForCfgNode(expression_from_node(ast_node.target), expression_from_node(ast_node.iter), suite,
+                   else_suite=else_suite, parse_node=parse_from_ast(ast_node)))
 
   def visit_AsyncFor(self, ast_node):
     # (expr target, expr iter, stmt* body, stmt* orelse)
-    self.generic_visit(ast_node)
+    self.visit_For(ast_node)
 
   def visit_While(self, ast_node):
     # (expr test, stmt* body, stmt* orelse)
-    self.generic_visit(ast_node)
+    suite = self._group_from_body(ast_node.body)
+    else_suite = self._group_from_body(ast_node.orelse)
+    self.push(WhileCfgNode(expression_from_node(ast_node.test), suite, else_suite, parse_node=parse_from_ast(ast_node)))
+
+  def test_suite_from_if(self, ast_node):
+    suite = self._group_from_body(ast_node.body)
+    return expression_from_node(ast_node.test), suite
 
   def visit_If(self, ast_node):
     # (expr test, stmt* body, stmt* orelse)
-    self.generic_visit(ast_node)
+    test_expression_tuples = [self.test_suite_from_if(ast_node)]
+    for stmt in ast_node.orelse:
+      if isinstance(stmt, _ast.If):
+        test_expression_tuples.append(self.test_suite_from_if(stmt))
+      else:
+        suite = GroupCfgNode()
+        with ListPopper(self._container_stack, suite.children):
+          self.visit(stmt)
+        test_expression_tuples.append((LiteralExpression(True), suite))
+
+    self.push(IfCfgNode(test_expression_tuples, parse_node=parse_from_ast(ast_node)))
+
+  def push(self, cfg_node):
+    self._container_stack[-1].append(cfg_node)
 
   def visit_With(self, ast_node):
     # (withitem* items, stmt* body)
-    self.generic_visit(ast_node)
+    # withitem = (expr context_expr, expr? optional_vars)
+    suite = self._group_from_body(ast_node.body)
+    # TODO: This is rather broken.
+    with_exprs = []
+    as_exprs = []
+    for withitem in ast_node.items:
+      with_exprs.append(expression_from_node(withitem.context_expr))
+      if withitem.optional_vars:
+        as_exprs.append(expression_from_node(withitem.optional_vars))
+    self.push(
+        WithCfgNode(ItemListExpression(with_exprs),
+                    ItemListExpression(as_exprs),
+                    suite,
+                    parse_node=parse_from_ast(ast_node)))
 
   def visit_AsyncWith(self, ast_node):
-    # (withitem* items, stmt* body)
-    self.generic_visit(ast_node)
+    self.visit_With(ast_node)
 
   def visit_Raise(self, ast_node):
     # (expr? exc, expr? cause)
+    # TODO
     self.generic_visit(ast_node)
 
   def visit_Try(self, ast_node):
     # (stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
-    self.generic_visit(ast_node)
+    # excepthandler = ExceptHandler(expr? type, identifier? name, stmt* body)
+    suite = self._group_from_body(ast_node.body)
+    else_suite = self._group_from_body(ast_node.orelse)
+    finally_suite = self._group_from_body(ast_node.finalbody)
+    except_nodes = []
+    for except_handler in ast_node.handlers:
+      except_nodes.append(
+          ExceptCfgNode(expression_from_node(except_handler.type) if except_handler.type else None, VariableExpression(except_handler.name) if except_handler.name else None,
+                        self._group_from_body(except_handler.body)))
+
+    self.push(TryCfgNode(suite, except_nodes, else_suite, finally_suite))
 
   def visit_Assert(self, ast_node):
     # (expr test, expr? msg)
-    self.generic_visit(ast_node)
+    # TODO
+    self.push(ExpressionCfgNode(expression_from_node(ast_node.test), parse_node=parse_from_ast(ast_node)))
 
   def visit_Import(self, ast_node):
     # (alias* names)
-    self.generic_visit(ast_node)
+    # alias = (identifier name, identifier? asname)
+    for alias in ast_node.names:
+      self.push(ImportCfgNode(alias.name, as_name=alias.asname, module_loader=self.module_loader, parse_node=parse_from_ast(ast_node)))
 
   def visit_ImportFrom(self, ast_node):
     # (identifier? module, alias* names, int? level)
-    self.generic_visit(ast_node)
+    # alias = (identifier name, identifier? asname)
+    for alias in ast_node.names:
+      self.push(FromImportCfgNode(ast_node.module if ast_node.module else '.', alias.name, as_name=alias.asname, module_loader=self.module_loader, parse_node=parse_from_ast(ast_node)))
 
   def visit_Global(self, ast_node):
     # (identifier* names)
+    # TODO
     self.generic_visit(ast_node)
 
   def visit_Nonlocal(self, ast_node):
     # (identifier* names)
+    # TODO
     self.generic_visit(ast_node)
 
   def visit_Expr(self, ast_node):
     # (expr value)
-    self.generic_visit(ast_node)
+    self.push(ExpressionCfgNode(expression_from_node(ast_node.value), parse_node=parse_from_ast(ast_node)))
 
   # def visit_Pass(self, ast_node):
   #   self.generic_visit(ast_node)
@@ -166,6 +266,29 @@ class Visitor(ast.NodeVisitor):
 
   # def visit_Continue(self, ast_node):
   #   self.generic_visit(ast_node)
+
+
+def parameters_from_arguments(arguments):
+  # arguments = (arg* args, arg? vararg, arg* kwonlyargs, expr* kw_defaults,
+  #                arg? kwarg, expr* defaults)
+  # arg = (identifier arg, expr? annotation)
+  #         attributes (int lineno, int col_offset)
+  out = []
+  arg_iter = iter(arguments.args)
+  for arg, default in zip(arg_iter, arguments.defaults):
+    out.append(Parameter(arg.arg, ParameterType.SINGLE, default_expression=expression_from_node(default)))
+  for arg in arg_iter:
+    out.append(Parameter(arg.arg, ParameterType.SINGLE))
+  if arguments.vararg:
+    out.append(Parameter(arguments.vararg.arg, ParameterType.ARGS))
+  kwarg_iter = iter(arguments.kwonlyargs)
+  for arg, default in zip(kwarg_iter, arguments.kw_defaults):
+    out.append(Parameter(arg.arg, ParameterType.SINGLE, default_expression=expression_from_node(default)))
+  for arg in arg_iter:
+    out.append(Parameter(arg.arg, ParameterType.SINGLE))
+  if arguments.kwarg:
+    out.append(Parameter(arguments.kwarg.arg, ParameterType.KWARGS))
+  return out
 
 
 def variables_from_targets(ast_nodes):
@@ -180,10 +303,13 @@ EXPRESSIONS_TUPLE = (_ast.BoolOp, _ast.BinOp, _ast.UnaryOp, _ast.Lambda, _ast.If
 
 
 def expression_from_node(ast_node):
+  if ast_node is None:
+    return LiteralExpression(None)
+
   assert isinstance(ast_node, EXPRESSIONS_TUPLE)
   if isinstance(ast_node, _ast.BoolOp):
     # (boolop op, expr* values)
-    expression_from_boolop(ast_node)
+    return expression_from_boolop(ast_node)
   if isinstance(ast_node, _ast.BinOp):
     # (expr left, operator op, expr right)
     return expression_from_binop(ast_node)
@@ -209,32 +335,31 @@ def expression_from_node(ast_node):
   if isinstance(ast_node, _ast.ListComp):
     # (expr elt, comprehension* generators)
     return ForComprehensionExpression(expression_from_node(ast_node.elt),
-                                      for_comprehension_from_comprehensions(ast_node.comprehensions))
+                                      for_comprehension_from_comprehensions(ast_node.generators))
   if isinstance(ast_node, _ast.SetComp):
     # (expr elt, comprehension* generators)
     return SetExpression([
         ForComprehensionExpression(expression_from_node(ast_node.elt),
-                                   for_comprehension_from_comprehensions(ast_node.comprehensions))
+                                   for_comprehension_from_comprehensions(ast_node.generators))
     ])
   if isinstance(ast_node, _ast.DictComp):
     # (expr key, expr value, comprehension* generators)
     return DictExpression([
         KeyValueForComp(expression_from_node(ast_node.key), expression_from_node(ast_node.value),
-                        for_comprehension_from_comprehensions(ast_node.comprehensions))
+                        for_comprehension_from_comprehensions(ast_node.generators))
     ])
   if isinstance(ast_node, _ast.GeneratorExp):
     # (expr elt, comprehension* generators)
     return ForComprehensionExpression(expression_from_node(ast_node.elt),
-                                      for_comprehension_from_comprehensions(ast_node.comprehensions))
+                                      for_comprehension_from_comprehensions(ast_node.generators))
   if isinstance(ast_node, _ast.Await):
     # (expr value)
     # TODO
-    return expression_from_node(ast_node)
+    return expression_from_node(ast_node.value)
   if isinstance(ast_node, _ast.Yield):
     # (expr? value)
-    if hasattr(ast_node, 'value'):
+    if ast_node.value:  # hasattr(ast_node, 'value'):
       return expression_from_node(ast_node.value)
-    import astor
     return UnknownExpression(astor.to_source(ast_node))
   if isinstance(ast_node, _ast.YieldFrom):
     # (expr value)
@@ -265,7 +390,7 @@ def expression_from_node(ast_node):
     return expression_from_node(ast_node.value)
   if isinstance(ast_node, _ast.JoinedStr):
     # (expr* values) # TODO: ???
-    return ItemListExpression([expression_from_node(node) in ast_node.values])
+    return ItemListExpression([expression_from_node(node) for node in ast_node.values])
   if isinstance(ast_node, _ast.Bytes):
     # (bytes s)  # TODO: parso.
     return LiteralExpression(ast_node.s)
@@ -286,7 +411,7 @@ def expression_from_node(ast_node):
     return SubscriptExpression(expression_from_node(ast_node.value), expression_from_slice(ast_node.slice))
   if isinstance(ast_node, _ast.Starred):
     # (expr value, expr_context ctx)
-    return StarredExpression('*', expression_from_node(ast_node))
+    return StarredExpression('*', expression_from_node(ast_node.value))
   if isinstance(ast_node, _ast.Name):
     # (identifier id, expr_context ctx)
     return VariableExpression(ast_node.id)
@@ -297,7 +422,6 @@ def expression_from_node(ast_node):
     # (expr* elts, expr_context ctx)
     return TupleExpression(variables_from_targets(ast_node.elts))
   warning(f'Unhandled Expression type {type(ast_node)}')
-  import astor
   return UnknownExpression(astor.to_source(ast_node))
 
 
@@ -346,7 +470,7 @@ def operator_symbol_from_operator(operator):
 
 def expression_from_binop(ast_node):
   return MathExpression(expression_from_node(ast_node.left), operator_symbol_from_operator(ast_node.op),
-                        expression_from_node(ast_node.right))
+                        expression_from_node(ast_node.right), parse_node=parse_from_ast(ast_node))
 
 
 def expression_from_unaryop(ast_node):
@@ -355,7 +479,7 @@ def expression_from_unaryop(ast_node):
   if isinstance(ast_node.op, _ast.UAdd):
     return expression_from_node(ast_node.operand)
   if isinstance(ast_node.op, _ast.USub):
-    return MathExpression(LiteralExpression(-1), '*', expression_from_node(ast_node.operand))
+    return MathExpression(LiteralExpression(-1), '*', expression_from_node(ast_node.operand), parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node.op, _ast.Invert):
     # TODO: ~a.
     return UnknownExpression(astor.to_source(ast_node))
@@ -419,11 +543,12 @@ def kwargs_from_keywords(keywords):
   #   keyword = (identifier? arg, expr value)
   kwargs = None
   out = {}
-  for arg, value in keywords:
-    if arg is None:
-      kwargs = StarredExpression('**', expression_from_node(value))
+  for keyword in keywords:
+
+    if keyword.arg is None:
+      kwargs = StarredExpression('**', expression_from_node(keyword.value))
     else:
-      out[arg] = expression_from_node(value)
+      out[keyword.arg] = expression_from_node(keyword.value)
   return kwargs, out
 
 
@@ -432,12 +557,12 @@ def expression_from_slice(ast_node):
   #         | ExtSlice(slice* dims)
   #         | Index(expr value)
   if hasattr(ast_node, 'dims'):
-    return ItemListExpression([expression_from_node(s) for s in ast_node.dims])
+    return ItemListExpression([expression_from_slice(s) for s in ast_node.dims])
   if hasattr(ast_node, 'value'):
     return expression_from_node(ast_node.value)
-  lower = expression_from_node(ast_node.lower) if hasattr(ast_node, 'lower') else None
-  upper = expression_from_node(ast_node.upper) if hasattr(ast_node, 'upper') else None
-  step = expression_from_node(ast_node.step) if hasattr(ast_node, 'step') else None
+  lower = expression_from_node(ast_node.lower) if ast_node.lower else None
+  upper = expression_from_node(ast_node.upper) if ast_node.upper else None
+  step = expression_from_node(ast_node.step) if ast_node.step else None
   return LiteralExpression(Slice(lower=lower, upper=upper, step=step))
 
 

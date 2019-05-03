@@ -35,6 +35,7 @@ from autocomplete.code_understanding.typing.expressions import (AnonymousExpress
                                                                 LiteralExpression, UnknownExpression,
                                                                 VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
+from autocomplete.code_understanding.typing import errors
 from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
 from autocomplete.nsn_logging import debug, error, info, warning
 
@@ -59,6 +60,7 @@ class ControlFlowGraphBuilder:
   def graph_from_source(self, source, module):
     try:
       builder = ast_control_flow_graph_builder.AstControlFlowGraphBuilder(self.module_loader, module)
+      builder.graph_from_source(source)
     except errors.AstUnableToParse:
       builder = parso_control_flow_graph_builder.ParsoControlFlowGraphBuilder(self.module_loader, module)
     return builder.graph_from_source(source)

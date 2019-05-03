@@ -155,6 +155,9 @@ class Frame:
     return self._module.filename
 
   def __delitem__(self, variable):
+    if isinstance(variable, str):
+      del self._locals[variable]
+      return
     assert isinstance(variable, VariableExpression)
     del self._locals[variable.name]
 
@@ -243,7 +246,7 @@ class Frame:
     filename = self._get_current_filename()
     node = collector.get_current_parse_node()
     if node:
-      code = node.native_node.get_code().strip()
+      code = node.get_code().strip()
       line = node.lineno
       # f-string doesn't like \n.
       code = code if '\n' not in code else code[:code.index("\n")] + '[Trimmed]'

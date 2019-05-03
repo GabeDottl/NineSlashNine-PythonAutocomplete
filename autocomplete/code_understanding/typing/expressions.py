@@ -139,7 +139,7 @@ def _assign_variables_to_results(curr_frame, variable, result):
     variable = variable[0]
   if not hasattr(variable, '__iter__'):
     # collector.add_variable_assignment(variable,
-    #                                   f'({parse_node.native_node.get_code().strip()})')
+    #                                   f'({parse_node.get_code().strip()})')
     assert isinstance(variable, Expression), variable
     if isinstance(variable, SubscriptExpression):
       variable.set(curr_frame, result)
@@ -468,7 +468,7 @@ class MathExpression(Expression):
     except TypeError:
       ...
     debug(f'MathExpression failed: {l}{self.operator}{r}')
-    return UnknownObject(f'{self.parse_node.native_node.get_code()}')
+    return UnknownObject(f'{self.parse_node.get_code()}')
 
   @instance_memoize
   def get_used_free_symbols(self) -> Iterable[str]:

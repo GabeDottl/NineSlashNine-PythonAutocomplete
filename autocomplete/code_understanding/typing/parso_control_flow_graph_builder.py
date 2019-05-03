@@ -39,6 +39,7 @@ class ParsoControlFlowGraphBuilder:
   module_loader = attr.ib()
   _module: 'Module' = attr.ib()
   root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
+  _containing_func_node = None
 
   def graph_from_source(self, source):
     parse_node = parso.parse(source)
@@ -155,13 +156,16 @@ class ParsoControlFlowGraphBuilder:
     # Children are: def name params : suite
     name = node.children[1].value
     parameters = parameters_from_parameters(node.children[2])
+    old_containing_func = self._containing_func_node
     out = FuncCfgNode(name,
                       parameters,
                       suite=None,
                       module=self._module,
                       containing_func_node=old_containing_func,
                       parse_node=parse_from_parso(node))
+    self._containing_func_node = out
     suite = self._create_cfg_node(node.children[-1])
+    self._containing_func_node = old_containing_func
     out.suite = suite
     return out
 

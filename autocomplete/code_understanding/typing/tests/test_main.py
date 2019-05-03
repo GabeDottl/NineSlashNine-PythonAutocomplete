@@ -157,8 +157,8 @@ def test_processing_all_typing_dir():
 
 if __name__ == '__main__':
   test_simple_assignments()
-  # test_stubs()
-  # test_classes()
-  # test_arrays()
-  # test_imports()
-  # test_processing_all_typing_dir()
+  test_stubs()
+  test_classes()
+  test_arrays()
+  test_imports()
+  test_processing_all_typing_dir()
