@@ -6,9 +6,9 @@ from functools import wraps
 from symbol import dictorsetmaker
 from typing import Dict, List, Tuple, Union
 
-import attr
 import parso
 
+import attr
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode,
     FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode,
@@ -87,52 +87,59 @@ class ParsoControlFlowGraphBuilder:
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_single_input(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_file_input(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_eval_input(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_stmt(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_simple_stmt(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_small_stmt(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_suite(self, node):
-    return GroupCfgNode(list(
-        filter(lambda x: not isinstance(x, NoOpCfgNode),
-               [self._create_cfg_node(child) for child in node.children])),
-                        parse_node=parse_from_parso(node))
+    return GroupCfgNode(
+        list(
+            filter(lambda x: not isinstance(x, NoOpCfgNode),
+                   [self._create_cfg_node(child) for child in node.children])),
+        parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_operator(self, node):
@@ -157,12 +164,13 @@ class ParsoControlFlowGraphBuilder:
     name = node.children[1].value
     parameters = parameters_from_parameters(node.children[2])
     old_containing_func = self._containing_func_node
-    out = FuncCfgNode(name,
-                      parameters,
-                      suite=None,
-                      module=self._module,
-                      containing_func_node=old_containing_func,
-                      parse_node=parse_from_parso(node))
+    out = FuncCfgNode(
+        name,
+        parameters,
+        suite=None,
+        module=self._module,
+        containing_func_node=old_containing_func,
+        parse_node=parse_from_parso(node))
     self._containing_func_node = out
     suite = self._create_cfg_node(node.children[-1])
     self._containing_func_node = old_containing_func
@@ -195,10 +203,8 @@ class ParsoControlFlowGraphBuilder:
     child = node.children[1]  # 0 is 'import'
     if child.type != 'dotted_as_names':
       path, as_name = path_and_name_from_import_child(child)
-      return ImportCfgNode(path,
-                           as_name=as_name,
-                           parse_node=parse_from_parso(node),
-                           module_loader=self.module_loader)
+      return ImportCfgNode(
+          path, as_name=as_name, parse_node=parse_from_parso(node), module_loader=self.module_loader)
 
     # Multiple imports.
     import_nodes = []
@@ -210,10 +216,8 @@ class ParsoControlFlowGraphBuilder:
       else:
         path, as_name = path_and_name_from_import_child(child)
         import_nodes.append(
-            ImportCfgNode(path,
-                          as_name=as_name,
-                          parse_node=parse_from_parso(node),
-                          module_loader=self.module_loader))
+            ImportCfgNode(
+                path, as_name=as_name, parse_node=parse_from_parso(node), module_loader=self.module_loader))
     return out
 
   @assert_returns_type(CfgNode)
@@ -252,27 +256,27 @@ class ParsoControlFlowGraphBuilder:
       next_node = node.children[node_index + 1]
     # Example: from a import *
     if next_node.type == 'operator' and next_node.value == '*':
-      return FromImportCfgNode(path,
-                               from_import_name='*',
-                               as_name=None,
-                               parse_node=parse_from_parso(node),
-                               module_loader=self.module_loader)
+      return FromImportCfgNode(
+          path,
+          from_import_name='*',
+          as_name=None,
+          parse_node=parse_from_parso(node),
+          module_loader=self.module_loader)
 
     # Example: from a.b import c
     if next_node.type == 'name':
-      return FromImportCfgNode(path,
-                               next_node.value,
-                               parse_node=parse_from_parso(node),
-                               module_loader=self.module_loader)
+      return FromImportCfgNode(
+          path, next_node.value, parse_node=parse_from_parso(node), module_loader=self.module_loader)
 
     # Example: from x.y.z import r as s
     if next_node.type == 'import_as_name':
       assert_unexpected_parso(len(next_node.children) == 3, node_info(next_node))
-      return FromImportCfgNode(path,
-                               from_import_name=next_node.children[0].value,
-                               as_name=next_node.children[-1].value,
-                               parse_node=parse_from_parso(node),
-                               module_loader=self.module_loader)
+      return FromImportCfgNode(
+          path,
+          from_import_name=next_node.children[0].value,
+          as_name=next_node.children[-1].value,
+          parse_node=parse_from_parso(node),
+          module_loader=self.module_loader)
 
     # Example: from a import b, c as d
     assert_unexpected_parso(next_node.type == 'import_as_names', node_info(next_node))
@@ -281,21 +285,23 @@ class ParsoControlFlowGraphBuilder:
     for child in next_node.children:
       if child.type == 'name':
         from_import_nodes.append(
-            FromImportCfgNode(path,
-                              from_import_name=child.value,
-                              parse_node=parse_from_parso(node),
-                              module_loader=self.module_loader))
+            FromImportCfgNode(
+                path,
+                from_import_name=child.value,
+                parse_node=parse_from_parso(node),
+                module_loader=self.module_loader))
       elif child.type == 'operator':
         assert_unexpected_parso(child.value == ',', node_info(node))
       else:
         assert_unexpected_parso(child.type == 'import_as_name', node_info(child))
         assert_unexpected_parso(len(child.children) == 3, node_info(child))
         from_import_nodes.append(
-            FromImportCfgNode(path,
-                              from_import_name=child.children[0].value,
-                              as_name=child.children[-1].value,
-                              parse_node=parse_from_parso(node),
-                              module_loader=self.module_loader))
+            FromImportCfgNode(
+                path,
+                from_import_name=child.children[0].value,
+                as_name=child.children[-1].value,
+                parse_node=parse_from_parso(node),
+                module_loader=self.module_loader))
     return out
 
   @assert_returns_type(CfgNode)
@@ -418,14 +424,14 @@ class ParsoControlFlowGraphBuilder:
     # Note that we don't so much care about excuting this as extracting
     # used symbols from it.
     if len(node.children) == 2:
-      return ExpressionCfgNode(expression_from_node(node.children[1]),
-                               parse_node=parse_from_parso(node.children[1]))
+      return ExpressionCfgNode(
+          expression_from_node(node.children[1]), parse_node=parse_from_parso(node.children[1]))
     assert len(node.children) == 4
     return GroupCfgNode([
-        ExpressionCfgNode(expression_from_node(node.children[1]),
-                          parse_node=parse_from_parso(node.children[1])),
-        ExpressionCfgNode(expression_from_node(node.children[-1]),
-                          parse_node=parse_from_parso(node.children[-1]))
+        ExpressionCfgNode(
+            expression_from_node(node.children[1]), parse_node=parse_from_parso(node.children[1])),
+        ExpressionCfgNode(
+            expression_from_node(node.children[-1]), parse_node=parse_from_parso(node.children[-1]))
     ])
 
   @assert_returns_type(CfgNode)
@@ -614,18 +620,20 @@ def parameters_from_parameters(node) -> List[Parameter]:
       elif param.children[0].type == 'name' or param.children[0].type == 'tfpdef':
         # TODO: typehint.
         out.append(
-            Parameter(_param_name_from_param_child(param.children[0]),
-                      ParameterType.SINGLE,
-                      default_expression=expression_from_node(param.children[2])))
+            Parameter(
+                _param_name_from_param_child(param.children[0]),
+                ParameterType.SINGLE,
+                default_expression=expression_from_node(param.children[2])))
       else:
         assert_unexpected_parso(False)
 
     else:  # if len(param.children) == 4:  # name, =, expr, ','
       assert_unexpected_parso(len(param.children) == 4, node_info(param))
       out.append(
-          Parameter(_param_name_from_param_child(param.children[0]),
-                    ParameterType.SINGLE,
-                    default_expression=expression_from_node(param.children[-2])))
+          Parameter(
+              _param_name_from_param_child(param.children[0]),
+              ParameterType.SINGLE,
+              default_expression=expression_from_node(param.children[-2])))
 
   return out
 
@@ -876,9 +884,8 @@ def expression_from_node(node):
   if node.type == 'name':
     return VariableExpression(node.value)
   if node.type == 'factor':
-    return FactorExpression(node.children[0].value,
-                            expression_from_node(node.children[1]),
-                            parse_node=parse_from_parso(node))
+    return FactorExpression(
+        node.children[0].value, expression_from_node(node.children[1]), parse_node=parse_from_parso(node))
   if node.type == 'arith_expr' or node.type == 'term':
     return expression_from_math_expr(node)
   if node.type == 'atom':
@@ -917,8 +924,8 @@ def expression_from_and_test_or_test(node) -> Expression:
   assert len(node.children) >= 3
   right_expression = expression_from_node(node.children[-1])
   for i in range(1, len(node.children), 2)[::-1]:
-    right_expression = AndOrExpression(expression_from_node(node.children[i - 1]), node.children[i].value,
-                                       right_expression)
+    right_expression = AndOrExpression(
+        expression_from_node(node.children[i - 1]), node.children[i].value, right_expression)
   return right_expression
 
 
@@ -1038,9 +1045,8 @@ def expression_from_comparison(node):
     left_expression = expression_from_node(node.children[i])
     operator = node.children[i + 1].get_code().strip()
     right_expression = expression_from_node(node.children[i + 2])
-    comparison = ComparisonExpression(left_expression=left_expression,
-                                      operator=operator,
-                                      right_expression=right_expression)
+    comparison = ComparisonExpression(
+        left_expression=left_expression, operator=operator, right_expression=right_expression)
     if last_expression:
       last_expression = AndOrExpression(last_expression, 'and', comparison)
     else:
@@ -1074,10 +1080,8 @@ def expression_from_math_expr(node):
     raise NotImplementedError()
   left_expression = expression_from_node(node.children[0])
   right_expression = expression_from_node(node.children[2])
-  return MathExpression(left_expression,
-                        node.children[1].value,
-                        right_expression,
-                        parse_node=parse_from_parso(node))
+  return MathExpression(
+      left_expression, node.children[1].value, right_expression, parse_node=parse_from_parso(node))
 
 
 def children_contains_operator(node, operator_str):

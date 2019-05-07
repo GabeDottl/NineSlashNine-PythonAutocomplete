@@ -8,7 +8,6 @@ from glob import glob
 
 import attr
 import msgpack
-
 from autocomplete.code_understanding.typing import (errors, language_objects, module_loader, utils)
 from autocomplete.nsn_logging import info, warning
 
@@ -71,7 +70,6 @@ class SymbolIndex:
   files_added = attr.ib(0, init=False)
   path = attr.ib(None, init=False)
 
-
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
@@ -129,7 +127,7 @@ class SymbolIndex:
     # get_imported_modules from each module in package, add import to module_reference_map.
     for module_name, value in index.module_reference_map.items():
       self.add_module_by_name(module_name)
-      
+
     return index
 
   def add_module_by_name(self, module_name):
@@ -148,7 +146,6 @@ class SymbolIndex:
     else:
       module = module_loader.get_module(module_name, lazy=False)
       self.add_module(module)
-
 
   def add_path(self, path, ignore_init=False, include_private_files=False):
     if not os.path.exists(path):
@@ -197,9 +194,12 @@ class SymbolIndex:
       except errors.AmbiguousFuzzyValueError:
         self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, file_index))
 
+
 def get_imported_modules(graph):
-  import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode, control_flow_graph_nodes.FromImportCfgNode))
+  import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
+                                                 control_flow_graph_nodes.FromImportCfgNode))
   return set([node.module_path for node in import_nodes])
+
 
 def _should_scan_file(filename, include_private_files):
   if include_private_files:

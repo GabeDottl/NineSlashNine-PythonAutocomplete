@@ -19,18 +19,15 @@ from functools import wraps
 from typing import Dict, Iterable
 
 import attr
-
 from autocomplete.code_understanding.typing import collector, serialization
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
-                                                           NoDictImplementationError, SourceAttributeError,
-                                                           UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.errors import (
+    LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, LiteralExpression,
                                                                 StarredExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyBoolean,
-                                                             LanguageObject, LazyObject, NativeObject,
-                                                             PObject, PObjectType, UnknownObject,
-                                                             pobject_from_object)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject,
+    PObjectType, UnknownObject, pobject_from_object)
 from autocomplete.code_understanding.typing.serialization import type_name
 from autocomplete.code_understanding.typing.utils import (attrs_names_from_class, instance_memoize)
 from autocomplete.nsn_logging import debug, error, info, warning
@@ -41,7 +38,7 @@ class Namespace:
   '''A Namespace is a container for named objects.
 
   Not to be confused with namespaces in the context of other languages, although same idea.
-  
+
   This is rather similar to the model used in CPython itself in which namespaces are implemented
   with dicts.
 
@@ -223,7 +220,7 @@ class SimplePackageModule(ModuleImpl):
 @attr.s
 class LazyModule(ModuleImpl):
   '''A Module which is lazily loaded with members.
-  
+
   On the first attribute access, this module is loaded from its filename.
   '''
   load_module_exports_from_filename = attr.ib(kw_only=True)
@@ -266,7 +263,8 @@ class LazyModule(ModuleImpl):
     self._loading = True
     try:
       if self.keep_graph:
-        new_members, self.graph = self.load_module_exports_from_filename(self, self.filename, return_graph=True)
+        new_members, self.graph = self.load_module_exports_from_filename(
+            self, self.filename, return_graph=True)
       else:
         new_members = self.load_module_exports_from_filename(self, self.filename)
     except UnableToReadModuleFileError:
@@ -440,10 +438,8 @@ class FunctionImpl(Function):
       )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
-    new_frame = curr_frame.make_child(frame_type=FrameType.FUNCTION,
-                                      namespace=self,
-                                      module=self._module,
-                                      cell_symbols=self._cell_symbols)
+    new_frame = curr_frame.make_child(
+        frame_type=FrameType.FUNCTION, namespace=self, module=self._module, cell_symbols=self._cell_symbols)
     new_frame._locals.update(bound_locals)
 
     self._process_args(args, kwargs, new_frame)

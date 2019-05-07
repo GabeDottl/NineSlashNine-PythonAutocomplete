@@ -4,7 +4,6 @@ from typing import Dict, Iterable, List, Union
 from wsgiref.validate import validator
 
 import attr
-
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,

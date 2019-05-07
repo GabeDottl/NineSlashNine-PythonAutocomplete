@@ -1,7 +1,6 @@
 import os
 
 import msgpack
-
 from autocomplete.code_understanding.typing import (language_objects, module_loader, serialization)
 from autocomplete.code_understanding.typing.module_index import ModuleIndex
 from autocomplete.code_understanding.typing.tests.utils import (assert_expected_iterable)

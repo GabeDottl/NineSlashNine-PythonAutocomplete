@@ -3,10 +3,9 @@ import os as whatever
 from functools import wraps
 from typing import List
 
-import numpy
-
 import a.b.c
 import django as dj
+import numpy
 from a import a
 from a import b as c
 from a import d

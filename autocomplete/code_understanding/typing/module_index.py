@@ -3,7 +3,6 @@ from builtins import ValueError
 
 import attr
 import h5py
-
 from autocomplete.code_understanding.typing import module_loader
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.language_objects import (Function, Instance, Klass, ModuleImpl,
@@ -66,11 +65,12 @@ class ModuleIndex:
     module_store = self.file[path_from_dot_name(name)]
     members = members_from_group(module_store)
 
-    return ModuleImpl(name,
-                      filename=module_store.attrs['filename'],
-                      module_type=ModuleType(module_store.attrs['module_type']),
-                      is_package=module_store.attrs['_is_package'],
-                      members=members)
+    return ModuleImpl(
+        name,
+        filename=module_store.attrs['filename'],
+        module_type=ModuleType(module_store.attrs['module_type']),
+        is_package=module_store.attrs['_is_package'],
+        members=members)
 
 
 def members_from_group(group):

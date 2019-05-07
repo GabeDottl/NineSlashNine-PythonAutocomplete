@@ -8,7 +8,6 @@ import ast
 import webbrowser
 
 import graphviz
-
 from autocomplete.code_understanding.ast.ast_utils import _name_id_or_arg
 from autocomplete.code_understanding.utils import type_name
 

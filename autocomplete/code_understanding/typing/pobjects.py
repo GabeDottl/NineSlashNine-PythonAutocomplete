@@ -8,11 +8,9 @@ from functools import partialmethod, wraps
 from typing import Dict, List
 
 import attr
-
 from autocomplete.code_understanding.typing import collector, serialization
-from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError,
-                                                           LoadingModuleAttributeError,
-                                                           NoDictImplementationError, SourceAttributeError)
+from autocomplete.code_understanding.typing.errors import (
+    AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError)
 from autocomplete.code_understanding.typing.utils import to_dict_iter
 from autocomplete.nsn_logging import debug, error, info, warning
 
@@ -258,7 +256,7 @@ class NativeObject(PObject):
 
   This is primarily intended for the simple types listed in NATIVE_TYPES, however, it can also wrap
   arbitrary Python objects and performs a best-effort attempt at wrapping their API.
-  
+
   This is particularly useful for native modules for which we don't have have raw python source
   and thus cannot create our Module instances. Instead, these modules can be loaded as
   NativeObjects and be run in relative isolation.'''

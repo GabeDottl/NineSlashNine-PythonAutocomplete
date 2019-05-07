@@ -7,7 +7,6 @@ from typing import List
 
 import attr
 import pandas as pd
-
 from autocomplete.code_understanding.typing import (api, collector, module_loader)
 from autocomplete.nsn_logging import (info, pop_context, push_context, set_verbosity)
 

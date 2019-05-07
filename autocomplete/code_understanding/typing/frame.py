@@ -7,14 +7,12 @@ from functools import wraps
 from typing import Dict, List
 
 import attr
-
 from autocomplete.code_understanding.typing import collector, utils
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (AttributeExpression, SubscriptExpression,
                                                                 Variable, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyObject,
-                                                             NativeObject, PObject, UnknownObject,
-                                                             pobject_from_object)
+from autocomplete.code_understanding.typing.pobjects import (
+    NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject, UnknownObject, pobject_from_object)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -62,7 +60,7 @@ class Frame:
   The Frame touches all symbol assignments. In Python, scope blocks are constrained
   to modules, function bodies, and class definitions (control blocks such as if and while
   blocks do not effect scope).
-  
+
   https://docs.python.org/3/reference/executionmodel.html#naming-and-binding:
   `The following constructs bind names: formal parameters to functions, import statements,
   class and function definitions (these bind the class or function name in the defining
@@ -116,12 +114,13 @@ class Frame:
       module = self._module
     if cell_symbols is None:
       cell_symbols = self._cell_symbols
-    return Frame(frame_type=frame_type,
-                 back=self,
-                 module=module,
-                 namespace=namespace,
-                 builtins=self._builtins,
-                 cell_symbols=cell_symbols)
+    return Frame(
+        frame_type=frame_type,
+        back=self,
+        module=module,
+        namespace=namespace,
+        builtins=self._builtins,
+        cell_symbols=cell_symbols)
 
   def _set_free_variable(self, name, value):
     if name in self._locals:

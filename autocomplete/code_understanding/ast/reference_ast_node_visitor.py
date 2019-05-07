@@ -232,8 +232,8 @@ class ReferenceAstNodeVisitor(ast.NodeVisitor):
     if module_path in self.module_path_to_traveler:
       return self.module_path_to_traveler[module_path]
     else:
-      traveler = ReferenceAstNodeVisitor(module_path=module_path,
-                                         module_path_to_traveler=self.module_path_to_traveler)
+      traveler = ReferenceAstNodeVisitor(
+          module_path=module_path, module_path_to_traveler=self.module_path_to_traveler)
       self.module_path_to_traveler[module_path] = traveler
       traveler.traverse()
     return traveler

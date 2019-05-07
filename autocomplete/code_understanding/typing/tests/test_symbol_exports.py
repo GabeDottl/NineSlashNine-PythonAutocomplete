@@ -82,7 +82,7 @@ def test_closure_values():
     def foo2():
       return a
     return foo2
-  
+
   def foo3(a):
     def foo4():
       def foo5():
@@ -109,8 +109,8 @@ def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples', 'unresolved_symbols.py'))
 
-  missing_symbols = find_missing_symbols.scan_missing_symbols(unresolved_imports_filename,
-                                                              include_context=False)
+  missing_symbols = find_missing_symbols.scan_missing_symbols(
+      unresolved_imports_filename, include_context=False)
   print('Used symbols:', collector._referenced_symbols[unresolved_imports_filename])
   # Should be missing unresolved 1 - 4.
   assert len(missing_symbols) == 5, missing_symbols

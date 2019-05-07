@@ -5,18 +5,15 @@ from functools import wraps
 from typing import Iterable, List, Set, Tuple, Union
 
 import attr
-
 from autocomplete.code_understanding.typing import collector
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError, ParsingError,
                                                            assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (Expression, StarredExpression,
-                                                                SubscriptExpression, VariableExpression,
-                                                                _assign_variables_to_results)
+from autocomplete.code_understanding.typing.expressions import (
+    Expression, StarredExpression, SubscriptExpression, VariableExpression, _assign_variables_to_results)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.language_objects import (BoundFunction, Function, FunctionImpl,
-                                                                     FunctionType, Klass, Module, ModuleImpl,
-                                                                     NativeModule, Parameter,
-                                                                     SimplePackageModule)
+from autocomplete.code_understanding.typing.language_objects import (
+    BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, ModuleImpl, NativeModule, Parameter,
+    SimplePackageModule)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
                                                              LazyObject, UnknownObject)
 from autocomplete.code_understanding.typing.utils import instance_memoize
@@ -52,7 +49,7 @@ class CfgNode(ABC):
   @abstractmethod
   def get_non_local_symbols(self) -> Iterable[str]:
     '''Gets all symbols that are going to be nonlocal/locally defined outside this node.
-    
+
     This does not include globals.
     '''
 
@@ -109,7 +106,9 @@ class GroupCfgNode(CfgNode):
     return chained
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(filter(lambda x: isinstance(x, type_), self.children), *[c.get_descendents_of_types(type_) for c in self.children])
+    return itertools.chain(
+        filter(lambda x: isinstance(x, type_), self.children),
+        *[c.get_descendents_of_types(type_) for c in self.children])
 
   def pretty_print(self, indent=''):
     out = f'{super().pretty_print(indent)}\n'
@@ -175,11 +174,8 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
-          ancestor_module = SimplePackageModule(current_name,
-                                                module.module_type,
-                                                filename=None,
-                                                is_package=True,
-                                                members={})
+          ancestor_module = SimplePackageModule(
+              current_name, module.module_type, filename=None, is_package=True, members={})
 
         if last_module:
           last_module.add_members({name: AugmentedObject(ancestor_module, imported=True)})
@@ -327,11 +323,12 @@ class ForCfgNode(CfgNode):
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.loop_variables.get_used_free_symbols()).union(
-        set(self.suite.get_defined_and_exported_symbols())).union(self.else_suite.get_defined_and_exported_symbols())
+        set(self.suite.get_defined_and_exported_symbols())).union(
+            self.else_suite.get_defined_and_exported_symbols())
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
-
+    return itertools.chain(
+        self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
@@ -361,7 +358,8 @@ class WhileCfgNode(CfgNode):
         set(self.else_suite.get_defined_and_exported_symbols()))
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
+    return itertools.chain(
+        self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}\n{indent}Else\n{self.else_suite.pretty_print(indent=indent+"  ")}'
@@ -435,8 +433,9 @@ class TryCfgNode(CfgNode):
         ]))
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_),self.finally_suite.get_descendents_of_types(type_))
-
+    return itertools.chain(
+        self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_),
+        self.finally_suite.get_descendents_of_types(type_))
 
   def pretty_print(self, indent=''):
     out = f'{indent}Try\n{self.suite.pretty_print(indent+"  ")}'
@@ -590,7 +589,6 @@ class KlassCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
 
-
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
@@ -634,12 +632,13 @@ class FuncCfgNode(CfgNode):
         processed_params.append(Parameter(param.name, param.parameter_type, default_value=default))
     # Include full name.
     func_name = '.'.join([curr_frame.namespace.name, self.name]) if curr_frame.namespace else self.name
-    func = FunctionImpl(name=func_name,
-                        namespace=curr_frame.namespace,
-                        parameters=processed_params,
-                        module=self._module,
-                        graph=self.suite,
-                        cell_symbols=self._get_new_cell_symbols())
+    func = FunctionImpl(
+        name=func_name,
+        namespace=curr_frame.namespace,
+        parameters=processed_params,
+        module=self._module,
+        graph=self.suite,
+        cell_symbols=self._get_new_cell_symbols())
     collector.add_function_node(func)
 
     # Handle closures, if any.

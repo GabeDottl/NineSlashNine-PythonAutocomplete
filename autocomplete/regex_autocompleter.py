@@ -4,7 +4,6 @@ import re
 from time import time
 
 import tensorflow as tf
-
 from autocomplete.nsn_logging import *
 
 

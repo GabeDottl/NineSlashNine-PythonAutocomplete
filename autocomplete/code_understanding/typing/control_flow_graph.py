@@ -23,19 +23,16 @@ from functools import wraps
 from typing import List, Tuple
 
 import attr
-
-from autocomplete.code_understanding.typing import (ast_control_flow_graph_builder, language_objects,
+from autocomplete.code_understanding.typing import (ast_control_flow_graph_builder, errors, language_objects,
                                                     parso_control_flow_graph_builder)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode,
     FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode, TryCfgNode,
     WhileCfgNode, WithCfgNode)
 from autocomplete.code_understanding.typing.errors import ParsingError
-from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, Expression,
-                                                                LiteralExpression, UnknownExpression,
-                                                                VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (
+    AnonymousExpression, Expression, LiteralExpression, UnknownExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing import errors
 from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
 from autocomplete.nsn_logging import debug, error, info, warning
 
