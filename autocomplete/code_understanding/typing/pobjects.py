@@ -449,7 +449,7 @@ class LazyObject(PObject):
     try:
       with collector.FileContext(self._loader_filecontext):
         self._loaded_object = self._loader()
-    except Exception as e:
+    except OSError as e: # Exception
       error(f'Unable to lazily load {self.name}')
       import traceback
       traceback.print_tb(e.__traceback__)
@@ -457,6 +457,7 @@ class LazyObject(PObject):
       raise e
     else:
       assert isinstance(self._loaded_object, PObject)
+      # assert not isinstance(self._loaded_object, LazyObject)
     finally:
       self._loading_failed = self._loaded_object is None
       if self._loading_failed:
@@ -486,7 +487,8 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def get_attribute(self, name):
-    return LazyObject(f'{self.name}.{name}', lambda: self._load_and_ret().get_attribute(name))
+    self._load()
+    return LazyObject(f'{self.name}.{name}', lambda: self._loaded_object.get_attribute(name))
 
   @_passthrough_if_loaded
   def set_attribute(self, name, value):
@@ -502,11 +504,13 @@ class LazyObject(PObject):
   #   else:
 
   def value_is_a(self, type_) -> FuzzyBoolean:
-    return self._load_and_ret().value_is_a(type_)
+    self._load()
+    return self._loaded_object.value_is_a(type_)
 
   # TODO: Rename 'dereference'?
   def value(self) -> object:
-    return self._load_and_ret().value()
+    self._load()
+    return self._loaded_object.value()
 
   def bool_value(self) -> FuzzyBoolean:
     return self._load_and_ret().bool_value()

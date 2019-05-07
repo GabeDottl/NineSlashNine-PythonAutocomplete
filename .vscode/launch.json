@@ -5,6 +5,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_fix_code",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/tests/test_fix_code.py",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_index",
       "type": "python",
       "request": "launch",

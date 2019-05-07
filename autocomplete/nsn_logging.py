@@ -9,7 +9,11 @@ The rationale for doing this is a few:
 
 import inspect
 
+
 from absl import logging
+
+# import coloredlogs
+# coloredlogs.install()
 
 logging.set_verbosity('info')
 

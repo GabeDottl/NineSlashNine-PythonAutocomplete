@@ -64,6 +64,9 @@ class CfgNode(ABC):
   def get_descendents_of_types(self, type_):
     return []
 
+  def strip_descendents_of_types(self, type_, recursive=True) -> 'CfgNode':
+    return self
+
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}'
 
@@ -109,6 +112,13 @@ class GroupCfgNode(CfgNode):
     return itertools.chain(
         filter(lambda x: isinstance(x, type_), self.children),
         *[c.get_descendents_of_types(type_) for c in self.children])
+
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    if recursive:
+      return GroupCfgNode(
+          x.strip_descendants_of_types(type_, recursive)
+          for x in filter(lambda n: not isinstance(n, type_), self.children))
+    return GroupCfgNode(list(filter(lambda n: not isinstance(n, type_), self.children)))
 
   def pretty_print(self, indent=''):
     out = f'{super().pretty_print(indent)}\n'
@@ -330,6 +340,11 @@ class ForCfgNode(CfgNode):
     return itertools.chain(
         self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
 
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
+    return ForCfgNode(self.loop_variables, self.loop_expression, suite, self.parse_node, else_suite)
+
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
@@ -360,6 +375,11 @@ class WhileCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return itertools.chain(
         self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
+
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
+    return WhileCfgNode(self.conditional_expression, suite, else_suite, self.parse_node)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}\n{indent}Else\n{self.else_suite.pretty_print(indent=indent+"  ")}'
@@ -397,6 +417,10 @@ class WithCfgNode(CfgNode):
 
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
+
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    return WithCfgNode(self.with_item_expression, self.as_expression, suite, self.parse_node)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
@@ -436,6 +460,14 @@ class TryCfgNode(CfgNode):
     return itertools.chain(
         self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_),
         self.finally_suite.get_descendents_of_types(type_))
+
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
+    finally_suite = self.finally_suite.strip_descendents_of_types(type_, recursive=recursive)
+    except_nodes = [x.strip_descendants_of_types(type_, recursive=True) for x in self.except_nodes]
+    return TryCfgNode(
+        suite=suite, except_nodes=except_nodes, else_suite=else_suite, finally_suite=finally_suite)
 
   def pretty_print(self, indent=''):
     out = f'{indent}Try\n{self.suite.pretty_print(indent+"  ")}'
@@ -487,6 +519,10 @@ class ExceptCfgNode(CfgNode):
 
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
+
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    return ExceptCfgNode(self.exceptions, self.exception_variable, suite)
 
   def pretty_print(self, indent=''):
     return f'{indent}except {self.exceptions} as {self.exception_variable}\n{self.suite.pretty_print(indent+"  ")}'
@@ -589,6 +625,10 @@ class KlassCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
 
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    return KlassCfgNode(self.name, suite, self._module, self.parse_node)
+
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
 
@@ -684,6 +724,17 @@ class FuncCfgNode(CfgNode):
 
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
+
+  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+    suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
+    return FuncCfgNode(
+        name=self.name,
+        parameters=self.parameters,
+        suite=suite,
+        module=self._module,
+        containing_func_node=self._containing_func_node,
+        parse_node=self.parse_node,
+        child_functions=self._child_functions)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
