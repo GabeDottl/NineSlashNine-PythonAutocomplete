@@ -197,7 +197,10 @@ class ModuleImpl(Module):
 
     for name in attrs_names_from_class(ModuleImpl):
       value = getattr(self, name)
-      info(f'name: {name} {type(value)}')
+      # info(f'name: {name} {type(value)}')
+      # Don't try persisting the graph if there is one.
+      if name == 'graph':
+        continue
       value = serialization.serialize(value, hook_fn=serialization_hook)
       d[_strip_underscore_prefix(name)] = value
     return ModuleImpl.__qualname__, d

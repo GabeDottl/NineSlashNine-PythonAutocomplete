@@ -10,7 +10,8 @@ import attr
 from autocomplete.code_understanding.typing import collector, utils
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (AttributeExpression, SubscriptExpression,
-                                                                Variable, VariableExpression)
+                                                                Expression,
+                                                                VariableExpression)
 from autocomplete.code_understanding.typing.pobjects import (
     NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject, UnknownObject, pobject_from_object)
 from autocomplete.nsn_logging import info, warning
@@ -148,7 +149,7 @@ class Frame:
         return
     self._locals[name] = value
 
-  def __setitem__(self, variable: Variable, value: PObject):
+  def __setitem__(self, variable: Expression, value: PObject):
     # https://stackoverflow.com/questions/38937721/global-frame-vs-stack-frame
     if not isinstance(value, PObject):
       value = pobject_from_object(value)  # Wrap everything in FuzzyObjects.
@@ -179,7 +180,7 @@ class Frame:
     del self._locals[variable.name]
 
   @dereference_cell_object_returns
-  def __getitem__(self, variable: Variable, raise_error_if_missing=False, nested=False) -> PObject:
+  def __getitem__(self, variable: Expression, raise_error_if_missing=False, nested=False) -> PObject:
 
     if isinstance(variable, SubscriptExpression):
       return variable.get()

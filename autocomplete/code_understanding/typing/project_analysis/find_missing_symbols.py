@@ -3,18 +3,41 @@ import os
 from glob import glob
 from pprint import pprint
 
+from autocomplete.code_understanding.typing.control_flow_graph import FromImportCfgNode
 from autocomplete.code_understanding.typing import (api, collector, module_loader, utils)
 from autocomplete.nsn_logging import info
 
 
-def scan_missing_symbols(filename, include_context=False):
+def scan_missing_symbols(filename):
   # TODO: Add some platform configuration.
   with open(filename) as f:
     source = ''.join(f.readlines())
   graph = api.graph_from_source(source)
   missing_symbols = graph.get_non_local_symbols()
   for builtin in utils.get_possible_builtin_symbols():
-    missing_symbols.discard(builtin)
+    if builtin in missing_symbols:
+      del missing_symbols[builtin]
+  # The above method will find a superset of the actual missing symbols using pure static-analysis. Some of
+  # these symbols may not actually be missing during interpretation because either they're imported with
+  # a glob import (from a import *) or they're manually set as attributes on the module (setattr(__module__)).
+  # TODO: Handle setattr(__module__) case / do full interpretation.
+  if missing_symbols:
+    # Check for wild-card/glob imports - i.e. 'from a import *'.
+    from_imports = graph.get_descendents_of_types(FromImportCfgNode)
+    for from_import in from_imports:
+      if from_import.from_import_name == '*':
+        # Get obvious exported symbols - similar to mentioned above, the module could theoretically have
+        # attributes set on it externally or via setattr, but this would be quite odd and we assume doesn't
+        # happen.
+        filename, _, _ = module_loader.get_module_info_from_name(from_import.module_path)
+        # TODO: Cache graph.
+        with open(filename) as f:
+          imported_graph = api.graph_from_source(''.join(f.readlines()))
+          defined_symbols = set(imported_graph.get_defined_and_exported_symbols())
+          missing_symbols = {s:c for s,c in filter(lambda sc: not sc[0] in defined_symbols, missing_symbols.items())}
+        # Early return where possible.
+        if not missing_symbols:
+          return missing_symbols
   return missing_symbols
 
 

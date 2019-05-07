@@ -19,7 +19,7 @@ from autocomplete.code_understanding.typing.expressions import (
     DictExpression, Expression, FactorExpression, ForComprehension, ForComprehensionExpression,
     IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression,
     LiteralExpression, MathExpression, NotExpression, SetExpression, StarredExpression, SubscriptExpression,
-    TupleExpression, UnknownExpression, Variable, VariableExpression)
+    TupleExpression, UnknownExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.language_objects import (Parameter, ParameterType)
 from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT

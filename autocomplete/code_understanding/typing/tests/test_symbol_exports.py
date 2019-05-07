@@ -110,7 +110,7 @@ def test_missing_symbols():
   unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples', 'unresolved_symbols.py'))
 
   missing_symbols = find_missing_symbols.scan_missing_symbols(
-      unresolved_imports_filename, include_context=False)
+      unresolved_imports_filename)
   print('Used symbols:', collector._referenced_symbols[unresolved_imports_filename])
   # Should be missing unresolved 1 - 4.
   assert len(missing_symbols) == 5, missing_symbols
@@ -123,8 +123,8 @@ def test_no_missing_symbols_in_typing_package():
   filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
   for filename in filter(lambda f: 'grammar.py' not in f, filenames):
     info(f'filename: {filename}')
-    name = os.path.splitext(os.path.basename(filename))[0]
-    missing_symbols = find_missing_symbols.scan_missing_symbols(filename, include_context=False)
+    # name = os.path.splitext(os.path.basename(filename))[0]
+    missing_symbols = find_missing_symbols.scan_missing_symbols(filename)
     assert not missing_symbols
 
 
@@ -134,7 +134,7 @@ def test_module_exports():
     source = ''.join(f.readlines())
   graph = graph_from_source(source)
   exports = graph.get_defined_and_exported_symbols()
-  assert len(exports) > 40
+  assert len(exports) >= 40
 
 
 if __name__ == "__main__":

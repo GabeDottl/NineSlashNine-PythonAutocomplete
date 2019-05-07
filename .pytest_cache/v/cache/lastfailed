@@ -1,4 +1,0 @@
-{
-  "autocomplete/code_understanding/typing/tests/test_index.py::test_build_full_index": true,
-  "autocomplete/code_understanding/typing/tests/test_index.py::test_build_typing_index": true
-}

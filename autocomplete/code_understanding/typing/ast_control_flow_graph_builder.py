@@ -348,10 +348,15 @@ def expression_from_node(ast_node):
         expression_from_node(ast_node.orelse))
   if isinstance(ast_node, _ast.Dict):
     # (expr* keys, expr* values)
-    return DictExpression([
-        KeyValueAssignment(expression_from_node(k), expression_from_node(v))
-        for k, v in zip(ast_node.keys, ast_node.values)
-    ])
+    value_iter = iter(ast_node.values)
+    key_values = []
+    for k, v in zip(ast_node.keys, ast_node.values):
+      if k:
+        key_values.append(KeyValueAssignment(expression_from_node(k), expression_from_node(v)))
+      else:
+        key_values.append(StarredExpression('**', expression_from_node(v)))
+
+    return DictExpression(key_values)
   if isinstance(ast_node, _ast.Set):
     # (expr* elts)
     return SetExpression([expression_from_node(node) for node in ast_node.elts])

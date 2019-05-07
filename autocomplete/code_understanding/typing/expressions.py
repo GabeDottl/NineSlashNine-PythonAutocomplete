@@ -4,12 +4,12 @@ from typing import Dict, Iterable, List, Union
 from wsgiref.validate import validator
 
 import attr
-from autocomplete.code_understanding.typing import collector
+from autocomplete.code_understanding.typing import (collector, symbol_context)
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
                                                              LazyObject, NativeObject, PObject, PObjectType,
                                                              UnknownObject, pobject_from_object)
-from autocomplete.code_understanding.typing.utils import instance_memoize
+from autocomplete.code_understanding.typing.utils import instance_memoize, assert_returns_type
 from autocomplete.nsn_logging import debug, info, warning
 
 
@@ -19,7 +19,8 @@ class Expression(ABC):
     raise NotImplementedError()  # abstract
 
   @abstractmethod
-  def get_used_free_symbols(self) -> Iterable[str]:
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     ''' Gets symbols used in a free context - i.e. not as attributes.'''
 
 
@@ -30,8 +31,9 @@ class AnonymousExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return self.pobject
 
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return []
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return {}
 
 
 @attr.s(slots=True)
@@ -41,8 +43,9 @@ class LiteralExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(self.literal)
 
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return []
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return {}
 
 
 @attr.s(slots=True)
@@ -52,8 +55,9 @@ class UnknownExpression(Expression):
   def evaluate(self, curr_frame):
     return UnknownObject(self.string)
 
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return []
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return {}
 
 
 @attr.s(slots=True)
@@ -64,7 +68,8 @@ class NotExpression(Expression):
     pobject = self.expression.evaluate(curr_frame)
     return pobject.invert()
 
-  def get_used_free_symbols(self) -> Iterable[str]:
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
 
 
@@ -82,10 +87,11 @@ class AndOrExpression(Expression):
     assert self.operator == 'and'
     return l.and_expr(r)
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols()).union(
-        self.right_expression.get_used_free_symbols())
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
+                                                     self.right_expression.get_used_free_symbols())
 
 
 @attr.s(slots=True)
@@ -99,7 +105,8 @@ class ListExpression(Expression):
   def __iter__(self):
     return iter(self.source_expression)
 
-  def get_used_free_symbols(self) -> Iterable[str]:
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.source_expression.get_used_free_symbols()
 
 
@@ -127,10 +134,11 @@ class ItemListExpression(Expression):
     for expression in self.expressions:
       yield expression
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    # TODO: set
-    return list(itertools.chain(*[expr.get_used_free_symbols() for expr in self.expressions]))
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(
+        *[expr.get_used_free_symbols() for expr in self.expressions])
 
 
 def _assign_variables_to_results(curr_frame, variable, result):
@@ -171,11 +179,17 @@ class CallExpression(Expression):
     out = pobject.call(curr_frame, evaluated_args, evaluated_kwargs)
     return out
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    out = set(self.function_expression.get_used_free_symbols())
-    out = out.union(itertools.chain(*[expr.get_used_free_symbols() for expr in self.args]))
-    out = out.union(itertools.chain(*[expr.get_used_free_symbols() for expr in self.kwargs.values()]))
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    if isinstance(self.function_expression, VariableExpression):
+      out = {self.function_expression.name: symbol_context.CallSymbolContext(self.args, self.kwargs)}
+    else:
+      out = self.function_expression.get_used_free_symbols()
+    out = symbol_context.merge_symbol_context_dicts(out,
+        *[expr.get_used_free_symbols() for expr in self.args])
+    out = symbol_context.merge_symbol_context_dicts(out,
+        *[expr.get_used_free_symbols() for expr in self.kwargs.values()])
     return out
 
 
@@ -186,8 +200,9 @@ class VariableExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return curr_frame[self]
 
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return [self.name]
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return {self.name: symbol_context.RawSymbolContext()}
 
 
 @attr.s
@@ -210,13 +225,15 @@ class ForComprehension:
 
     return itertools.chain(target_symbols, comp_iter_symbols)
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    non_locals = set(self.iterable_expression.get_used_free_symbols())
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    non_locals = self.iterable_expression.get_used_free_symbols()
     for symbol in self.get_defined_symbols():
-      non_locals.discard(symbol)
+      if symbol in non_locals:
+        del non_locals[symbol]
     if self.comp_iter:
-      return non_locals.union(self.comp_iter.get_used_free_symbols())
+      return symbol_context.merge_symbol_context_dicts(non_locals, self.comp_iter.get_used_free_symbols())
     return non_locals
 
 
@@ -232,12 +249,15 @@ class ForComprehensionExpression(Expression):
     out = self.generator_expression.evaluate(new_frame)
     return out
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    generator_free_symbols = set(self.generator_expression.get_used_free_symbols())
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    generator_free_symbols = self.generator_expression.get_used_free_symbols()
     for symbol in self.for_comprehension.get_defined_symbols():
-      generator_free_symbols.discard(symbol)
-    return generator_free_symbols.union(self.for_comprehension.get_used_free_symbols())
+      if symbol in generator_free_symbols:
+        del generator_free_symbols[symbol]
+    return symbol_context.merge_symbol_context_dicts(generator_free_symbols,
+                                                     self.for_comprehension.get_used_free_symbols())
 
 
 @attr.s(slots=True)
@@ -251,7 +271,8 @@ class StarredExpression(Expression):
     out.pobject_type = PObjectType.STARRED if self.operator == '*' else PObjectType.DOUBLE_STARRED
     return out
 
-  def get_used_free_symbols(self) -> Iterable[str]:
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.base_expression.get_used_free_symbols()
 
 
@@ -260,7 +281,8 @@ class KeyValueAssignment:
   key: Expression = attr.ib()
   value: Expression = attr.ib()
 
-  def get_used_free_symbols(self) -> Iterable[str]:
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.value.get_used_free_symbols()
 
 
@@ -271,12 +293,14 @@ class KeyValueForComp:
   for_comp: ForComprehension = attr.ib()
 
   # @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    out = set(self.value.get_used_free_symbols())
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    out = self.value.get_used_free_symbols()
     for symbol in self.for_comp.get_defined_symbols():
-      out.discard(symbol)
-    out.union(self.for_comp.get_used_free_symbols())
-    return out
+      if symbol in out:
+        del out[symbol]
+    return symbol_context.merge_symbol_context_dicts(out, self.for_comp.get_used_free_symbols())
+    # return out
 
 
 @attr.s(slots=True)
@@ -286,9 +310,11 @@ class SetExpression(Expression):
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(set())  # TODO
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(itertools.chain(*[value.get_used_free_symbols() for value in self.values]))
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(
+        *[value.get_used_free_symbols() for value in self.values])
 
 
 @attr.s(slots=True)
@@ -321,9 +347,11 @@ class DictExpression(Expression):
         pass  # TODO
     return out
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(itertools.chain(*[value.get_used_free_symbols() for value in self.values]))
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(
+        *[value.get_used_free_symbols() for value in self.values])
 
 
 @attr.s(slots=True)
@@ -335,7 +363,10 @@ class AttributeExpression(Expression):
     value: PObject = self.base_expression.evaluate(curr_frame)
     return value.get_attribute(self.attribute)
 
-  def get_used_free_symbols(self) -> Iterable[str]:
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    if isinstance(self.base_expression, VariableExpression):
+      return {self.base_expression.name: symbol_context.AttributeSymbolContext(self.attribute)}
     return self.base_expression.get_used_free_symbols()
 
 
@@ -362,10 +393,15 @@ class SubscriptExpression(Expression):
     pobject = self.base_expression.evaluate(curr_frame)
     return pobject.set_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame), value)
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.base_expression.get_used_free_symbols()).union(
-        self.subscript_list_expression.get_used_free_symbols())
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    if isinstance(self.base_expression, VariableExpression):
+      out = {self.base_expression.name: symbol_context.SubscriptSymbolContext(self.subscript_list_expression)}
+    else:
+      out = self.base_expression.get_used_free_symbols()
+    return symbol_context.merge_symbol_context_dicts(out,
+                                                     self.subscript_list_expression.get_used_free_symbols())
 
 
 @attr.s(slots=True)
@@ -385,13 +421,13 @@ class IfElseExpression(Expression):
          self.false_expression.evaluate(curr_frame)])
     # return self.true_expression.evaluate(curr_frame)
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(
-        itertools.chain(*[
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(*[
             expr.get_used_free_symbols()
             for expr in (self.true_expression, self.conditional_expression, self.false_expression)
-        ]))
+        ])
 
 
 @attr.s(slots=True)
@@ -409,8 +445,9 @@ class FactorExpression(Expression):
       debug(f'Skipping inversion and just returning expression')
       return self.expression.evaluate(curr_frame)
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
 
 
@@ -469,9 +506,10 @@ class MathExpression(Expression):
     debug(f'MathExpression failed: {l}{self.operator}{r}')
     return UnknownObject(f'{self.parse_node.get_code()}')
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols()).union(
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
         self.right_expression.get_used_free_symbols())
 
 
@@ -512,10 +550,11 @@ class ComparisonExpression(Expression):
 
     assert False, f'Cannot handle {self.operator} yet.'
 
-  @instance_memoize
-  def get_used_free_symbols(self) -> Iterable[str]:
-    return set(self.left_expression.get_used_free_symbols()).union(
+  # @instance_memoize
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
         self.right_expression.get_used_free_symbols())
 
 
-Variable = Expression
+# Variable = Expression
