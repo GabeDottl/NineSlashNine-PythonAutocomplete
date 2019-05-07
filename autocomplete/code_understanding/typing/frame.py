@@ -83,8 +83,8 @@ class Frame:
   namespace = attr.ib(None)
   _back: 'Frame' = attr.ib(None)
   _cell_symbols = attr.ib(factory=set)
+
   # _root: 'Frame' = attr.ib(None)
-  _collector = None  # class variable
 
   def __attrs_post_init__(self):
     if not self._builtins:
@@ -107,6 +107,24 @@ class Frame:
     if self._back:
       return self._back.contains_namespace_on_stack(namespace)
     return False
+
+  def snapshot(self):
+    '''Creates a sort of snapshot / copy of the Frame at the current time.
+
+    This is intended to enable delayed actions (which need the Frame in the state at which they were queue'd)
+    and potentially debugging.
+
+    The main issue of course is that the underlying PObjects are still mutable.
+    '''
+    return Frame(
+        frame_type=self._frame_type,
+        back=self._back.snapshot() if self._back else None,
+        module=self._module,
+        locals=self._locals.copy(),
+        returns=self._returns.copy(),
+        namespace=self.namespace,
+        builtins=self._builtins,  # Constant, no need to copy.
+        cell_symbols=self._cell_symbols.copy())
 
   def make_child(self, namespace, frame_type=FrameType.NORMAL, *, module=None, cell_symbols=None) -> 'Frame':
     # if self._frame_type == FrameType.NORMAL:

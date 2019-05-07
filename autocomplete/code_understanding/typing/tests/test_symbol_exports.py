@@ -129,7 +129,8 @@ def test_no_missing_symbols_in_typing_package():
 
 
 def test_module_exports():
-  with open('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py') as f:
+  HOME = os.getenv('HOME')
+  with open(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py') as f:
     source = ''.join(f.readlines())
   graph = graph_from_source(source)
   exports = graph.get_defined_and_exported_symbols()

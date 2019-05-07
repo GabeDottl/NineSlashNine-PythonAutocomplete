@@ -36,6 +36,8 @@ __native_module_dict: Dict[str, Module] = {}
 # given the public API.
 __loaded_paths: Set[str] = set()
 
+keep_graphs_default = False
+
 
 class InvalidModuleError(Exception):
   ...
@@ -67,7 +69,8 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
 
 def get_module(name: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   filename, is_package, module_type = get_module_info_from_name(name)
-  return _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy, include_graph)
+  return _get_module_internal(
+      name, filename, is_package, module_type, unknown_fallback, lazy, include_graph=include_graph)
 
 
 def get_module_from_filename(name,
@@ -169,7 +172,7 @@ def _module_exports_from_source(module, source, filename, return_graph=False) ->
 
 def _get_module_stub_source_filename(name) -> str:
   '''Retrieves the stub version of a module, if it exists.
-
+  
   This currently only relies on typeshed, but in the future should also pull from some local repo.'''
   # TODO: local install + TYPESHED_HOME env variable like pytype:
   # https://github.com/google/pytype/blob/309a87fab8a861241823592157208e65c970f7b6/pytype/pytd/typeshed.py#L24
@@ -302,8 +305,8 @@ def deserialize_hook_fn(type_str, obj):
     return True, get_module(obj)
   if type_str == 'import_module':
     name, filename = obj
-    return get_module_from_filename(
-        name, filename, is_package=_is_init(filename), module_type=_module_type_from_filename(filename))
+    return get_module_from_filename(name, filename, is_package=_is_init(filename))
+    #module_type=_module_type_from_filename(filename))
   if type_str == 'from_import':
     filename = obj
     index = filename.rindex('.')
@@ -341,7 +344,13 @@ def _load_module_from_module_info(name: str,
       return NativeModule(
           name, module_type, filename=filename, native_module=NativeObject(python_module, read_only=True))
   return _load_module_from_filename(
-      name, filename, is_package=is_package, module_type=module_type, lazy=lazy, include_graph=include_graph)
+      name,
+      filename,
+      is_package=is_package,
+      module_type=module_type,
+      unknown_fallback=unknown_fallback,
+      lazy=lazy,
+      include_graph=include_graph)
 
 
 def _is_init(filename):
@@ -368,8 +377,9 @@ def _load_module_from_filename(name,
   module = ModuleImpl(
       name=name, module_type=module_type, filename=filename, members={}, is_package=is_package)
   try:
-    if include_graph:
-      module._members, module.graph = _load_module_exports_from_filename(module, filename, include_graph)
+    if include_graph or keep_graphs_default:
+      module._members, module.graph = _load_module_exports_from_filename(module, filename, include_graph
+                                                                         or keep_graphs_default)
     else:
       module._members = _load_module_exports_from_filename(module, filename)
   except UnableToReadModuleFileError:
@@ -386,7 +396,7 @@ def _create_lazy_module(name, filename, is_package, module_type, include_graph) 
       filename=filename,
       load_module_exports_from_filename=_load_module_exports_from_filename,
       is_package=is_package,
-      keep_graph=include_graph)
+      keep_graph=include_graph or keep_graphs_default)
 
 
 def _create_empty_module(name, module_type):

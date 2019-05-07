@@ -297,16 +297,16 @@ def parameters_from_arguments(arguments):
   #         attributes (int lineno, int col_offset)
   out = []
   arg_iter = iter(arguments.args)
-  for arg, default in zip(arg_iter, arguments.defaults):
+  for default, arg in zip(arguments.defaults, arg_iter):
     out.append(Parameter(arg.arg, ParameterType.SINGLE, default_expression=expression_from_node(default)))
   for arg in arg_iter:
     out.append(Parameter(arg.arg, ParameterType.SINGLE))
   if arguments.vararg:
     out.append(Parameter(arguments.vararg.arg, ParameterType.ARGS))
   kwarg_iter = iter(arguments.kwonlyargs)
-  for arg, default in zip(kwarg_iter, arguments.kw_defaults):
+  for default, arg in zip(arguments.kw_defaults, kwarg_iter):
     out.append(Parameter(arg.arg, ParameterType.SINGLE, default_expression=expression_from_node(default)))
-  for arg in arg_iter:
+  for arg in kwarg_iter:
     out.append(Parameter(arg.arg, ParameterType.SINGLE))
   if arguments.kwarg:
     out.append(Parameter(arguments.kwarg.arg, ParameterType.KWARGS))

@@ -414,6 +414,16 @@ class LazyObjectLoadingError(Exception):
   ...
 
 
+def _passthrough_if_loaded(func):
+  @wraps(func)
+  def wrapper(self, *args, **kwargs):
+    if self._loaded_object is not None:
+      return getattr(self._loaded_object, func.__name__)(*args, **kwargs)
+    return func(self, *args, **kwargs)
+
+  return wrapper
+
+
 @attr.s(str=False, repr=False, slots=True)
 class LazyObject(PObject):
   name = attr.ib()
@@ -430,15 +440,6 @@ class LazyObject(PObject):
 
   def __attrs_post_init__(self):
     self._loader_filecontext = collector._filename_context[-1]
-
-  def _passthrough_if_loaded(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-      if self._loaded_object is not None:
-        return getattr(self._loaded_object, func.__name__)(*args, **kwargs)
-      return func(self, *args, **kwargs)
-
-    return wrapper
 
   def _load(self):
     if self._loaded_object is not None or self._loading_failed or self._loading:
@@ -528,32 +529,35 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def call(self, curr_frame, args, kwargs):
-    # Okay, so, this and get_item aren't really *super* valid since curr_frame will look very
-    # different later. Ideally, we should save a snapshot of the current frame......
-    # TODO: Snapshot frame.
+    # We have to do a snapshot here because the call is delayed - we want to do the function call at the
+    # delayed time as if the Frame was as it is now. This does *not* snapshot PObject states.
+    # TODO: Consider somehow snapshotting PObjects too.
+    frame = curr_frame.snapshot()
     return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda: self._load_and_ret().call(
-        curr_frame, args, kwargs))
+        frame, args, kwargs))
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):
-    # TODO: snapshot frame
+    # We have to do a snapshot here because the call is delayed - we want to do the function call at the
+    # delayed time as if the Frame was as it is now. This does *not* snapshot PObject states.
+    frame = curr_frame.snapshot()
     return LazyObject(
         f'{self.name}[{index_pobject}]', lambda: self._load_and_ret().get_item(
-            curr_frame,
+            frame,
             index_pobject.value() if deferred_value else index_pobject))
 
   @_passthrough_if_loaded
   def set_item(self, curr_frame, index_pobject, value_pobject, deferred_value=False):
+    # We have to do a snapshot here because the call is delayed - we want to do the function call at the
+    # delayed time as if the Frame was as it is now. This does *not* snapshot PObject states.
+    frame = curr_frame.snapshot()
+
     def _set_item():
-      self._load_and_ret().set_item(curr_frame,
+      self._load_and_ret().set_item(frame,
                                     index_pobject.value() if deferred_value else index_pobject,
                                     value_pobject.value() if deferred_value else value_pobject)
 
     self._deferred_operations.append(_set_item)
-    # self._loaded_object = LazyObject(
-    #     f'{self.name}[{index_pobject}]={value_pobject}', lambda:
-    # self._loaded = True
-    # self._apply_deferred_to_loaded()
 
   @_passthrough_if_loaded
   def update_dict(self, pobject):

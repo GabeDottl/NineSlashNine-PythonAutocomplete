@@ -32,7 +32,7 @@
       "program": "${workspaceFolder}/autocomplete/code_understanding/typing/project_analysis/find_missing_symbols.py",
       "console": "integratedTerminal",
       "args": [
-        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing",
+        "${home}/code/autocomplete/autocomplete/code_understanding/typing",
       ],
     },
     {
@@ -49,7 +49,7 @@
       "program": "${workspaceFolder}/autocomplete/code_understanding/typing/project_analysis/symbol_exports.py",
       "console": "integratedTerminal",
       "args": [
-        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing",
+        "${home}/code/autocomplete/autocomplete/code_understanding/typing",
       ],
     },
     {
@@ -59,7 +59,7 @@
       "program": "${workspaceFolder}/autocomplete/code_understanding/typing/api.py",
       "console": "integratedTerminal",
       "args": [
-        "/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py",
+        "${home}/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py",
       ],
     },    
     {

@@ -105,8 +105,6 @@ class Module(Namespace, LanguageObject, ABC):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib()
-  filename = attr.ib(kw_only=True)
-  graph = attr.ib(None, kw_only=True)
 
   def add_members(self, members):
     self._members.update(members)
@@ -119,10 +117,10 @@ class Module(Namespace, LanguageObject, ABC):
 class NativeModule(Module):
   name: str = attr.ib()
   module_type: ModuleType = attr.ib()
-  filename = attr.ib(kw_only=True)
-  _native_module: NativeObject = attr.ib(kw_only=True)
   _members: Dict = attr.ib(init=False, default=None)  # TODO: Remove.
   graph = attr.ib(None, init=False)
+  _native_module: NativeObject = attr.ib(kw_only=True)
+  filename = attr.ib(kw_only=True)
 
   def __contains__(self, name):
     return self._native_module.has_attribute(name)
@@ -217,44 +215,50 @@ class SimplePackageModule(ModuleImpl):
   ...
 
 
+def _lazy_load(func):
+  @wraps(func)
+  def _wrapper(self, *args, **kwargs):
+    self.load()
+    if self._loading:
+      # debug(f'Lazily loading from: {self.filename}')
+      # So, curiously, this is more allowed than I would think. ctypes does this with _endian
+      # where ctypes imports some stuff from _endian and the latter imports everything from
+      # ctypes - however, the ordering seems carefully done such that the _endian import in
+      # ctypes is well after most of it's members are defined - so, the module is mostly defined.
+      warning(f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?')
+    return func(self, *args, **kwargs)
+
+  return _wrapper
+
+
+def _passthrough_to_super_if_loaded(func):
+  @wraps(func)
+  def wrapper(self, *args, **kwargs):
+    if self._loaded:
+      return getattr(super(), func.__name__)(*args, **kwargs)
+    return func(self, *args, **kwargs)
+
+  return wrapper
+
+
 @attr.s
 class LazyModule(ModuleImpl):
   '''A Module which is lazily loaded with members.
 
   On the first attribute access, this module is loaded from its filename.
   '''
-  load_module_exports_from_filename = attr.ib(kw_only=True)
+
   lazy = attr.ib(init=False, default=True)
   _loaded = attr.ib(init=False, default=False)
   _loading = attr.ib(init=False, default=False)
   _loading_failed = attr.ib(init=False, default=False)
   _members: Dict = attr.ib(init=False, factory=dict)
-  keep_graph = attr.ib(False, kw_only=True)
   graph = attr.ib(None, init=False)
 
-  def _lazy_load(func):
-    @wraps(func)
-    def _wrapper(self, *args, **kwargs):
-      self.load()
-      if self._loading:
-        # debug(f'Lazily loading from: {self.filename}')
-        # So, curiously, this is more allowed than I would think. ctypes does this with _endian
-        # where ctypes imports some stuff from _endian and the latter imports everything from
-        # ctypes - however, the ordering seems carefully done such that the _endian import in
-        # ctypes is well after most of it's members are defined - so, the module is mostly defined.
-        warning(f'Already lazy-loading module... dependency cycle? {self.name}. Or From import?')
-      return func(self, *args, **kwargs)
-
-    return _wrapper
-
-  def _passthrough_to_super_if_loaded(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-      if self._loaded:
-        return getattr(super(), func.__name__)(*args, **kwargs)
-      return func(self, *args, **kwargs)
-
-    return wrapper
+  filename = attr.ib(kw_only=True)
+  _is_package = attr.ib(kw_only=True)
+  keep_graph = attr.ib(False, kw_only=True)
+  load_module_exports_from_filename = attr.ib(kw_only=True)
 
   def load(self):
     if self._loaded or self._loading_failed or self._loading:
@@ -384,7 +388,7 @@ class LazyInstance(Namespace, LanguageObject):
   _members: Dict = attr.ib(factory=dict)
 
   def serialize(self, **kwargs):
-    return 'LazyInstance', self._klass.name
+    return 'LazyInstance', self._klass_name
 
 
 class FunctionType(Enum):
@@ -455,6 +459,7 @@ class FunctionImpl(Function):
     # As a sort of safety measure, we explicitly provide some value for every single param - this
     # avoids any issues with missing symbols when processing the function if it was called with
     # invalid arguments.
+
     # TODO: Perhaps don't call into it in that case instead as Python should do as well? This
     # could/will probably leak through bugs.
     for param in self.parameters:
@@ -559,9 +564,9 @@ class BoundFunction(Function):
 
   def __attrs_post_init__(self):
     self.name = self._function.name
-    container_parameters = list(self._function.parameters)
-    remaining_parameters = container_parameters[len(self._bound_args):]
-    self.parameters = filter(lambda param: param.name not in self._bound_kwargs, remaining_parameters)
+    # container_parameters = list(self._function.parameters)
+    # remaining_parameters = container_parameters[len(self._bound_args):]
+    self.parameters = filter(lambda param: param.name not in self._bound_kwargs, self._function.parameters)
 
   # TODO: Cell vars.
   def bind(self, args, kwargs) -> 'BoundFunction':

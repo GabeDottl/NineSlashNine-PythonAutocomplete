@@ -1,14 +1,19 @@
+import os
+
 from autocomplete.code_understanding.typing import symbol_index
 
-INDEX_PATH = '/home/gabe/index.msg'
+HOME = os.getenv('HOME')
+INDEX_PATH = f'{HOME}/index.msg'
 
 
 def test_build_typing_index():
-  index = symbol_index.SymbolIndex()
-  index.add_file('/usr/lib/python3.7/asyncio/__init__.py')
-  index.add_file('/home/gabe/code/autocomplete/autocomplete/debug/tcp_echo_server.py')
-  # index.add_file('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/language_objects.py')
-  index.add_path('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing', ignore_init=True)
+  index = symbol_index.SymbolIndex().build_index_from_package(
+      INDEX_PATH, f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing')
+  # index.add_path('/usr/local/Cellar/python/3.6.5_1/Frameworks/Python.framework/Versions/3.6/lib/python3.6/lib2to3')
+  # index.add_file('/usr/lib/python3.7/asyncio/__init__.py')
+  # index.add_file(f'{HOME}/code/autocomplete/autocomplete/debug/tcp_echo_server.py')
+  # index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/language_objects.py')
+  # index.add_path(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing', ignore_init=True)
   symbol_entries = index.find_symbol('Function')
   assert len(symbol_entries) == 1
   assert symbol_entries[0].symbol_type == symbol_index.SymbolType.TYPE
@@ -17,7 +22,7 @@ def test_build_typing_index():
 
 def test_build_full_index():
   index = symbol_index.SymbolIndex.build_index(INDEX_PATH)
-  # index.add_file('/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/test.py')
+  # index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
   # index.add_file('/usr/lib/python3/dist-packages/entrypoints.py')
   # index.add_file('/usr/lib/python3/dist-packages/six.py')
   # index.add_file('/usr/lib/python3/dist-packages/debconf.py')

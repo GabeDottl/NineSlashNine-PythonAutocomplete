@@ -8,7 +8,8 @@ from glob import glob
 
 import attr
 import msgpack
-from autocomplete.code_understanding.typing import (errors, language_objects, module_loader, utils)
+from autocomplete.code_understanding.typing import (control_flow_graph_nodes, errors, language_objects,
+                                                    module_loader, utils)
 from autocomplete.nsn_logging import info, warning
 
 
@@ -69,6 +70,7 @@ class SymbolIndex:
   failed_files = attr.ib(factory=set)
   files_added = attr.ib(0, init=False)
   path = attr.ib(None, init=False)
+  module_reference_map = attr.ib(factory=partial(defaultdict, int), init=False)
 
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):
@@ -122,43 +124,50 @@ class SymbolIndex:
   def build_index_from_package(target_index_filename, package_path):
     index = SymbolIndex()
     index.path = target_index_filename
-    index.add_path(package_path, ignore_init=True)
+    index.add_path(package_path, ignore_init=True, track_imported_modules=True)
     # TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
     # get_imported_modules from each module in package, add import to module_reference_map.
-    for module_name, value in index.module_reference_map.items():
-      self.add_module_by_name(module_name)
+    for module_name in index.module_reference_map.keys():
+      index.add_module_by_name(module_name)
 
     return index
 
   def add_module_by_name(self, module_name):
-    filename, is_package, package_type = module_loader.get_module_info_from_name(key)
+    filename, is_package, package_type = module_loader.get_module_info_from_name(module_name)
+
     if filename in self.normal_module_list:
       return  # Already added.
+
     if package_type == language_objects.ModuleType.BUILTIN:
       if module_name in self.native_module_list:
         return  # Already loaded.
+
     if package_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
       info(f'Cannot load: {module_name}')
       return
 
-    if os.path.exists(filename):
+    if filename and os.path.exists(filename):
       self.add_file(filename)
     else:
       module = module_loader.get_module(module_name, lazy=False)
-      self.add_module(module)
+      self.add_module(module, len(self.native_module_list))
 
-  def add_path(self, path, ignore_init=False, include_private_files=False):
+  def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
     if not os.path.exists(path):
       return
+    if track_imported_modules:
+      module_loader.keep_graphs_default = True
     init_file = os.path.join(path, '__init__.py')
     if ignore_init or os.path.exists(init_file):
       info(f'Adding dir: {path}')
       for filename in glob(os.path.join(path, '*.py')):
-        self.add_file(filename)
+        self.add_file(filename, track_imported_modules=track_imported_modules)
       for directory in filter(lambda p: os.path.isdir(os.path.join(path, p)), os.listdir(path)):
-        self.add_path(os.path.join(path, directory))
+        self.add_path(os.path.join(path, directory), track_imported_modules=track_imported_modules)
+    if track_imported_modules:
+      module_loader.keep_graphs_default = False
 
-  def add_file(self, filename):
+  def add_file(self, filename, track_imported_modules=False):
     if filename in self.normal_module_list or filename in self.failed_files:
       warning(f'Skipping {filename} - already processed.')
       return
@@ -166,14 +175,21 @@ class SymbolIndex:
     info(f'Adding to index: {filename}')
     file_index = len(self.normal_module_list)
     try:
-      module = module_loader.get_module_from_filename('__main__', filename, lazy=False)
+      if track_imported_modules:
+        module = module_loader.get_module_from_filename('__main__', filename, lazy=False, include_graph=True)
+        imported_modules = get_imported_modules(module.graph)
+        for module_name in imported_modules:
+          self.module_reference_map[module_name] += 1
+      else:
+        module = module_loader.get_module_from_filename(
+            '__main__', filename, unknown_fallback=True, lazy=False)
       if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
         info(f'Failed on {filename} - unreadable')
         self.failed_files.add(filename)
         return
 
       self.add_module(module, file_index)
-    except Exception as e:
+    except OSError as e:  # Exception
       info(f'Failed on {filename}: {e}')
       self.failed_files.add(filename)
     else:
@@ -184,15 +200,15 @@ class SymbolIndex:
         self.save(self.path)
         # self.files_added = 0
 
-  def add_module(self, module, file_index):
+  def add_module(self, module, module_index):
     module_type = module.module_type
     # filename = module.filename
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
       try:
         self.symbol_dict[name].append(
-            SymbolEntry(SymbolType.from_pobject_value(member.value()), module_type, file_index))
+            SymbolEntry(SymbolType.from_pobject_value(member.value()), module_type, module_index))
       except errors.AmbiguousFuzzyValueError:
-        self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, file_index))
+        self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, module_index))
 
 
 def get_imported_modules(graph):
