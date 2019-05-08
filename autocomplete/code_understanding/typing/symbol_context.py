@@ -1,5 +1,6 @@
-import attr
 import itertools
+
+import attr
 
 
 class SymbolContext:

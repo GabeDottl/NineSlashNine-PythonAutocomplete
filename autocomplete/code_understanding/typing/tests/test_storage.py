@@ -5,7 +5,6 @@ from autocomplete.code_understanding.typing import (language_objects, module_loa
 from autocomplete.code_understanding.typing.module_index import ModuleIndex
 from autocomplete.code_understanding.typing.tests.utils import (assert_expected_iterable)
 
-
 # def test_store_retrieve():
 #   tmp_file = '/tmp/tmp.hdf'
 #   if os.path.exists(tmp_file):

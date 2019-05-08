@@ -109,8 +109,7 @@ def test_missing_symbols():
   typing_dir = os.path.join(os.path.dirname(__file__), '..')
   unresolved_imports_filename = os.path.abspath(os.path.join(typing_dir, 'examples', 'unresolved_symbols.py'))
 
-  missing_symbols = find_missing_symbols.scan_missing_symbols(
-      unresolved_imports_filename)
+  missing_symbols = find_missing_symbols.scan_missing_symbols_in_file(unresolved_imports_filename)
   print('Used symbols:', collector._referenced_symbols[unresolved_imports_filename])
   # Should be missing unresolved 1 - 4.
   assert len(missing_symbols) == 5, missing_symbols
@@ -124,7 +123,7 @@ def test_no_missing_symbols_in_typing_package():
   for filename in filter(lambda f: 'grammar.py' not in f, filenames):
     info(f'filename: {filename}')
     # name = os.path.splitext(os.path.basename(filename))[0]
-    missing_symbols = find_missing_symbols.scan_missing_symbols(filename)
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_file(filename)
     assert not missing_symbols
 
 

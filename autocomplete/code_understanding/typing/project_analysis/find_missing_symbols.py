@@ -3,16 +3,20 @@ import os
 from glob import glob
 from pprint import pprint
 
-from autocomplete.code_understanding.typing.control_flow_graph import FromImportCfgNode
 from autocomplete.code_understanding.typing import (api, collector, module_loader, utils)
+from autocomplete.code_understanding.typing.control_flow_graph import (FromImportCfgNode)
 from autocomplete.nsn_logging import info
 
 
-def scan_missing_symbols(filename):
+def scan_missing_symbols_in_file(filename):
   # TODO: Add some platform configuration.
   with open(filename) as f:
     source = ''.join(f.readlines())
   graph = api.graph_from_source(source)
+  return scan_missing_symbols_in_graph(graph)
+
+
+def scan_missing_symbols_in_graph(graph):
   missing_symbols = graph.get_non_local_symbols()
   for builtin in utils.get_possible_builtin_symbols():
     if builtin in missing_symbols:
@@ -34,7 +38,10 @@ def scan_missing_symbols(filename):
         with open(filename) as f:
           imported_graph = api.graph_from_source(''.join(f.readlines()))
           defined_symbols = set(imported_graph.get_defined_and_exported_symbols())
-          missing_symbols = {s:c for s,c in filter(lambda sc: not sc[0] in defined_symbols, missing_symbols.items())}
+          missing_symbols = {
+              s: c
+              for s, c in filter(lambda sc: not sc[0] in defined_symbols, missing_symbols.items())
+          }
         # Early return where possible.
         if not missing_symbols:
           return missing_symbols
@@ -52,9 +59,9 @@ if __name__ == "__main__":
     filenames = glob(os.path.join(args.directory_or_file, '**/*.py'), recursive=args.recursive)
     for filename in filenames:
       info(f'Scanning {filename}')
-      missing_map[filename] = scan_missing_symbols(filename)
+      missing_map[filename] = scan_missing_symbols_in_file(filename)
     print('Missing symbol map:')
     pprint(missing_map)
   else:
     assert os.path.exists(args.directory_or_file)
-    print(scan_missing_symbols(args.directory_or_file))
+    print(scan_missing_symbols_in_file(args.directory_or_file))

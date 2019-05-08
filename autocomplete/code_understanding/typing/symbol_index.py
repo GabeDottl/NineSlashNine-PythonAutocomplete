@@ -47,12 +47,13 @@ class SymbolType(Enum):
 class SymbolEntry:
   symbol_type: SymbolType = attr.ib()
   module_type: 'ModuleType' = attr.ib()
-  module_key: int = attr.ib()
+  module_index: int = attr.ib()
   symbol_meta = attr.ib(None)
+  is_module_itself = attr.ib(False)
 
   def serialize(self):
     if self.module_type:
-      return (self.symbol_type.value, self.module_type.value, self.module_key)
+      return (self.symbol_type.value, self.module_type.value, self.module_index)
     return (self.symbol_type.value, None, 0)
 
   @staticmethod
@@ -61,16 +62,29 @@ class SymbolEntry:
       return SymbolEntry(SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]), *tuple_[2:])
     return SymbolEntry(SymbolType(tuple_[0]), *tuple_[1:])
 
+  def is_from_native_module(self):
+    return self.module_type == language_objects.ModuleType.BUILTIN
+
 
 @attr.s
 class SymbolIndex:
   symbol_dict = attr.ib(factory=partial(defaultdict, list))
-  native_module_list = attr.ib(factory=OrderedDict)
-  normal_module_list = attr.ib(factory=OrderedDict)
+  native_module_list = attr.ib(factory=list)
+  normal_module_list = attr.ib(factory=list)
+  native_module_set = attr.ib(factory=set)
+  normal_module_set = attr.ib(factory=set)
   failed_files = attr.ib(factory=set)
   files_added = attr.ib(0, init=False)
   path = attr.ib(None, init=False)
   module_reference_map = attr.ib(factory=partial(defaultdict, int), init=False)
+
+  def get_native_module_name_from_symbol_entry(self, symbol_entry):
+    assert symbol_entry.is_from_native_module()
+    return self.native_module_list[symbol_entry.module_index]
+
+  def get_module_filename_from_symbol_entry(self, symbol_entry):
+    assert not symbol_entry.is_from_native_module()
+    return self.normal_module_list[symbol_entry.module_index]
 
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):
@@ -80,6 +94,10 @@ class SymbolIndex:
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
           self.symbol_dict[symbol].append(SymbolEntry(SymbolType.UNKNOWN, None, 0))
+    if len(self.normal_module_list) != len(self.normal_module_set):
+      self.normal_module_set = set(self.normal_module_list)
+    if len(self.native_module_list) != len(self.native_module_set):
+      self.native_module_set = set(self.native_module_list)
 
   def find_symbol(self, symbol):
     return self.symbol_dict[symbol]
@@ -135,11 +153,11 @@ class SymbolIndex:
   def add_module_by_name(self, module_name):
     filename, is_package, package_type = module_loader.get_module_info_from_name(module_name)
 
-    if filename in self.normal_module_list:
+    if filename in self.normal_module_set:
       return  # Already added.
 
     if package_type == language_objects.ModuleType.BUILTIN:
-      if module_name in self.native_module_list:
+      if module_name in self.native_module_set:
         return  # Already loaded.
 
     if package_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
@@ -151,6 +169,8 @@ class SymbolIndex:
     else:
       module = module_loader.get_module(module_name, lazy=False)
       self.add_module(module, len(self.native_module_list))
+      self.native_module_set.add(module_name)
+      self.native_module_list.append(module_name)
 
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
     if not os.path.exists(path):
@@ -168,7 +188,7 @@ class SymbolIndex:
       module_loader.keep_graphs_default = False
 
   def add_file(self, filename, track_imported_modules=False):
-    if filename in self.normal_module_list or filename in self.failed_files:
+    if filename in self.normal_module_set or filename in self.failed_files:
       warning(f'Skipping {filename} - already processed.')
       return
 
@@ -194,7 +214,8 @@ class SymbolIndex:
       self.failed_files.add(filename)
     else:
       self.files_added += 1
-      self.normal_module_list[filename] = file_index
+      self.normal_module_set.add(filename)
+      self.normal_module_list.append(filename)
       if self.files_added and self.files_added % 20 == 0 and self.path:
         info(f'Saving index to {self.path}. {self.files_added} files added.')
         self.save(self.path)
@@ -209,6 +230,10 @@ class SymbolIndex:
             SymbolEntry(SymbolType.from_pobject_value(member.value()), module_type, module_index))
       except errors.AmbiguousFuzzyValueError:
         self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, module_index))
+    if module.filename:
+      module_basename = os.path.splitext(os.path.basename(module.filename))[0]
+      self.symbol_dict[module_basename].append(
+          SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
 
 
 def get_imported_modules(graph):

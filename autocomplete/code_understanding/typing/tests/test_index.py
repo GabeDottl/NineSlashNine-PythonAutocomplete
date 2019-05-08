@@ -1,7 +1,7 @@
 import os
 
-from autocomplete.nsn_logging import info
 from autocomplete.code_understanding.typing import symbol_index
+from autocomplete.nsn_logging import info
 
 HOME = os.getenv('HOME')
 INDEX_PATH = f'{HOME}/index.msg'
@@ -21,21 +21,21 @@ def test_build_typing_index():
 
 def test_add_file():
   index = symbol_index.SymbolIndex()
-  index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
+  index.add_file(
+      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/exports.py',
+      track_imported_modules=True)
+
 
 # Commented out so pytest doesn't run on it.
 # def test_build_full_index():
 #   index = symbol_index.SymbolIndex.build_index(INDEX_PATH)
 #   index.save(INDEX_PATH)
 
-
 # def test_save_load_index():
 #   index = symbol_index.SymbolIndex()
 #   index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
 
-  
-
 if __name__ == "__main__":
   test_build_typing_index()
-  # test_load_index()
+  test_add_file()
   # test_build_full_index()

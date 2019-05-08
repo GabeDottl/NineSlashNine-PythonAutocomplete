@@ -4,12 +4,12 @@ from typing import Dict, Iterable, List, Union
 from wsgiref.validate import validator
 
 import attr
-from autocomplete.code_understanding.typing import (collector, symbol_context)
+from autocomplete.code_understanding.typing import collector, symbol_context
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
                                                              LazyObject, NativeObject, PObject, PObjectType,
                                                              UnknownObject, pobject_from_object)
-from autocomplete.code_understanding.typing.utils import instance_memoize, assert_returns_type
+from autocomplete.code_understanding.typing.utils import (assert_returns_type, instance_memoize)
 from autocomplete.nsn_logging import debug, info, warning
 
 
@@ -187,9 +187,9 @@ class CallExpression(Expression):
     else:
       out = self.function_expression.get_used_free_symbols()
     out = symbol_context.merge_symbol_context_dicts(out,
-        *[expr.get_used_free_symbols() for expr in self.args])
-    out = symbol_context.merge_symbol_context_dicts(out,
-        *[expr.get_used_free_symbols() for expr in self.kwargs.values()])
+                                                    *[expr.get_used_free_symbols() for expr in self.args])
+    out = symbol_context.merge_symbol_context_dicts(
+        out, *[expr.get_used_free_symbols() for expr in self.kwargs.values()])
     return out
 
 
@@ -425,9 +425,9 @@ class IfElseExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(*[
-            expr.get_used_free_symbols()
-            for expr in (self.true_expression, self.conditional_expression, self.false_expression)
-        ])
+        expr.get_used_free_symbols()
+        for expr in (self.true_expression, self.conditional_expression, self.false_expression)
+    ])
 
 
 @attr.s(slots=True)
@@ -510,7 +510,7 @@ class MathExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
-        self.right_expression.get_used_free_symbols())
+                                                     self.right_expression.get_used_free_symbols())
 
 
 @attr.s(slots=True)
@@ -554,7 +554,7 @@ class ComparisonExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
-        self.right_expression.get_used_free_symbols())
+                                                     self.right_expression.get_used_free_symbols())
 
 
 # Variable = Expression

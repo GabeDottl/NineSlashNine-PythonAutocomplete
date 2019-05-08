@@ -131,9 +131,16 @@ def _get_module_internal(name, filename, is_package, module_type, unknown_fallba
 
     # Load module if it's not alread loaded and we're specifically retrieving a non-Lazy version.
     if isinstance(module, LazyModule) and not lazy:
+      if include_graph:
+        module.keep_graph = True
+
       module.load()
       # Even if the module is loaded, it'll still act lazily unless we explicitly indicate not to.
       module.lazy = False
+    if include_graph and not module.graph:
+      # Damn, alreadly loaded but did not keep the graph the first time...
+      with open(filename) as f:
+        module.graph = api.graph_from_source(''.join(f.readlines()))
     return module
 
   # We set this to None to start as a form of dependency-cycle-checking. This is the only way that
@@ -376,6 +383,7 @@ def _load_module_from_filename(name,
 
   module = ModuleImpl(
       name=name, module_type=module_type, filename=filename, members={}, is_package=is_package)
+
   try:
     if include_graph or keep_graphs_default:
       module._members, module.graph = _load_module_exports_from_filename(module, filename, include_graph

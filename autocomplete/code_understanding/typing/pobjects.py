@@ -449,7 +449,7 @@ class LazyObject(PObject):
     try:
       with collector.FileContext(self._loader_filecontext):
         self._loaded_object = self._loader()
-    except OSError as e: # Exception
+    except OSError as e:  # Exception
       error(f'Unable to lazily load {self.name}')
       import traceback
       traceback.print_tb(e.__traceback__)

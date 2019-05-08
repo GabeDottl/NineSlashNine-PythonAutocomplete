@@ -2,10 +2,10 @@ import itertools
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from functools import wraps
-from typing import Iterable, List, Set, Tuple, Union, Dict
+from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
-from autocomplete.code_understanding.typing import (collector, symbol_context)
+from autocomplete.code_understanding.typing import collector, symbol_context
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError, ParsingError,
                                                            assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (
@@ -16,7 +16,7 @@ from autocomplete.code_understanding.typing.language_objects import (
     SimplePackageModule)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
                                                              LazyObject, UnknownObject)
-from autocomplete.code_understanding.typing.utils import instance_memoize, assert_returns_type
+from autocomplete.code_understanding.typing.utils import (assert_returns_type, instance_memoize)
 from autocomplete.nsn_logging import error, info, warning
 
 # from autocomplete.code_understanding.typing.collector import Collector
@@ -377,7 +377,8 @@ class WhileCfgNode(CfgNode):
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    out = symbol_context.merge_symbol_context_dicts(self.suite.get_non_local_symbols(), self.else_suite.get_non_local_symbols())
+    out = symbol_context.merge_symbol_context_dicts(self.suite.get_non_local_symbols(),
+                                                    self.else_suite.get_non_local_symbols())
     return symbol_context.merge_symbol_context_dicts(out, self.conditional_expression.get_used_free_symbols())
 
   @instance_memoize
@@ -461,10 +462,9 @@ class TryCfgNode(CfgNode):
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(*[
-            node.get_non_local_symbols()
-            for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
-        ])
-
+        node.get_non_local_symbols()
+        for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
+    ])
 
   @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -573,7 +573,8 @@ class IfCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     out = {}
     for expression, node in self.expression_node_tuples:
-      out = symbol_context.merge_symbol_context_dicts(out, expression.get_used_free_symbols(), node.get_non_local_symbols())
+      out = symbol_context.merge_symbol_context_dicts(out, expression.get_used_free_symbols(),
+                                                      node.get_non_local_symbols())
     return out
 
   @instance_memoize
@@ -738,7 +739,8 @@ class FuncCfgNode(CfgNode):
 
     for parameter in self.parameters:
       if parameter.default_expression:
-        out = symbol_context.merge_symbol_context_dicts(out, parameter.default_expression.get_used_free_symbols())
+        out = symbol_context.merge_symbol_context_dicts(out,
+                                                        parameter.default_expression.get_used_free_symbols())
 
     return out
 
