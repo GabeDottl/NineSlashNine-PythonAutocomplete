@@ -58,15 +58,20 @@ class SymbolEntry:
   import_count = attr.ib(0)
 
   def serialize(self):
-    if self.module_type:
-      return (self.symbol_type.value, self.module_type.value, self.module_index)
-    return (self.symbol_type.value, None, 0)
+    args = list(attr.astuple(self))
+    args[0] = args[0].value # symbol_type
+    args[1] = args[1].value # module_type
+    return args
 
   @staticmethod
   def deserialize(tuple_):
-    if tuple_[1] is not None:
-      return SymbolEntry(SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]), *tuple_[2:])
-    return SymbolEntry(SymbolType(tuple_[0]), *tuple_[1:])
+    args = list(tuple_)
+    args[0] = SymbolType(args[0]) # symbol_type
+    args[1] = language_objects.ModuleType(args[1]) # module_type
+    # if tuple_[1] is not None:
+    #   return SymbolEntry(SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]), *tuple_[2:])
+    return SymbolEntry(*args)
+    # return SymbolEntry(SymbolType(tuple_[0]), *tuple_[1:])
 
   def is_from_native_module(self):
     return self.module_type == language_objects.ModuleType.BUILTIN
@@ -98,16 +103,18 @@ class SymbolIndex:
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
       for symbol, value in builtins.__dict__.items():
-        self.symbol_dict[symbol].append(SymbolEntry(SymbolType.from_real_obj(value), None, 0))
+        self.symbol_dict[symbol].append(SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1))
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol].append(SymbolEntry(SymbolType.UNKNOWN, None, 0))
+          self.symbol_dict[symbol].append(SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -1))
     if len(self.normal_module_list) != len(self.normal_module_dict):
       self.normal_module_dict = {x: i for i, x in enumerate(self.normal_module_list)}
     if len(self.native_module_list) != len(self.native_module_dict):
       self.native_module_dict =  {x: i for i, x in enumerate(self.native_module_list)}
 
   def find_symbol(self, symbol):
+    if symbol not in self.symbol_dict:
+      return []
     return self.symbol_dict[symbol]
 
   @staticmethod
@@ -170,10 +177,6 @@ class SymbolIndex:
         if entry.module_index == module_index and ((not value and entry.is_module_itself) or (value and not entry.is_module_itself)):
           entry.import_count += count
           break
-      
-
-
-
     return index
 
   def add_module_by_name(self, module_name, filename):
@@ -302,6 +305,7 @@ def _should_export_symbol(current_module, name, pobject):
 
 
 def main(target_package, output_path):
+  assert os.path.exists(target_package)
   index = SymbolIndex.build_index_from_package(target_package, output_path)
   index.save(output_path)
 
