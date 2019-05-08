@@ -30,9 +30,11 @@ c = AClass()
 '''
   index = symbol_index.SymbolIndex()
   index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/exports.py')
-  graph = api.graph_from_source(source)
-  fixes = fix_code.generate_missing_symbol_fixes(graph, index)
-  assert len(fixes) == 3
+  new_source = fix_code.fix_missing_symbols_in_source(source, index)
+  graph = api.graph_from_source(new_source)
+  print(new_source)
+  assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 3
+  assert len(graph.get_non_local_symbols()) == 0
 
 
 if __name__ == "__main__":
