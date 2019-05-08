@@ -57,8 +57,9 @@ def test_fix_imports_typing_match_actual():
     for fix in fixes:
       for existing_import in existing_imports:
         if fix_code.does_import_match_cfg_node(fix, existing_import, directory):
-          continue
-      assert False
+          break
+      else:
+        assert False
 
     # name = os.path.splitext(os.path.basename(filename))[0]
     missing_symbols = fix_code.fix_missing_symbols_in_source(filename)

@@ -44,6 +44,7 @@ class InvalidModuleError(Exception):
   ...
 
 
+
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.
   # module_name will only end with '.' if it's purely periods- 1 or more. In that

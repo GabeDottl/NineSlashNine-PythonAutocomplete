@@ -6,6 +6,7 @@ import attr
 from autocomplete.code_understanding.typing import (api, symbol_context, symbol_index, module_loader)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode, ImportCfgNode, FromImportCfgNode)
 from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
+from autocomplete.nsn_logging import warning
 from isort import SortImports
 
 
@@ -48,8 +49,13 @@ def module_name_from_filename(filename, source_dir):
 
 def does_import_match_cfg_node(import_, cfg_node, directory):
   assert isinstance(cfg_node, (ImportCfgNode, FromImportCfgNode))
-  filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
-  if filename is None:
+  filename = ''
+  if isinstance(cfg_node, FromImportCfgNode):
+    filename = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{cfg_node.from_import_name}', directory)[0]
+    # If the from import is importing a module itself, then put it in the module_name
+  if not filename:
+    filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+  if not filename:
     if import_.module_name != cfg_node.module_path:
       return False
   else:
@@ -62,7 +68,8 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
     return True
 
   if not import_.value:
-    return False
+    name = module_name_from_filename(import_.module_filename, directory)
+    return cfg_node.from_import_name == name[name.rfind('.')+1:]
 
   return import_.value == cfg_node.from_import_name
   
@@ -102,7 +109,9 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
   for symbol, symbol_context in missing_symbols.items():
     # Prefer symbols which are imported already very often.
     entries = sorted(index.find_symbol(symbol), key=lambda e: e.import_count)  #list(filter(lambda x: not x.imported, index.find_symbol(symbol)))
-    
+    if not entries:
+      warning(f'Could not find import for {symbol}')
+      continue
     # TODO: Compare symbol_context w/entry.
     entry = entries[-1]
     module_name = index.get_native_module_name_from_symbol_entry(

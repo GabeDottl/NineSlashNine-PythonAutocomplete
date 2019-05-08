@@ -117,6 +117,14 @@ class SymbolIndex:
       return []
     return self.symbol_dict[symbol]
 
+  def get_modules_for_symbol_entries(self, symbol_entries):
+    for symbol_entry in symbol_entries:
+      if symbol_entry.module_type.is_native():
+        yield symbol_entry, self.native_module_list[symbol_entry.module_index]
+      else:
+        yield symbol_entry, self.normal_module_list[symbol_entry.module_index]
+
+
   @staticmethod
   def _serialize(index):
     d = {}
@@ -158,8 +166,7 @@ class SymbolIndex:
     index = SymbolIndex()
     index.path = target_index_filename
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
-    # TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
-    # get_imported_modules from each module in package, add import to module_reference_map.
+
     for (value, module_name, module_filename), count in index.value_module_reference_map.items():
       index.add_module_by_name(module_name, module_filename)
       if module_filename:
@@ -172,7 +179,8 @@ class SymbolIndex:
       if value:
         iterator = index.find_symbol(value)
       else:
-        iterator = index.find_symbol(module_name)
+        symbol = module_name[module_name.rfind('.')+1:]
+        iterator = index.find_symbol(symbol)
       for entry in iterator:
         if entry.module_index == module_index and ((not value and entry.is_module_itself) or (value and not entry.is_module_itself)):
           entry.import_count += count
@@ -214,6 +222,27 @@ class SymbolIndex:
     if track_imported_modules:
       module_loader.keep_graphs_default = False
 
+  def _track_modules(self, graph, directory):
+    import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
+                                                      control_flow_graph_nodes.FromImportCfgNode))
+    imported_symbols_and_modules = []
+    for node in import_nodes:
+      value = node.imported_symbol_name() if isinstance(node, control_flow_graph_nodes.FromImportCfgNode) else None
+      imported_filename = ''
+      module_name = node.module_path
+      if value:
+        imported_filename = module_loader.get_module_info_from_name(f'{node.module_path}.{value}', directory)[0]
+        # If the from import is importing a module itself, then put it in the module_name
+        if imported_filename:
+          module_name = f'{module_name}.{value}'
+          value = None
+      if not imported_filename:
+        imported_filename = module_loader.get_module_info_from_name(module_name, directory)[0]
+
+      imported_symbols_and_modules.append((value, module_name, imported_filename))
+    for value_module_name_filename in imported_symbols_and_modules:
+      self.value_module_reference_map[value_module_name_filename] += 1
+
   def add_file(self, filename, track_imported_modules=False):
     if filename in self.normal_module_dict or filename in self.failed_files:
       warning(f'Skipping {filename} - already processed.')
@@ -224,16 +253,8 @@ class SymbolIndex:
     try:
       if track_imported_modules:
         module = module_loader.get_module_from_filename('__main__', filename, lazy=False, include_graph=True)
-        import_nodes = module.graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
-                                                       control_flow_graph_nodes.FromImportCfgNode))
         directory = os.path.dirname(filename)
-        imported_symbols_and_modules = set([(node.imported_symbol_name() if isinstance(
-            node, control_flow_graph_nodes.FromImportCfgNode) else None, node.module_path,
-                                 module_loader.get_module_info_from_name(node.module_path, directory)[0])
-                                for node in import_nodes])
-        for value_module_name_filename in imported_symbols_and_modules:
-          self.value_module_reference_map[value_module_name_filename] += 1
-
+        self._track_modules(module.graph, directory)
       else:
         module = module_loader.get_module_from_filename(
             '__main__', filename, unknown_fallback=True, lazy=False, include_graph=False)
@@ -274,6 +295,9 @@ class SymbolIndex:
       if module_basename == '__init__':
         module_basename = os.path.basename(os.path.dirname(module.filename))
       self.symbol_dict[module_basename].append(
+          SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
+    else:  # Native.
+      self.symbol_dict[module.name].append(
           SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
 
 

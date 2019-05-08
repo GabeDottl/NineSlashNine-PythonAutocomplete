@@ -39,11 +39,6 @@ def test_build_typing_index():
 
 def test_add_file():
   index = symbol_index.SymbolIndex()
-  # index.add_file(
-  #     '/usr/local/lib/python3.6/site-packages/attr/__init__.py')
-  # index.add_file(
-  #     '/usr/local/Cellar/python/3.6.5_1/Frameworks/Python.framework/Versions/3.6/lib/python3.6/warnings.py')
-       
   index.add_file(
       f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/test_index_package/boo.py')
   entries = index.find_symbol('attr')
@@ -62,7 +57,7 @@ def test_add_file():
 
 if __name__ == "__main__":
   # test_add_file()
-  # test_build_test_index()
-  test_build_typing_index()
+  test_build_test_index()
+  # test_build_typing_index()
   
   # test_build_full_index()
