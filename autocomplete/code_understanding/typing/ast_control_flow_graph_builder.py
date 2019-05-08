@@ -118,12 +118,14 @@ class Visitor(ast.NodeVisitor):
         self.push(ExpressionCfgNode(expression_from_node(expr), parse_node=parse_from_ast(ast_node)))
 
   def visit_Assign(self, ast_node):
-    self.push(
-        AssignmentStmtCfgNode(
-            variables_from_targets(ast_node.targets),
-            '=',
-            expression_from_node(ast_node.value),
-            parse_node=parse_from_ast(ast_node)))
+    value_expression = expression_from_node(ast_node.value)
+    parse_node=parse_from_ast(ast_node)
+    for target in ast_node.targets:
+      self.push(
+          AssignmentStmtCfgNode(
+              expression_from_node(target),
+              '=',value_expression,
+              parse_node=parse_node))
 
   def visit_AugAssign(self, ast_node):
     # (expr target, operator op, expr value)

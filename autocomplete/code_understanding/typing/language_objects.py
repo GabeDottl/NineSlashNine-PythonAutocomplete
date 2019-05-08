@@ -87,7 +87,8 @@ class ModuleType(Enum):
   LOCAL = 2
   MAIN = 3
   BUILTIN = 4
-  UNKNOWN_OR_UNREADABLE = 5
+  COMPILED = 5  # .so files.
+  UNKNOWN_OR_UNREADABLE = 6
 
   def should_be_readable(self):
     return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE
@@ -95,6 +96,8 @@ class ModuleType(Enum):
   def serialize(self, **kwargs):
     return ModuleType.__qualname__, self.value
 
+  def is_native(self):
+    return self == ModuleType.BUILTIN or self == ModuleType.COMPILED
 
 def create_main_module(filename=None):
   return ModuleImpl('__main__', ModuleType.MAIN, members={}, filename=filename, is_package=False)

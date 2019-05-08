@@ -16,6 +16,7 @@ https://docs.python.org/3/tutorial/modules.html
 '''
 import importlib
 import os
+import sys
 import pkgutil
 from typing import Dict, Set, Tuple
 
@@ -43,7 +44,7 @@ class InvalidModuleError(Exception):
   ...
 
 
-def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
+def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.
   # module_name will only end with '.' if it's purely periods- 1 or more. In that
   # case, we don't want to mess things up by adding an additional period at the
@@ -53,11 +54,11 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   else:
     full_pobject_name = f'{module_name}.{pobject_name}'
   try:
-    return AugmentedObject(get_module(full_pobject_name, unknown_fallback=False), imported=True)
+    return AugmentedObject(get_module(full_pobject_name, directory, unknown_fallback=False), imported=True)
   except InvalidModuleError:
     pass
 
-  module = get_module(module_name)
+  module = get_module(module_name, directory)
   # Try to get pobject_name as a member of module if module is a package.
   # If the module is already loading, then we don't want to check if pobject_name is in module
   # because it will cause headaches. So try getting full_object_name as a package instead.
@@ -67,10 +68,10 @@ def get_pobject_from_module(module_name: str, pobject_name: str) -> PObject:
   return UnknownObject(full_pobject_name, imported=True)
 
 
-def get_module(name: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
-  filename, is_package, module_type = get_module_info_from_name(name)
+def get_module(name: str, directory: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
+  filename, is_package, module_type = get_module_info_from_name(name, directory)
   return _get_module_internal(
-      name, filename, is_package, module_type, unknown_fallback, lazy, include_graph=include_graph)
+      name, filename, directory, is_package, module_type, unknown_fallback, lazy, include_graph=include_graph)
 
 
 def get_module_from_filename(name,
@@ -83,6 +84,7 @@ def get_module_from_filename(name,
   return _get_module_internal(
       name,
       filename,
+      os.path.dirname(filename),
       is_package,
       _module_type_from_filename(filename),
       unknown_fallback=unknown_fallback,
@@ -90,7 +92,8 @@ def get_module_from_filename(name,
       include_graph=include_graph)
 
 
-def _get_module_internal(name, filename, is_package, module_type, unknown_fallback, lazy, include_graph):
+def _get_module_internal(name, filename, directory, is_package, module_type, unknown_fallback, lazy,
+                         include_graph):
   if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
     if unknown_fallback:
       return _create_empty_module(name, module_type)
@@ -102,12 +105,13 @@ def _get_module_internal(name, filename, is_package, module_type, unknown_fallba
   # Modules we load natively are stored in a separate dict from the filename dict because they
   # typically don't have a valid filename.
   # TODO: This could get murky if we allowed more modules to be loaded natively.
-  if name in NATIVE_MODULE_WHITELIST or module_type == ModuleType.BUILTIN:
+  if name in NATIVE_MODULE_WHITELIST or module_type.is_native():
     if name in __native_module_dict:
       return __native_module_dict[name]
     out = __native_module_dict[name] = _load_module_from_module_info(
         name,
         filename,
+        directory,
         is_package,
         module_type,
         unknown_fallback=unknown_fallback,
@@ -150,6 +154,7 @@ def _get_module_internal(name, filename, is_package, module_type, unknown_fallba
   module = _load_module_from_module_info(
       name,
       filename,
+      directory,
       is_package,
       module_type,
       unknown_fallback=unknown_fallback,
@@ -251,7 +256,7 @@ def _relative_path_from_relative_module(name):
   return f'{relative_prefix}{remaining_name.replace(".", os.sep)}'
 
 
-def get_module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
+def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, ModuleType]:
   try:
     stub_filename, is_package = _get_module_stub_source_filename(name)
     module_type = ModuleType.PUBLIC if 'third_party' in stub_filename else ModuleType.SYSTEM
@@ -260,13 +265,14 @@ def get_module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
     pass
   is_package = False
   if name[0] == '.':
+    assert os.path.exists(curr_dir), "Cannot get relative path w/o knowing current dir."
     relative_path = _relative_path_from_relative_module(name)
-    absolute_path = os.path.abspath(os.path.join(collector.get_current_context_dir(), relative_path))
+    absolute_path = os.path.abspath(os.path.join(curr_dir, relative_path))
     if os.path.exists(absolute_path):
       if os.path.isdir(absolute_path):
         is_package = True
         for name in ('__init__.pyi', '__init__.py'):
-          filename = os.path.join(collector.get_current_context_dir(), name)
+          filename = os.path.join(curr_dir, name)
           if os.path.exists(filename):
             return filename, is_package, _module_type_from_filename(filename)
       else:
@@ -277,19 +283,25 @@ def get_module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
       filename = f'{absolute_path}{file_extension}'
       if os.path.exists(filename):
         return filename, False, _module_type_from_filename(filename)
-    return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
+    # return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
+  package = None
+  if name[0] == '.':
+    package = package_from_directory(curr_dir)
   try:
-    loader = pkgutil.find_loader(name)
-  except ImportError as e:
+    spec = importlib.util.find_spec(name, package)
+  except (ImportError, AttributeError)as e:
+    # AttributeError: module '_warnings' has no attribute '__path__
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')
     debug(e)
   else:
-    if hasattr(loader, 'get_filename'):
-      filename = loader.get_filename()
+    if spec and spec.has_location:
+      filename = spec.loader.get_filename()
       ext = os.path.splitext(filename)[1]
       if ext != '.pyi' and ext != '.py':
         debug(f'Cannot read module filetype - {filename}')
+        if ext == '.so':
+          return None, False, ModuleType.COMPILED
         return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
       return os.path.abspath(filename), _is_init(filename), _module_type_from_filename(filename)
     return None, False, ModuleType.BUILTIN
@@ -297,11 +309,11 @@ def get_module_info_from_name(name: str) -> Tuple[str, bool, ModuleType]:
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
 
-def _load_module(name: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
+def _load_module(name: str, directory, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   debug(f'Loading module: {name}')
   filename, is_package, module_type = get_module_info_from_name(name)
-  return _load_module_from_module_info(name, filename, is_package, module_type, unknown_fallback, lazy,
-                                       include_graph)
+  return _load_module_from_module_info(name, filename, directory, is_package, module_type, unknown_fallback,
+                                       lazy, include_graph)
 
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
@@ -309,7 +321,7 @@ NATIVE_MODULE_WHITELIST = set(['six', 're'])
 
 def deserialize_hook_fn(type_str, obj):
   if type_str == NativeModule.__qualname__:
-    return True, get_module(obj)
+    return True, get_module(obj, '')
   if type_str == 'import_module':
     name, filename = obj
     return get_module_from_filename(name, filename, is_package=_is_init(filename))
@@ -319,16 +331,24 @@ def deserialize_hook_fn(type_str, obj):
     index = filename.rindex('.')
     module_name = filename[:index]
     object_name = filename[index + 1:]
-    return get_pobject_from_module(module_name, object_name)
+    return get_pobject_from_module(module_name, object_name, os.path.dirname(filename))
   return False, None
 
 
 def deserialize(type_str, obj):
   return serialization.deserialize(type_str, obj, hook_fn=deserialize_hook_fn)
 
+def package_from_directory(directory):
+  for path in sorted(sys.path, key=lambda p:-len(p)):
+    if path == directory[:len(path)]:
+      relative = directory[len(path)+1:]
+      return relative.replace(os.sep, '.')
+  assert False
+
 
 def _load_module_from_module_info(name: str,
                                   filename,
+                                  directory,
                                   is_package,
                                   module_type,
                                   unknown_fallback=True,
@@ -340,11 +360,14 @@ def _load_module_from_module_info(name: str,
     else:
       raise InvalidModuleError(name)
 
-  if module_type == ModuleType.BUILTIN or name in NATIVE_MODULE_WHITELIST:
+  if module_type.is_native() or name in NATIVE_MODULE_WHITELIST:
     # TODO: Create caches and rely on those after initial loads.
     debug(f'name: {name}')
     try:
-      python_module = importlib.import_module(name)
+      package = None
+      if name[0] == '.':
+        package = package_from_directory(directory)
+      python_module = importlib.import_module(name, package)
     except ImportError:
       return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
     else:

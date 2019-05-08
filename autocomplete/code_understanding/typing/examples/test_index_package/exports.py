@@ -1,3 +1,5 @@
+import attr
+
 def a_func():
   pass
 

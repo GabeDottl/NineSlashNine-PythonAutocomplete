@@ -155,7 +155,7 @@ class ImportCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
-    module = self.module_loader.get_module(self.module_path)
+    module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
 
     if self.as_name:
       curr_frame[name] = AugmentedObject(module, imported=True)
@@ -210,6 +210,12 @@ class ImportCfgNode(CfgNode):
       curr_frame[module.name] = AugmentedObject(module, imported=True)
     collector.add_module_import(module.name, self.as_name)
 
+  # def imported_symbol_name(self):
+  #   base = self.as_name if self.as_name else self.module_path
+  #   if '.' in base:
+  #     return base[:base.find('.')]
+  #   return base
+
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
@@ -243,20 +249,24 @@ class FromImportCfgNode(CfgNode):
       # that package which have already been explcitly imported. So, given a.b and a.c modules,
       # if we have from a import *, b and c will only be brought in to the namespace if they were
       # already imported. Such subtleties..
-      module = self.module_loader.get_module(self.module_path)
+      module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
       # Python does not include private members when importing with star.
       for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
         curr_frame[name] = AugmentedObject(pobject, imported=True)
       return
 
     # Normal case.
-    name = self.as_name if self.as_name else self.from_import_name
+    name = self.imported_symbol_name()
 
+    curr_dir = collector.get_current_context_dir()
     pobject = LazyObject(
         f'{self.module_path}.{self.from_import_name}',
-        lambda: self.module_loader.get_pobject_from_module(self.module_path, self.from_import_name),
+        lambda: self.module_loader.get_pobject_from_module(self.module_path, self.from_import_name, curr_dir),
         imported=True)
     curr_frame[name] = pobject
+
+  def imported_symbol_name(self):
+    return self.as_name if self.as_name else self.from_import_name
 
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
@@ -268,6 +278,7 @@ class FromImportCfgNode(CfgNode):
     if self.as_name:
       return [self.as_name]
     return [self.from_import_name]
+  
 
 
 @attr.s(slots=True)

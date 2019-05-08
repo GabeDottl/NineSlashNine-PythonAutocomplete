@@ -3,8 +3,8 @@ import sys
 from typing import Dict, List, Union
 
 import attr
-from autocomplete.code_understanding.typing import (api, symbol_context, symbol_index)
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode)
+from autocomplete.code_understanding.typing import (api, symbol_context, symbol_index, module_loader)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode, ImportCfgNode, FromImportCfgNode)
 from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
 from isort import SortImports
 
@@ -18,7 +18,6 @@ def fix_missing_symbols_in_file(filename, index, write=True):
       f.writelines(new_code)
   return new_code
 
-
 def fix_missing_symbols_in_source(source, index, source_dir=None) -> str:
   graph = api.graph_from_source(source)
   missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
@@ -27,14 +26,13 @@ def fix_missing_symbols_in_source(source, index, source_dir=None) -> str:
 
 
 def apply_fixes_to_source(source, source_dir, fixes):
+  # TODO: Intelligently inject these w/o sorting - e.g. infer style.
   code_insertion = ''.join([fix.to_code(source_dir) for fix in fixes])
   new_source = code_insertion + source
   return SortImports(file_contents=new_source).output
 
-
 class Rename:
   ...
-
 
 def _relative_from_path(filename, directory):
   return os.path.splitext(filename[len(directory) + 1:])[0].replace(os.sep, '.')
@@ -48,6 +46,26 @@ def module_name_from_filename(filename, source_dir):
       return _relative_from_path(filename, path)
   assert False
 
+def does_import_match_cfg_node(import_, cfg_node, directory):
+  assert isinstance(cfg_node, (ImportCfgNode, FromImportCfgNode))
+  filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+  if filename is None:
+    if import_.module_name != cfg_node.module_path:
+      return False
+  else:
+    if filename != import_.module_filename:
+      return False
+  
+  if isinstance(cfg_node, ImportCfgNode):
+    if import_.value:
+      return False
+    return True
+
+  if not import_.value:
+    return False
+
+  return import_.value == cfg_node.from_import_name
+  
 
 @attr.s
 class Import:
@@ -82,10 +100,11 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
 
   out = []
   for symbol, symbol_context in missing_symbols.items():
-    entries = index.find_symbol(symbol)
-    assert len(entries) == 1
+    # Prefer symbols which are imported already very often.
+    entries = sorted(index.find_symbol(symbol), key=lambda e: e.import_count)  #list(filter(lambda x: not x.imported, index.find_symbol(symbol)))
+    
     # TODO: Compare symbol_context w/entry.
-    entry = entries[0]
+    entry = entries[-1]
     module_name = index.get_native_module_name_from_symbol_entry(
         entry) if entry.is_from_native_module() else None
     module_filename = index.get_module_filename_from_symbol_entry(

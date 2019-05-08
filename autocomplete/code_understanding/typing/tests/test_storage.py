@@ -21,7 +21,7 @@ from autocomplete.code_understanding.typing.tests.utils import (assert_expected_
 def test_serialization_deserialization():
   module_name = 'autocomplete.code_understanding.typing.examples.storage_example'
   # module_name = 'autocomplete.code_understanding.typing.control_flow_graph'
-  module = module_loader.get_module(module_name, lazy=False)
+  module = module_loader.get_module(module_name, '', lazy=False)
 
   with open('/tmp/tmp.msg', 'wb') as f:
     msgpack.pack(module, f, default=serialization.serialize, use_bin_type=True)

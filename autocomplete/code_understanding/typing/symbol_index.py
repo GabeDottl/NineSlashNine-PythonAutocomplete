@@ -1,6 +1,8 @@
 import os
 import sys
 import types
+import builtins
+from typing import Dict, Tuple
 from collections import OrderedDict, defaultdict
 from enum import Enum
 from functools import partial
@@ -23,12 +25,14 @@ class SymbolType(Enum):
 
   @staticmethod
   def from_pobject_value(value):
-    if isinstance(value, language_objects.Instance):
-      return SymbolType.ASSIGNMENT
     if isinstance(value, language_objects.Klass):
       return SymbolType.TYPE
     if isinstance(value, language_objects.Function):
       return SymbolType.FUNCTION
+    if isinstance(value, language_objects.Instance):
+      return SymbolType.ASSIGNMENT
+    if isinstance(value, language_objects.Module):
+      return SymbolType.MODULE
     return SymbolType.UNKNOWN
 
   @staticmethod
@@ -50,6 +54,8 @@ class SymbolEntry:
   module_index: int = attr.ib()
   symbol_meta = attr.ib(None)
   is_module_itself = attr.ib(False)
+  imported = attr.ib(False)
+  import_count = attr.ib(0)
 
   def serialize(self):
     if self.module_type:
@@ -71,12 +77,14 @@ class SymbolIndex:
   symbol_dict = attr.ib(factory=partial(defaultdict, list))
   native_module_list = attr.ib(factory=list)
   normal_module_list = attr.ib(factory=list)
-  native_module_set = attr.ib(factory=set)
-  normal_module_set = attr.ib(factory=set)
+  native_module_dict = attr.ib(factory=dict)
+  normal_module_dict = attr.ib(factory=dict)
   failed_files = attr.ib(factory=set)
   files_added = attr.ib(0, init=False)
   path = attr.ib(None, init=False)
-  module_reference_map = attr.ib(factory=partial(defaultdict, int), init=False)
+  # Key is: (from_import, module_name, module_filename)
+  value_module_reference_map: Dict[Tuple[str, str, str], int] = attr.ib(
+      factory=partial(defaultdict, int), init=False)
 
   def get_native_module_name_from_symbol_entry(self, symbol_entry):
     assert symbol_entry.is_from_native_module()
@@ -89,15 +97,15 @@ class SymbolIndex:
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
-      for symbol, value in __builtins__.items():
+      for symbol, value in builtins.__dict__.items():
         self.symbol_dict[symbol].append(SymbolEntry(SymbolType.from_real_obj(value), None, 0))
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
           self.symbol_dict[symbol].append(SymbolEntry(SymbolType.UNKNOWN, None, 0))
-    if len(self.normal_module_list) != len(self.normal_module_set):
-      self.normal_module_set = set(self.normal_module_list)
-    if len(self.native_module_list) != len(self.native_module_set):
-      self.native_module_set = set(self.native_module_list)
+    if len(self.normal_module_list) != len(self.normal_module_dict):
+      self.normal_module_dict = {x: i for i, x in enumerate(self.normal_module_list)}
+    if len(self.native_module_list) != len(self.native_module_dict):
+      self.native_module_dict =  {x: i for i, x in enumerate(self.native_module_list)}
 
   def find_symbol(self, symbol):
     return self.symbol_dict[symbol]
@@ -139,37 +147,53 @@ class SymbolIndex:
     return index
 
   @staticmethod
-  def build_index_from_package(target_index_filename, package_path):
+  def build_index_from_package(package_path, target_index_filename):
     index = SymbolIndex()
     index.path = target_index_filename
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
     # TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
     # get_imported_modules from each module in package, add import to module_reference_map.
-    for module_name in index.module_reference_map.keys():
-      index.add_module_by_name(module_name)
+    for (value, module_name, module_filename), count in index.value_module_reference_map.items():
+      index.add_module_by_name(module_name, module_filename)
+      if module_filename:
+        module_index = index.normal_module_dict[module_filename]
+      else:
+        if module_name in index.native_module_dict:
+          module_index = index.native_module_dict[module_name]
+        else:
+          continue
+      if value:
+        iterator = index.find_symbol(value)
+      else:
+        iterator = index.find_symbol(module_name)
+      for entry in iterator:
+        if entry.module_index == module_index and ((not value and entry.is_module_itself) or (value and not entry.is_module_itself)):
+          entry.import_count += count
+          break
+      
+
+
 
     return index
 
-  def add_module_by_name(self, module_name):
-    filename, is_package, package_type = module_loader.get_module_info_from_name(module_name)
+  def add_module_by_name(self, module_name, filename):
+    # if not filename:
+    #   filename, _, _ = module_loader.get_module_info_from_name(module_name)
 
-    if filename in self.normal_module_set:
+    if filename and filename in self.normal_module_dict:
       return  # Already added.
 
-    if package_type == language_objects.ModuleType.BUILTIN:
-      if module_name in self.native_module_set:
+    if not filename:
+      if module_name in self.native_module_dict:
         return  # Already loaded.
-
-    if package_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
-      info(f'Cannot load: {module_name}')
-      return
 
     if filename and os.path.exists(filename):
       self.add_file(filename)
     else:
-      module = module_loader.get_module(module_name, lazy=False)
-      self.add_module(module, len(self.native_module_list))
-      self.native_module_set.add(module_name)
+      module = module_loader.get_module(module_name, '', lazy=False)
+      index =len(self.native_module_list)
+      self.add_module(module, index)
+      self.native_module_dict[module_name] = index
       self.native_module_list.append(module_name)
 
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
@@ -188,7 +212,7 @@ class SymbolIndex:
       module_loader.keep_graphs_default = False
 
   def add_file(self, filename, track_imported_modules=False):
-    if filename in self.normal_module_set or filename in self.failed_files:
+    if filename in self.normal_module_dict or filename in self.failed_files:
       warning(f'Skipping {filename} - already processed.')
       return
 
@@ -197,12 +221,19 @@ class SymbolIndex:
     try:
       if track_imported_modules:
         module = module_loader.get_module_from_filename('__main__', filename, lazy=False, include_graph=True)
-        imported_modules = get_imported_modules(module.graph)
-        for module_name in imported_modules:
-          self.module_reference_map[module_name] += 1
+        import_nodes = module.graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
+                                                       control_flow_graph_nodes.FromImportCfgNode))
+        directory = os.path.dirname(filename)
+        imported_symbols_and_modules = set([(node.imported_symbol_name() if isinstance(
+            node, control_flow_graph_nodes.FromImportCfgNode) else None, node.module_path,
+                                 module_loader.get_module_info_from_name(node.module_path, directory)[0])
+                                for node in import_nodes])
+        for value_module_name_filename in imported_symbols_and_modules:
+          self.value_module_reference_map[value_module_name_filename] += 1
+
       else:
         module = module_loader.get_module_from_filename(
-            '__main__', filename, unknown_fallback=True, lazy=False)
+            '__main__', filename, unknown_fallback=True, lazy=False, include_graph=False)
       if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
         info(f'Failed on {filename} - unreadable')
         self.failed_files.add(filename)
@@ -214,7 +245,7 @@ class SymbolIndex:
       self.failed_files.add(filename)
     else:
       self.files_added += 1
-      self.normal_module_set.add(filename)
+      self.normal_module_dict[filename] = len(self.normal_module_list)
       self.normal_module_list.append(filename)
       if self.files_added and self.files_added % 20 == 0 and self.path:
         info(f'Saving index to {self.path}. {self.files_added} files added.')
@@ -227,19 +258,27 @@ class SymbolIndex:
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
       try:
         self.symbol_dict[name].append(
-            SymbolEntry(SymbolType.from_pobject_value(member.value()), module_type, module_index))
+            SymbolEntry(
+                SymbolType.from_pobject_value(member.value()),
+                module_type,
+                module_index,
+                imported=member.imported))
       except errors.AmbiguousFuzzyValueError:
-        self.symbol_dict[name].append(SymbolEntry(SymbolType.AMBIGUOUS, module_type, module_index))
+        self.symbol_dict[name].append(
+            SymbolEntry(SymbolType.AMBIGUOUS, module_type, module_index, imported=member.imported))
     if module.filename:
       module_basename = os.path.splitext(os.path.basename(module.filename))[0]
+      if module_basename == '__init__':
+        module_basename = os.path.basename(os.path.dirname(module.filename))
       self.symbol_dict[module_basename].append(
           SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
 
 
-def get_imported_modules(graph):
+def get_imported_modules(graph, directory):
   import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
                                                  control_flow_graph_nodes.FromImportCfgNode))
-  return set([node.module_path for node in import_nodes])
+  return set([(node.module_path, module_loader.get_module_info_from_name(node.module_path, directory)[0])
+              for node in import_nodes])
 
 
 def _should_scan_file(filename, include_private_files):
@@ -252,10 +291,25 @@ def _should_export_symbol(current_module, name, pobject):
   if name == '_' or name[:2] == '__':
     return False
 
-  if pobject.imported:
-    return False
+  # TODO: Include, but possibly penalize later.
+  # if pobject.imported:
+  #   return False
 
   if isinstance(pobject, language_objects.Module):
     return False
 
   return True
+
+
+def main(target_package, output_path):
+  index = SymbolIndex.build_index_from_package(target_package, output_path)
+  index.save(output_path)
+
+
+if __name__ == "__main__":
+  import argparse
+  parser = argparse.ArgumentParser()
+  parser.add_argument('target_package')
+  parser.add_argument('output_path')
+  args = parser.parse_args()
+  main(args.target_package, args.output_path)

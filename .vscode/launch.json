@@ -5,6 +5,17 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "typing_index",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/autocomplete/code_understanding/typing/symbol_index.py",
+      "console": "integratedTerminal",
+      "args": [
+        "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
+        "$HOME/code/autocomplete/index.msg",
+      ],
+    },
+    {
       "name": "test_fix_code",
       "type": "python",
       "request": "launch",
