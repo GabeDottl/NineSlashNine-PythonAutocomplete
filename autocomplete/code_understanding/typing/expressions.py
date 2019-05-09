@@ -171,6 +171,7 @@ class CallExpression(Expression):
   function_expression = attr.ib(validator=[attr.validators.instance_of(Expression)])
   args: List[Expression] = attr.ib(factory=list)
   kwargs: Dict[str, Expression] = attr.ib(factory=dict)
+  parse_node = attr.ib(kw_only=True)
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.function_expression.evaluate(curr_frame)
@@ -179,11 +180,10 @@ class CallExpression(Expression):
     out = pobject.call(curr_frame, evaluated_args, evaluated_kwargs)
     return out
 
-  # @instance_memoize
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.function_expression, VariableExpression):
-      out = {self.function_expression.name: symbol_context.CallSymbolContext(self.args, self.kwargs)}
+      out = {self.function_expression.name: symbol_context.CallSymbolContext(self.args, self.kwargs, self.parse_node)}
     else:
       out = self.function_expression.get_used_free_symbols()
     out = symbol_context.merge_symbol_context_dicts(out,
@@ -218,11 +218,10 @@ class ForComprehension:
                                  self.iterable_expression.evaluate(new_frame))
     return new_frame
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_symbols(self):
     target_symbols = self.target_variables.get_used_free_symbols()
     comp_iter_symbols = self.comp_iter.get_used_free_symbols() if self.comp_iter else []
-
     return itertools.chain(target_symbols, comp_iter_symbols)
 
   # @instance_memoize
@@ -358,6 +357,7 @@ class DictExpression(Expression):
 class AttributeExpression(Expression):
   base_expression: Expression = attr.ib()
   attribute: str = attr.ib()
+  parse_node = attr.ib(kw_only=True)
 
   def evaluate(self, curr_frame) -> PObject:
     value: PObject = self.base_expression.evaluate(curr_frame)
@@ -366,7 +366,7 @@ class AttributeExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.base_expression, VariableExpression):
-      return {self.base_expression.name: symbol_context.AttributeSymbolContext(self.attribute)}
+      return {self.base_expression.name: symbol_context.AttributeSymbolContext(self.attribute, self.parse_node)}
     return self.base_expression.get_used_free_symbols()
 
 
@@ -381,6 +381,7 @@ class Slice:
 class SubscriptExpression(Expression):
   base_expression: Expression = attr.ib()
   subscript_list_expression: Expression = attr.ib()
+  parse_node = attr.ib(kw_only=True)
 
   def evaluate(self, curr_frame) -> PObject:
     return self.get(curr_frame)
@@ -397,7 +398,7 @@ class SubscriptExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.base_expression, VariableExpression):
-      out = {self.base_expression.name: symbol_context.SubscriptSymbolContext(self.subscript_list_expression)}
+      out = {self.base_expression.name: symbol_context.SubscriptSymbolContext(self.subscript_list_expression, self.parse_node)}
     else:
       out = self.base_expression.get_used_free_symbols()
     return symbol_context.merge_symbol_context_dicts(out,

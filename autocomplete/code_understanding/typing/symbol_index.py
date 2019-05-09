@@ -33,17 +33,17 @@ class SymbolType(Enum):
       return SymbolType.ASSIGNMENT
     if isinstance(value, language_objects.Module):
       return SymbolType.MODULE
-    return SymbolType.UNKNOWN
+    return SymbolType.from_real_obj(value)
 
   @staticmethod
   def from_real_obj(obj):
     type_ = type(obj)
+    if isinstance(type_, (bool, str, int, float, type(None))):
+      return SymbolType.ASSIGNMENT
     if isinstance(type_, type):
       return SymbolType.TYPE
     if isinstance(type_, (types.BuiltinMethodType, types.FunctionType, types.BuiltinFunctionType)):
       return SymbolType.FUNCTION
-    if isinstance(type_, (bool, str, int, float, type(None), type)):
-      return SymbolType.ASSIGNMENT
     return SymbolType.UNKNOWN
 
 
@@ -98,6 +98,11 @@ class SymbolIndex:
   def get_module_filename_from_symbol_entry(self, symbol_entry):
     assert not symbol_entry.is_from_native_module()
     return self.normal_module_list[symbol_entry.module_index]
+
+  def get_module_str(self, symbol_entry):
+    if symbol_entry.is_from_native_module():
+      return self.get_native_module_name_from_symbol_entry(symbol_entry)
+    return self.get_module_filename_from_symbol_entry(symbol_entry)
 
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):

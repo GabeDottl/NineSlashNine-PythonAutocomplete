@@ -408,7 +408,7 @@ def expression_from_node(ast_node):
     # TODO: Clean this up with parso impl.
     if kwargs_val:
       args.append(kwargs_val)
-    return CallExpression(expression_from_node(ast_node.func), args, kwargs)
+    return CallExpression(expression_from_node(ast_node.func), args, kwargs, parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.Num):
     # (object n) -- a number as a PyObject.
     return LiteralExpression(ast_node.n)
@@ -436,10 +436,10 @@ def expression_from_node(ast_node):
     return LiteralExpression(ast_node.value)
   if isinstance(ast_node, _ast.Attribute):
     # (expr value, identifier attr, expr_context ctx)
-    return AttributeExpression(expression_from_node(ast_node.value), ast_node.attr)
+    return AttributeExpression(expression_from_node(ast_node.value), ast_node.attr, parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.Subscript):
     # (expr value, slice slice, expr_context ctx)
-    return SubscriptExpression(expression_from_node(ast_node.value), expression_from_slice(ast_node.slice))
+    return SubscriptExpression(expression_from_node(ast_node.value), expression_from_slice(ast_node.slice), parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.Starred):
     # (expr value, expr_context ctx)
     return StarredExpression('*', expression_from_node(ast_node.value))

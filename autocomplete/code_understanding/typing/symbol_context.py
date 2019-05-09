@@ -7,25 +7,28 @@ class SymbolContext:
   def merge(self, other):
     return MultipleSymbolContext([self, other])
 
-
-class RawSymbolContext(SymbolContext):
-  ...
+@attr.s
+class RawSymbolContext(SymbolContext): ...
+  # parse_node = attr.ib()
 
 
 @attr.s
 class CallSymbolContext(SymbolContext):
   args = attr.ib()
   kwargs = attr.ib()
+  parse_node = attr.ib()
 
 
 @attr.s
 class SubscriptSymbolContext(SymbolContext):
   index = attr.ib()
+  parse_node = attr.ib()
 
 
 @attr.s
 class AttributeSymbolContext(SymbolContext):
   attribute = attr.ib()
+  parse_node = attr.ib()
 
 
 @attr.s

@@ -31,7 +31,7 @@ a_func()
 c = AClass()'''
   index = symbol_index.SymbolIndex()
   index.add_file(f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/exports.py')
-  new_source = fix_code.fix_missing_symbols_in_source(source, index)
+  new_source = fix_code.fix_missing_symbols_in_source(source, index, f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
   graph = api.graph_from_source(new_source)
   print(new_source)
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 3
@@ -51,8 +51,9 @@ def test_fix_imports_typing_match_actual():
     existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
     stripped_graph = graph.strip_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False)
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph)
-    fixes = fix_code.generate_missing_symbol_fixes(missing_symbols, index)
-    directory = os.path.dirname(filename)
+    directory = os.path.abspath(os.path.dirname(filename))
+    fixes = fix_code.generate_missing_symbol_fixes(missing_symbols, index, directory)
+
     # Validate fixes 
     for fix in fixes:
       for existing_import in existing_imports:
@@ -62,8 +63,8 @@ def test_fix_imports_typing_match_actual():
         assert False
 
     # name = os.path.splitext(os.path.basename(filename))[0]
-    missing_symbols = fix_code.fix_missing_symbols_in_source(filename)
-    assert not missing_symbols
+    assert len(fixes) == len(missing_symbols)
+    # assert not missing_symbols
 
 
 if __name__ == "__main__":

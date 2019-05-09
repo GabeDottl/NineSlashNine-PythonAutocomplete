@@ -25,10 +25,9 @@ from autocomplete.code_understanding.typing import (api, collector, frame, seria
 from autocomplete.code_understanding.typing.collector import FileContext
 from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError,
                                                            UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.expressions import (AugmentedObject, NativeObject)
 from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (NativeObject, PObject, UnknownObject)
+from autocomplete.code_understanding.typing.pobjects import (NativeObject, PObject, UnknownObject, AugmentedObject, NativeObject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 __filename_module_dict: Dict[str, Module] = {}

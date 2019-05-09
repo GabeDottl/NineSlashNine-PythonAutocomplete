@@ -106,7 +106,7 @@ class GroupCfgNode(CfgNode):
         del out[symbol]
     return out
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     chained = set(itertools.chain(*[node.get_defined_and_exported_symbols() for node in self.children]))
     return chained
@@ -141,7 +141,7 @@ class ExpressionCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
 
@@ -221,7 +221,7 @@ class ImportCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return {}
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     if self.as_name:
       return [self.as_name]
@@ -273,7 +273,7 @@ class FromImportCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return {}
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     if self.as_name:
       return [self.as_name]
@@ -293,7 +293,7 @@ class NoOpCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return {}
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
 
@@ -325,7 +325,7 @@ class AssignmentStmtCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.right_expression.get_used_free_symbols()
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.left_variables.get_used_free_symbols()
 
@@ -353,7 +353,7 @@ class ForCfgNode(CfgNode):
         del loop_expression_used_symbols[name]
     return loop_expression_used_symbols
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.loop_variables.get_used_free_symbols()).union(
         set(self.suite.get_defined_and_exported_symbols())).union(
@@ -392,7 +392,7 @@ class WhileCfgNode(CfgNode):
                                                     self.else_suite.get_non_local_symbols())
     return symbol_context.merge_symbol_context_dicts(out, self.conditional_expression.get_used_free_symbols())
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(self.suite.get_defined_and_exported_symbols()).union(
         set(self.else_suite.get_defined_and_exported_symbols()))
@@ -437,7 +437,7 @@ class WithCfgNode(CfgNode):
         del suite_symbols[name]
     return symbol_context.merge_symbol_context_dicts(with_item_expression_symbols, suite_symbols)
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     if self.as_expression:
       return set(self.as_expression.get_used_free_symbols()).union(
@@ -477,7 +477,7 @@ class TryCfgNode(CfgNode):
         for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
     ])
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return set(
         itertools.chain(*[
@@ -544,7 +544,7 @@ class ExceptCfgNode(CfgNode):
         del out[self.exception_variable.name]
     return out
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.suite.get_defined_and_exported_symbols()
 
@@ -588,7 +588,7 @@ class IfCfgNode(CfgNode):
                                                       node.get_non_local_symbols())
     return out
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     out = set()
     for _, node in self.expression_node_tuples:
@@ -652,7 +652,7 @@ class KlassCfgNode(CfgNode):
       out = symbol_context.merge_symbol_context_dicts(out, child.get_non_local_symbols())
     return out
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
 
@@ -681,7 +681,7 @@ class FuncCfgNode(CfgNode):
     if self._containing_func_node:
       self._containing_func_node._child_functions.append(self)
 
-  @instance_memoize
+  # @instance_memoize
   def _get_local_and_ancestor_func_symbol_defs(self) -> Set[str]:
     out = self.suite.get_defined_and_exported_symbols()
     out = out.union([p.name for p in self.parameters])
@@ -689,7 +689,7 @@ class FuncCfgNode(CfgNode):
       return out.union(self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
     return out
 
-  @instance_memoize
+  # @instance_memoize
   def closure(self) -> Iterable[str]:
     if not self._containing_func_node:
       return []
@@ -725,7 +725,7 @@ class FuncCfgNode(CfgNode):
 
     curr_frame[VariableExpression(self.name)] = func
 
-  @instance_memoize
+  # @instance_memoize
   def _get_new_cell_symbols(self):
     # New symbols are those that are in child closures but not in our own closure because they're
     # defined locally within this function.
@@ -755,7 +755,7 @@ class FuncCfgNode(CfgNode):
 
     return out
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
 
@@ -790,6 +790,6 @@ class ReturnCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
 
-  @instance_memoize
+  # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []

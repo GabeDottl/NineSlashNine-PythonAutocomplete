@@ -57,7 +57,7 @@ def test_add_file():
 
 if __name__ == "__main__":
   # test_add_file()
-  test_build_test_index()
-  # test_build_typing_index()
+  # test_build_test_index()
+  test_build_typing_index()
   
   # test_build_full_index()

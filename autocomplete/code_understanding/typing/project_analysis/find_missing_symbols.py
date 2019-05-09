@@ -13,10 +13,10 @@ def scan_missing_symbols_in_file(filename):
   with open(filename) as f:
     source = ''.join(f.readlines())
   graph = api.graph_from_source(source)
-  return scan_missing_symbols_in_graph(graph)
+  return scan_missing_symbols_in_graph(graph, os.path.dirname(filename))
 
 
-def scan_missing_symbols_in_graph(graph):
+def scan_missing_symbols_in_graph(graph, directory=None):
   missing_symbols = graph.get_non_local_symbols()
   for builtin in utils.get_possible_builtin_symbols():
     if builtin in missing_symbols:
@@ -33,7 +33,7 @@ def scan_missing_symbols_in_graph(graph):
         # Get obvious exported symbols - similar to mentioned above, the module could theoretically have
         # attributes set on it externally or via setattr, but this would be quite odd and we assume doesn't
         # happen.
-        filename, _, _ = module_loader.get_module_info_from_name(from_import.module_path)
+        filename, _, _ = module_loader.get_module_info_from_name(from_import.module_path, directory)
         # TODO: Cache graph.
         with open(filename) as f:
           imported_graph = api.graph_from_source(''.join(f.readlines()))
