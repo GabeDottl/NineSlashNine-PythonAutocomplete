@@ -9,7 +9,8 @@ INDEX_PATH = f'/tmp/index.msg'
 
 def test_build_test_index():
   index = symbol_index.SymbolIndex.build_index_from_package(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/test_index_package', INDEX_PATH)
+      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/test_index_package',
+      INDEX_PATH)
   index.save(INDEX_PATH)
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.import_count)
   entry = entries[-1]
@@ -28,8 +29,8 @@ def test_build_typing_index():
   index.save(INDEX_PATH)
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.import_count)
   entry = entries[-1]
-  # Ensure that 
-  assert not entry.imported and entry.symbol_type == symbol_index.SymbolType.MODULE and entry.import_count >5
+  # Ensure that
+  assert not entry.imported and entry.symbol_type == symbol_index.SymbolType.MODULE and entry.import_count > 5
   # entries = index.find_symbol('attr')
   # assert entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE
   info(f'Built package index. {len(index.normal_module_list)} modules.')
@@ -42,7 +43,8 @@ def test_add_file():
   index.add_file(
       f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/test_index_package/boo.py')
   entries = index.find_symbol('attr')
-  assert len(entries) == 1 and entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE
+  assert len(
+      entries) == 1 and entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE
   #     track_imported_modules=True)
 
 
@@ -59,5 +61,5 @@ if __name__ == "__main__":
   # test_add_file()
   # test_build_test_index()
   test_build_typing_index()
-  
+
   # test_build_full_index()

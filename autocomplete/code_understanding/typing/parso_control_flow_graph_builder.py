@@ -734,10 +734,12 @@ def expression_from_atom_expr(node) -> Expression:
         last_expression = CallExpression(last_expression, args, kwargs, parse_node=parse_from_parso(trailer))
     elif trailer.children[0].value == '[':
       subscript_expression = expressions_from_subscriptlist(trailer.children[1])
-      last_expression = SubscriptExpression(last_expression, subscript_expression, parse_node=parse_from_parso(trailer))
+      last_expression = SubscriptExpression(
+          last_expression, subscript_expression, parse_node=parse_from_parso(trailer))
     else:
       assert_unexpected_parso(trailer.children[0].value == '.', trailer.get_code())
-      last_expression = AttributeExpression(last_expression, trailer.children[1].value, parse_node=parse_from_parso(trailer))
+      last_expression = AttributeExpression(
+          last_expression, trailer.children[1].value, parse_node=parse_from_parso(trailer))
   return last_expression
 
 

@@ -1,5 +1,7 @@
-import attr
 import itertools
+
+import attr
+
 
 def a_func():
   pass

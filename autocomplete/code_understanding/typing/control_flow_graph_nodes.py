@@ -278,7 +278,6 @@ class FromImportCfgNode(CfgNode):
     if self.as_name:
       return [self.as_name]
     return [self.from_import_name]
-  
 
 
 @attr.s(slots=True)

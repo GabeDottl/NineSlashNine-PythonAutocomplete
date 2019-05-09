@@ -1,12 +1,12 @@
+import builtins
 import os
 import sys
 import types
-import builtins
-from typing import Dict, Tuple
 from collections import OrderedDict, defaultdict
 from enum import Enum
 from functools import partial
 from glob import glob
+from typing import Dict, Tuple
 
 import attr
 import msgpack
@@ -59,15 +59,15 @@ class SymbolEntry:
 
   def serialize(self):
     args = list(attr.astuple(self))
-    args[0] = args[0].value # symbol_type
-    args[1] = args[1].value # module_type
+    args[0] = args[0].value  # symbol_type
+    args[1] = args[1].value  # module_type
     return args
 
   @staticmethod
   def deserialize(tuple_):
     args = list(tuple_)
-    args[0] = SymbolType(args[0]) # symbol_type
-    args[1] = language_objects.ModuleType(args[1]) # module_type
+    args[0] = SymbolType(args[0])  # symbol_type
+    args[1] = language_objects.ModuleType(args[1])  # module_type
     # if tuple_[1] is not None:
     #   return SymbolEntry(SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]), *tuple_[2:])
     return SymbolEntry(*args)
@@ -108,14 +108,16 @@ class SymbolIndex:
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
       for symbol, value in builtins.__dict__.items():
-        self.symbol_dict[symbol].append(SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1))
+        self.symbol_dict[symbol].append(
+            SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1))
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol].append(SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -1))
+          self.symbol_dict[symbol].append(
+              SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -1))
     if len(self.normal_module_list) != len(self.normal_module_dict):
       self.normal_module_dict = {x: i for i, x in enumerate(self.normal_module_list)}
     if len(self.native_module_list) != len(self.native_module_dict):
-      self.native_module_dict =  {x: i for i, x in enumerate(self.native_module_list)}
+      self.native_module_dict = {x: i for i, x in enumerate(self.native_module_list)}
 
   def find_symbol(self, symbol):
     if symbol not in self.symbol_dict:
@@ -128,7 +130,6 @@ class SymbolIndex:
         yield symbol_entry, self.native_module_list[symbol_entry.module_index]
       else:
         yield symbol_entry, self.normal_module_list[symbol_entry.module_index]
-
 
   @staticmethod
   def _serialize(index):
@@ -184,10 +185,11 @@ class SymbolIndex:
       if value:
         iterator = index.find_symbol(value)
       else:
-        symbol = module_name[module_name.rfind('.')+1:]
+        symbol = module_name[module_name.rfind('.') + 1:]
         iterator = index.find_symbol(symbol)
       for entry in iterator:
-        if entry.module_index == module_index and ((not value and entry.is_module_itself) or (value and not entry.is_module_itself)):
+        if entry.module_index == module_index and ((not value and entry.is_module_itself) or
+                                                   (value and not entry.is_module_itself)):
           entry.import_count += count
           break
     return index
@@ -207,7 +209,7 @@ class SymbolIndex:
       self.add_file(filename)
     else:
       module = module_loader.get_module(module_name, '', lazy=False)
-      index =len(self.native_module_list)
+      index = len(self.native_module_list)
       self.add_module(module, index)
       self.native_module_dict[module_name] = index
       self.native_module_list.append(module_name)
@@ -229,14 +231,16 @@ class SymbolIndex:
 
   def _track_modules(self, graph, directory):
     import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
-                                                      control_flow_graph_nodes.FromImportCfgNode))
+                                                   control_flow_graph_nodes.FromImportCfgNode))
     imported_symbols_and_modules = []
     for node in import_nodes:
-      value = node.imported_symbol_name() if isinstance(node, control_flow_graph_nodes.FromImportCfgNode) else None
+      value = node.imported_symbol_name() if isinstance(node,
+                                                        control_flow_graph_nodes.FromImportCfgNode) else None
       imported_filename = ''
       module_name = node.module_path
       if value:
-        imported_filename = module_loader.get_module_info_from_name(f'{node.module_path}.{value}', directory)[0]
+        imported_filename = module_loader.get_module_info_from_name(f'{node.module_path}.{value}',
+                                                                    directory)[0]
         # If the from import is importing a module itself, then put it in the module_name
         if imported_filename:
           module_name = f'{module_name}.{value}'

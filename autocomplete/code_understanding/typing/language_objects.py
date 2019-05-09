@@ -99,6 +99,7 @@ class ModuleType(Enum):
   def is_native(self):
     return self == ModuleType.BUILTIN or self == ModuleType.COMPILED
 
+
 def create_main_module(filename=None):
   return ModuleImpl('__main__', ModuleType.MAIN, members={}, filename=filename, is_package=False)
 

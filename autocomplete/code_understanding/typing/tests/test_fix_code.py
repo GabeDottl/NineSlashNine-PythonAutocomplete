@@ -1,13 +1,13 @@
 import os
-
 from glob import glob
 
 from autocomplete.code_understanding.typing import api, symbol_index
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FromImportCfgNode, ImportCfgNode)
-from autocomplete.code_understanding.typing.project_analysis import fix_code, find_missing_symbols
+from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
 from autocomplete.nsn_logging import info
 
 CODE = os.getenv('CODE')
+
 
 def test_strip_imports():
   source = '''
@@ -30,12 +30,16 @@ b = a_int
 a_func()
 c = AClass()'''
   index = symbol_index.SymbolIndex()
-  index.add_file(f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/exports.py')
-  new_source = fix_code.fix_missing_symbols_in_source(source, index, f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
+  index.add_file(
+      f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/exports.py')
+  new_source = fix_code.fix_missing_symbols_in_source(
+      source, index,
+      f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
   graph = api.graph_from_source(new_source)
   print(new_source)
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 3
   assert len(graph.get_non_local_symbols()) == 0
+
 
 def test_fix_imports_typing_match_actual():
   index = symbol_index.SymbolIndex.load(f'{CODE}/autocomplete/index.msg')
@@ -54,7 +58,7 @@ def test_fix_imports_typing_match_actual():
     directory = os.path.abspath(os.path.dirname(filename))
     fixes = fix_code.generate_missing_symbol_fixes(missing_symbols, index, directory)
 
-    # Validate fixes 
+    # Validate fixes
     for fix in fixes:
       for existing_import in existing_imports:
         if fix_code.does_import_match_cfg_node(fix, existing_import, directory):

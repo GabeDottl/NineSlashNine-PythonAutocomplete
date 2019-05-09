@@ -183,7 +183,10 @@ class CallExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.function_expression, VariableExpression):
-      out = {self.function_expression.name: symbol_context.CallSymbolContext(self.args, self.kwargs, self.parse_node)}
+      out = {
+          self.function_expression.name: symbol_context.CallSymbolContext(self.args, self.kwargs,
+                                                                          self.parse_node)
+      }
     else:
       out = self.function_expression.get_used_free_symbols()
     out = symbol_context.merge_symbol_context_dicts(out,
@@ -366,7 +369,9 @@ class AttributeExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.base_expression, VariableExpression):
-      return {self.base_expression.name: symbol_context.AttributeSymbolContext(self.attribute, self.parse_node)}
+      return {
+          self.base_expression.name: symbol_context.AttributeSymbolContext(self.attribute, self.parse_node)
+      }
     return self.base_expression.get_used_free_symbols()
 
 
@@ -398,7 +403,10 @@ class SubscriptExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.base_expression, VariableExpression):
-      out = {self.base_expression.name: symbol_context.SubscriptSymbolContext(self.subscript_list_expression, self.parse_node)}
+      out = {
+          self.base_expression.name:
+          symbol_context.SubscriptSymbolContext(self.subscript_list_expression, self.parse_node)
+      }
     else:
       out = self.base_expression.get_used_free_symbols()
     return symbol_context.merge_symbol_context_dicts(out,

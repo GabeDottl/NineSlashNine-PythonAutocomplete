@@ -16,8 +16,8 @@ https://docs.python.org/3/tutorial/modules.html
 '''
 import importlib
 import os
-import sys
 import pkgutil
+import sys
 from typing import Dict, Set, Tuple
 
 import typeshed
@@ -27,7 +27,8 @@ from autocomplete.code_understanding.typing.errors import (LoadingModuleAttribut
                                                            UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (NativeObject, PObject, UnknownObject, AugmentedObject, NativeObject)
+from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, NativeObject, PObject,
+                                                             UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
 
 __filename_module_dict: Dict[str, Module] = {}
@@ -41,7 +42,6 @@ keep_graphs_default = False
 
 class InvalidModuleError(Exception):
   ...
-
 
 
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
@@ -289,7 +289,7 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
     package = package_from_directory(curr_dir)
   try:
     spec = importlib.util.find_spec(name, package)
-  except (ImportError, AttributeError)as e:
+  except (ImportError, AttributeError) as e:
     # AttributeError: module '_warnings' has no attribute '__path__
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')
@@ -338,10 +338,11 @@ def deserialize_hook_fn(type_str, obj):
 def deserialize(type_str, obj):
   return serialization.deserialize(type_str, obj, hook_fn=deserialize_hook_fn)
 
+
 def package_from_directory(directory):
-  for path in sorted(sys.path, key=lambda p:-len(p)):
+  for path in sorted(sys.path, key=lambda p: -len(p)):
     if path == directory[:len(path)]:
-      relative = directory[len(path)+1:]
+      relative = directory[len(path) + 1:]
       return relative.replace(os.sep, '.')
   assert False
 

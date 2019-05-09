@@ -1,5 +1,7 @@
 import functools
+
 import attr
+
 
 @attr.s
 class Boo:
