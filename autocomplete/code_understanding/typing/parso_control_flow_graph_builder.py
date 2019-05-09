@@ -254,12 +254,12 @@ class ParsoControlFlowGraphBuilder:
     # Example: import os as whatever
     if next_node.type == 'operator' and next_node.value == '(':  # from x import (y)
       next_node = node.children[node_index + 1]
+
     # Example: from a import *
     if next_node.type == 'operator' and next_node.value == '*':
       return FromImportCfgNode(
           path,
-          from_import_name='*',
-          as_name=None,
+          from_import_name_alias_dict={'*':None},
           parse_node=parse_from_parso(node),
           module_loader=self.module_loader)
 
@@ -273,36 +273,29 @@ class ParsoControlFlowGraphBuilder:
       assert_unexpected_parso(len(next_node.children) == 3, node_info(next_node))
       return FromImportCfgNode(
           path,
-          from_import_name=next_node.children[0].value,
-          as_name=next_node.children[-1].value,
+          from_import_name_alias_dict={next_node.children[0].value: next_node.children[-1].value},
           parse_node=parse_from_parso(node),
           module_loader=self.module_loader)
 
     # Example: from a import b, c as d
     assert_unexpected_parso(next_node.type == 'import_as_names', node_info(next_node))
-    from_import_nodes = []
-    out = GroupCfgNode(from_import_nodes, parse_node=parse_from_parso(node))
+    # from_import_nodes = []
+    # out = GroupCfgNode(from_import_nodes, parse_node=parse_from_parso(node))
+    out = {}
     for child in next_node.children:
       if child.type == 'name':
-        from_import_nodes.append(
-            FromImportCfgNode(
-                path,
-                from_import_name=child.value,
-                parse_node=parse_from_parso(node),
-                module_loader=self.module_loader))
+        out[child.value] = None
       elif child.type == 'operator':
         assert_unexpected_parso(child.value == ',', node_info(node))
       else:
         assert_unexpected_parso(child.type == 'import_as_name', node_info(child))
         assert_unexpected_parso(len(child.children) == 3, node_info(child))
-        from_import_nodes.append(
-            FromImportCfgNode(
-                path,
-                from_import_name=child.children[0].value,
-                as_name=child.children[-1].value,
-                parse_node=parse_from_parso(node),
-                module_loader=self.module_loader))
-    return out
+        out[child.children[0].value]=child.children[-1].value
+    return FromImportCfgNode(
+            path,
+            from_import_name_alias_dict=out,
+            parse_node=parse_from_parso(node),
+            module_loader=self.module_loader)
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_while_stmt(self, node):

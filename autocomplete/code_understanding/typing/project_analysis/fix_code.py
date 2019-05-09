@@ -56,33 +56,40 @@ def module_name_from_filename(filename, source_dir):
 
 def does_import_match_cfg_node(import_, cfg_node, directory):
   assert isinstance(cfg_node, (ImportCfgNode, FromImportCfgNode))
-  filename = ''
-  if isinstance(cfg_node, FromImportCfgNode):
-    filename = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{cfg_node.from_import_name}',
-                                                       directory)[0]
-    # If the from import is importing a module itself, then put it in the module_name
-  if not filename:
-    filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
-  if not filename:
-    if import_.module_name != cfg_node.module_path:
-      return False
-  else:
-    if filename != import_.module_filename:
-      return False
-
   if isinstance(cfg_node, ImportCfgNode):
     if import_.value:
       return False
+    filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+    if filename != import_.module_filename:
+      return False
     return True
 
-  if cfg_node.from_import_name == '*':
-    return True
+  # FromImportCfgNode.
+  filename = ''
+  for from_import_name, as_name in cfg_node.from_import_name_alias_dict.items():
+    filename = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{from_import_name}',
+                                                       directory)[0]
+      # If the from import is importing a module itself, then put it in the module_name
+    if not filename:
+      filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+    if not filename:
+      if import_.module_name != cfg_node.module_path:
+        continue
+    else:
+      if filename != import_.module_filename:
+        continue
 
-  if not import_.value:
-    name = module_name_from_filename(import_.module_filename, directory)
-    return cfg_node.from_import_name == name[name.rfind('.') + 1:]
+    if from_import_name == '*':
+      return True
 
-  return import_.value == cfg_node.from_import_name
+    imported_symbol = as_name if as_name else from_import_name
+    if not import_.value:
+      name = module_name_from_filename(import_.module_filename, directory)
+      return imported_symbol == name[name.rfind('.') + 1:]
+
+    if import_.value == imported_symbol:
+      return True
+  return False
 
 
 @attr.s

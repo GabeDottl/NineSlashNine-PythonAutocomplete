@@ -234,21 +234,25 @@ class SymbolIndex:
                                                    control_flow_graph_nodes.FromImportCfgNode))
     imported_symbols_and_modules = []
     for node in import_nodes:
-      value = node.imported_symbol_name() if isinstance(node,
-                                                        control_flow_graph_nodes.FromImportCfgNode) else None
-      imported_filename = ''
-      module_name = node.module_path
-      if value:
-        imported_filename = module_loader.get_module_info_from_name(f'{node.module_path}.{value}',
-                                                                    directory)[0]
-        # If the from import is importing a module itself, then put it in the module_name
-        if imported_filename:
-          module_name = f'{module_name}.{value}'
-          value = None
-      if not imported_filename:
-        imported_filename = module_loader.get_module_info_from_name(module_name, directory)[0]
-
-      imported_symbols_and_modules.append((value, module_name, imported_filename))
+      if isinstance(node, control_flow_graph_nodes.ImportCfgNode):
+        values = [None]
+      else:
+        values = node.imported_symbol_names()
+      for value in values:
+      # value = node.imported_symbol_name() if isinstance(node,
+      #                                                   control_flow_graph_nodes.FromImportCfgNode) else None
+        imported_filename = ''
+        module_name = node.module_path
+        if value:
+          imported_filename = module_loader.get_module_info_from_name(f'{node.module_path}.{value}',
+                                                                      directory)[0]
+          # If the from import is importing a module itself, then put it in the module_name
+          if imported_filename:
+            module_name = f'{module_name}.{value}'
+            value = None
+        if not imported_filename:
+          imported_filename = module_loader.get_module_info_from_name(module_name, directory)[0]
+        imported_symbols_and_modules.append((value, module_name, imported_filename))
     for value_module_name_filename in imported_symbols_and_modules:
       self.value_module_reference_map[value_module_name_filename] += 1
 

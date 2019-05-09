@@ -256,14 +256,13 @@ class Visitor(ast.NodeVisitor):
   def visit_ImportFrom(self, ast_node):
     # (identifier? module, alias* names, int? level)
     # alias = (identifier name, identifier? asname)
-    for alias in ast_node.names:
-      self.push(
-          FromImportCfgNode(
-              ast_node.module if ast_node.module else '.',
-              alias.name,
-              as_name=alias.asname,
-              module_loader=self.module_loader,
-              parse_node=parse_from_ast(ast_node)))
+    self.push(
+        FromImportCfgNode(
+            ast_node.module if ast_node.module else '.',
+            {alias.name: alias.asname
+             for alias in ast_node.names},
+            module_loader=self.module_loader,
+            parse_node=parse_from_ast(ast_node)))
 
   def visit_Global(self, ast_node):
     # (identifier* names)

@@ -29,22 +29,23 @@ def scan_missing_symbols_in_graph(graph, directory=None):
     # Check for wild-card/glob imports - i.e. 'from a import *'.
     from_imports = graph.get_descendents_of_types(FromImportCfgNode)
     for from_import in from_imports:
-      if from_import.from_import_name == '*':
-        # Get obvious exported symbols - similar to mentioned above, the module could theoretically have
-        # attributes set on it externally or via setattr, but this would be quite odd and we assume doesn't
-        # happen.
-        filename, _, _ = module_loader.get_module_info_from_name(from_import.module_path, directory)
-        # TODO: Cache graph.
-        with open(filename) as f:
-          imported_graph = api.graph_from_source(''.join(f.readlines()))
-          defined_symbols = set(imported_graph.get_defined_and_exported_symbols())
-          missing_symbols = {
-              s: c
-              for s, c in filter(lambda sc: not sc[0] in defined_symbols, missing_symbols.items())
-          }
-        # Early return where possible.
-        if not missing_symbols:
-          return missing_symbols
+      for imported_symbol in from_import.imported_symbol_names():
+        if imported_symbol == '*':
+          # Get obvious exported symbols - similar to mentioned above, the module could theoretically have
+          # attributes set on it externally or via setattr, but this would be quite odd and we assume doesn't
+          # happen.
+          filename, _, _ = module_loader.get_module_info_from_name(from_import.module_path, directory)
+          # TODO: Cache graph.
+          with open(filename) as f:
+            imported_graph = api.graph_from_source(''.join(f.readlines()))
+            defined_symbols = set(imported_graph.get_defined_and_exported_symbols())
+            missing_symbols = {
+                s: c
+                for s, c in filter(lambda sc: not sc[0] in defined_symbols, missing_symbols.items())
+            }
+          # Early return where possible.
+          if not missing_symbols:
+            return missing_symbols
   return missing_symbols
 
 

@@ -37,7 +37,7 @@ c = AClass()'''
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
   graph = api.graph_from_source(new_source)
   print(new_source)
-  assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 3
+  assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
   assert len(graph.get_non_local_symbols()) == 0
 
 

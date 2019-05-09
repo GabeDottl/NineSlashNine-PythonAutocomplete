@@ -233,40 +233,44 @@ class ImportCfgNode(CfgNode):
 @attr.s(slots=True)
 class FromImportCfgNode(CfgNode):
   module_path = attr.ib()
-  from_import_name = attr.ib()
+  from_import_name_alias_dict: Dict[str, str] = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
-    collector.add_from_import(self.module_path, self.from_import_name, self.as_name)
-    # Example: from foo import *
-    if self.from_import_name == '*':
-      # TODO: Create index of symbols in each package so this doesn't require loading object?
-      # This sort of import should be rather uncommon, so perhaps not super-worthwhile...
+    for from_import_name, as_name in self.from_import_name_alias_dict.items():
+      collector.add_from_import(self.module_path, from_import_name, as_name)
+      # Example: from foo import *
+      if from_import_name == '*':
+        # TODO: Create index of symbols in each package so this doesn't require loading object?
+        # This sort of import should be rather uncommon, so perhaps not super-worthwhile...
 
-      # Python's kind of funny. If |module| is a package, this will only bring in the modules in
-      # that package which have already been explcitly imported. So, given a.b and a.c modules,
-      # if we have from a import *, b and c will only be brought in to the namespace if they were
-      # already imported. Such subtleties..
-      module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
-      # Python does not include private members when importing with star.
-      for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
-        curr_frame[name] = AugmentedObject(pobject, imported=True)
-      return
+        # Python's kind of funny. If |module| is a package, this will only bring in the modules in
+        # that package which have already been explcitly imported. So, given a.b and a.c modules,
+        # if we have from a import *, b and c will only be brought in to the namespace if they were
+        # already imported. Such subtleties..
+        module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
+        # Python does not include private members when importing with star.
+        for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
+          curr_frame[name] = AugmentedObject(pobject, imported=True)
+        break
 
-    # Normal case.
-    name = self.imported_symbol_name()
+      # Normal case.
+      name = as_name if as_name else from_import_name
 
-    curr_dir = collector.get_current_context_dir()
-    pobject = LazyObject(
-        f'{self.module_path}.{self.from_import_name}',
-        lambda: self.module_loader.get_pobject_from_module(self.module_path, self.from_import_name, curr_dir),
-        imported=True)
-    curr_frame[name] = pobject
+      curr_dir = collector.get_current_context_dir()
+      pobject = LazyObject(
+          f'{self.module_path}.{from_import_name}',
+          lambda: self.module_loader.get_pobject_from_module(self.module_path, from_import_name, curr_dir),
+          imported=True)
+      curr_frame[name] = pobject
 
-  def imported_symbol_name(self):
-    return self.as_name if self.as_name else self.from_import_name
+  def imported_symbol_names(self):
+    out = []
+    for from_import_name, as_name in self.from_import_name_alias_dict.items():
+      out.append(as_name if as_name else from_import_name)
+    return out
 
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
@@ -275,9 +279,7 @@ class FromImportCfgNode(CfgNode):
 
   # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
-    if self.as_name:
-      return [self.as_name]
-    return [self.from_import_name]
+    return self.imported_symbol_names()
 
 
 @attr.s(slots=True)
