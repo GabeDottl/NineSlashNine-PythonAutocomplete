@@ -1,4 +1,4 @@
-import os
+
 import sys
 from functools import partial
 from itertools import chain
@@ -245,3 +245,15 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     out.append(Import(module_name, module_filename, symbol if not entry.is_module_itself else None))
     # TODO: Renames.
   return out
+
+  def main(index_file, target_file):
+    index = symbol_index.SymbolIndex.load(index_file)
+    fix_missing_symbols_in_file(target_file, index)
+
+  if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('index_file')
+    parser.add_argument('target_file')
+    args = parser.parse_args()
+    main(args.index_file, args.target_file)

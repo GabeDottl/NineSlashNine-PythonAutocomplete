@@ -269,7 +269,7 @@ class ParsoControlFlowGraphBuilder:
     if next_node.type == 'name':
       parse_node.extras = {next_node.value: (next_node.start_pos, next_node.end_pos)}
       return FromImportCfgNode(
-          path, next_node.value, parse_node=parse_node, module_loader=self.module_loader)
+          path, {next_node.value:None}, parse_node=parse_node, module_loader=self.module_loader)
 
     # Example: from x.y.z import r as s
     if next_node.type == 'import_as_name':
