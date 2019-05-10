@@ -8,10 +8,10 @@ from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, Fu
 from autocomplete.nsn_logging import debug, info
 
 
-def graph_from_source(source: str, module=None) -> CfgNode:
+def graph_from_source(source: str, module=None, parso_default=False) -> CfgNode:
   if not module:
     module = create_main_module()
-  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader)
+  builder = control_flow_graph.ControlFlowGraphBuilder(module_loader, parso_default=parso_default)
   return builder.graph_from_source(source, module)
 
 

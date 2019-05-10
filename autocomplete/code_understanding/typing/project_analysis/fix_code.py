@@ -3,17 +3,17 @@ import sys
 from functools import partial
 from itertools import chain
 from typing import Dict, List, Union
+from collections import defaultdict
 
 import attr
-from autocomplete.code_understanding.typing import (api, module_loader, symbol_context, symbol_index)
+from autocomplete.code_understanding.typing import (api, module_loader, symbol_context, symbol_index, refactor)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode, FromImportCfgNode,
                                                                              ImportCfgNode)
 from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
 from autocomplete.nsn_logging import warning
 from isort import SortImports
 
-
-def fix_missing_symbols_in_file(filename, index, write=True):
+def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=False):
   with open(filename) as f:
     source = ''.join(f.readlines())
   new_code = fix_missing_symbols_in_source(source, index, os.path.dirname())
@@ -23,11 +23,31 @@ def fix_missing_symbols_in_file(filename, index, write=True):
   return new_code
 
 
-def fix_missing_symbols_in_source(source, index, source_dir) -> str:
-  graph = api.graph_from_source(source)
+def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_imports=False) -> str:
+  graph = api.graph_from_source(source, parso_default=True)
+  existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
+  # TODO: remove_extra_imports=False
   missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
   fixes = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
-  return apply_fixes_to_source(source, source_dir, fixes)
+  changes = defaultdict(list)
+  remaining_fixes = []
+  for fix in fixes:
+    module_name, value = fix.get_module_name_and_value(source_dir)
+    if not value:
+      remaining_fixes.append(fix)
+      continue
+    for node in filter(lambda x: isinstance(x, FromImportCfgNode), existing_imports):
+      if node.module_path == module_name:
+        changes[module_name].append((value, None, node))
+        break
+    else:
+      remaining_fixes.append(fix)
+
+  # Update existing imports.
+  new_source = refactor.apply_import_changes(source, changes.values())
+
+  # Apply any remaining fixes.
+  return refactor.insert_imports(new_source, source_dir, remaining_fixes)
 
 
 def apply_fixes_to_source(source, source_dir, fixes):
@@ -37,11 +57,13 @@ def apply_fixes_to_source(source, source_dir, fixes):
   return SortImports(file_contents=new_source).output
 
 
-class Rename:
-  ...
-
-
 def _relative_from_path(filename, directory):
+  if filename[-(len('__init__.py')):] == '__init__.py':
+    filename = filename[:-len('__init__.py') -1]
+    return filename[len(directory) + 1:].replace(os.sep, '.')
+  elif filename[-(len('__init__.pyi')):] == '__init__.pyi':
+    filename = filename[:-len('__init__.pyi') -1]
+    return filename[len(directory) + 1:].replace(os.sep, '.')
   return os.path.splitext(filename[len(directory) + 1:])[0].replace(os.sep, '.')
 
 
@@ -56,8 +78,9 @@ def module_name_from_filename(filename, source_dir):
 
 def does_import_match_cfg_node(import_, cfg_node, directory):
   assert isinstance(cfg_node, (ImportCfgNode, FromImportCfgNode))
+  module_name, value = import_.get_module_name_and_value(directory)
   if isinstance(cfg_node, ImportCfgNode):
-    if import_.value:
+    if value:
       return False
     filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
     if filename != import_.module_filename:
@@ -73,7 +96,7 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
     if not filename:
       filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
     if not filename:
-      if import_.module_name != cfg_node.module_path:
+      if module_name != cfg_node.module_path:
         continue
     else:
       if filename != import_.module_filename:
@@ -83,41 +106,53 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
       return True
 
     imported_symbol = as_name if as_name else from_import_name
-    if not import_.value:
+    if not value:
       name = module_name_from_filename(import_.module_filename, directory)
       return imported_symbol == name[name.rfind('.') + 1:]
 
-    if import_.value == imported_symbol:
+    if value == imported_symbol:
       return True
   return False
 
 
+class Rename:
+  ...
+
 @attr.s
 class Import:
-  module_name = attr.ib()
+  # DO NOT ACCESS THESE DIRECTLY. Use get_module_name_and_value.
+  _module_name = attr.ib()
   module_filename = attr.ib()
-  value = attr.ib()
+  _value = attr.ib()
 
   def __attrs_post_init__(self):
-    assert not (self.module_filename and self.module_name)
+    assert not (self.module_filename and self._module_name)
 
-  def to_code(self, curr_dir):
+  # TODO @instance_memoize
+  def get_module_name_and_value(self, source_dir):
     if self.module_filename:
-      assert self.module_name is None
-      self.module_name = module_name_from_filename(self.module_filename, curr_dir)
+      assert self._module_name is None
+      module_name = module_name_from_filename(self.module_filename, source_dir)
+    else:
+      module_name = self._module_name
 
-    if not self.value:
-      if '.' in self.module_name:
-        i = self.module_name.rfind('.')
-        self.value = self.module_name[i + 1:]
+    value = self._value
+    if not self._value:
+      if '.' in module_name:
+        i = module_name.rfind('.')
+        value = module_name[i + 1:]
         if i > 0:
-          self.module_name = self.module_name[:i]
+          module_name = module_name[:i]
         else:
-          self.module_name = '.'
+          module_name = '.'
 
-    if self.value:
-      return f'from {self.module_name} import {self.value}\n'
-    return f'import {self.module_name}\n'
+    return module_name, value
+
+  def to_code(self, source_dir):
+    module_name, value = self.get_module_name_and_value(source_dir)
+    if value:
+      return f'from {module_name} import {value}\n'
+    return f'import {module_name}\n'
 
 
 def matches_context(context, symbol_entry):

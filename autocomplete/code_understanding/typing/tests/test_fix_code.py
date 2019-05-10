@@ -24,7 +24,7 @@ foo.bar()
   assert len(stripped_graph.get_non_local_symbols()) == 2
 
 
-def test_add_imports():
+def test_add_all_imports():
   source = '''
 b = a_int
 a_func()
@@ -32,6 +32,27 @@ c = AClass()'''
   index = symbol_index.SymbolIndex()
   index.add_file(
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/exports.py')
+  new_source = fix_code.fix_missing_symbols_in_source(
+      source, index,
+      f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
+  graph = api.graph_from_source(new_source)
+  print(new_source)
+  assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
+  assert len(graph.get_non_local_symbols()) == 0
+
+
+def test_add_imports_with_existing():
+  source = '''
+from autocomplete.code_understanding.typing.examples.index_test_package.exports import (AClass,
+                                                                                        a_int)
+
+c = functools.wraps
+b = a_int
+a_func()
+c = AClass()'''
+  index = symbol_index.SymbolIndex.build_index_from_package(
+      f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package',
+      '/tmp/tmp.msg')
   new_source = fix_code.fix_missing_symbols_in_source(
       source, index,
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
@@ -72,6 +93,7 @@ def test_fix_imports_typing_match_actual():
 
 
 if __name__ == "__main__":
+  test_add_all_imports()
+  test_add_imports_with_existing()
   test_fix_imports_typing_match_actual()
   test_strip_imports()
-  test_add_imports()

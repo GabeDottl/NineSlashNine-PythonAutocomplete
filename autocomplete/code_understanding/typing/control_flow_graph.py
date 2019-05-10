@@ -53,8 +53,13 @@ def condense_graph(graph):
 @attr.s
 class ControlFlowGraphBuilder:
   module_loader = attr.ib()
+  parso_default = attr.ib(False)
 
   def graph_from_source(self, source, module):
+    if self.parso_default:
+      builder = parso_control_flow_graph_builder.ParsoControlFlowGraphBuilder(self.module_loader, module)
+      return builder.graph_from_source(source)
+    # Try AST-based builder first because it's waaay faster.
     try:
       builder = ast_control_flow_graph_builder.AstControlFlowGraphBuilder(self.module_loader, module)
       builder.graph_from_source(source)

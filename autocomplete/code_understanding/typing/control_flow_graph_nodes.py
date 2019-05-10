@@ -27,6 +27,9 @@ class ParseNode:
   lineno: int = attr.ib()
   col_offset: int = attr.ib()
   native_node: int = attr.ib(None)
+  # Extra information derived from parsing which may be useful for debugging or refactoring.
+  # Usually this won't be set.
+  extras = attr.ib(None)
 
   def get_code(self):
     if hasattr(self.native_node, 'get_code'):

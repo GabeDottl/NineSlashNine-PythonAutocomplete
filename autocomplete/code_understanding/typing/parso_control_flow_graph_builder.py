@@ -255,46 +255,57 @@ class ParsoControlFlowGraphBuilder:
     if next_node.type == 'operator' and next_node.value == '(':  # from x import (y)
       next_node = node.children[node_index + 1]
 
+    parse_node = parse_from_parso(node)
+
     # Example: from a import *
     if next_node.type == 'operator' and next_node.value == '*':
       return FromImportCfgNode(
           path,
           from_import_name_alias_dict={'*':None},
-          parse_node=parse_from_parso(node),
+          parse_node=parse_node,
           module_loader=self.module_loader)
 
     # Example: from a.b import c
     if next_node.type == 'name':
+      parse_node.extras = {next_node.value: (next_node.start_pos, next_node.end_pos)}
       return FromImportCfgNode(
-          path, next_node.value, parse_node=parse_from_parso(node), module_loader=self.module_loader)
+          path, next_node.value, parse_node=parse_node, module_loader=self.module_loader)
 
     # Example: from x.y.z import r as s
     if next_node.type == 'import_as_name':
+      as_name = next_node.children[-1].value
+      parse_node.extras = {as_name: (next_node.start_pos, next_node.end_pos)}
       assert_unexpected_parso(len(next_node.children) == 3, node_info(next_node))
       return FromImportCfgNode(
           path,
-          from_import_name_alias_dict={next_node.children[0].value: next_node.children[-1].value},
-          parse_node=parse_from_parso(node),
+          from_import_name_alias_dict={next_node.children[0].value: as_name},
+          parse_node=parse_node,
           module_loader=self.module_loader)
 
     # Example: from a import b, c as d
     assert_unexpected_parso(next_node.type == 'import_as_names', node_info(next_node))
     # from_import_nodes = []
-    # out = GroupCfgNode(from_import_nodes, parse_node=parse_from_parso(node))
+    # out = GroupCfgNode(from_import_nodes, parse_node=parse_node)
     out = {}
-    for child in next_node.children:
+    parse_node.extras = {}
+    
+    for i in range(0, len(next_node.children), 2):
+      child = next_node.children[i]
+      end_pos = next_node.children[i+1].end_pos if i < len(next_node.children) -1 else child.end_pos
+      
       if child.type == 'name':
+        parse_node.extras[child.value] = (child.start_pos, end_pos)
         out[child.value] = None
-      elif child.type == 'operator':
-        assert_unexpected_parso(child.value == ',', node_info(node))
       else:
         assert_unexpected_parso(child.type == 'import_as_name', node_info(child))
         assert_unexpected_parso(len(child.children) == 3, node_info(child))
-        out[child.children[0].value]=child.children[-1].value
+        as_name = child.children[-1].value
+        parse_node.extras[as_name] = (child.start_pos, end_pos)
+        out[child.children[0].value] = as_name
     return FromImportCfgNode(
             path,
             from_import_name_alias_dict=out,
-            parse_node=parse_from_parso(node),
+            parse_node=parse_node,
             module_loader=self.module_loader)
 
   @assert_returns_type(CfgNode)
