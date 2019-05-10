@@ -13,7 +13,7 @@ from autocomplete.code_understanding.typing.expressions import (AttributeExpress
                                                                 SubscriptExpression, VariableExpression)
 from autocomplete.code_understanding.typing.pobjects import (
     NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject, UnknownObject, pobject_from_object)
-from autocomplete.nsn_logging import info, warning
+from autocomplete.nsn_logging import info, warning, debug
 
 
 @attr.s(slots=True)
@@ -234,8 +234,11 @@ class Frame:
     else:
       context_str = self.get_code_context_string()
       collector.add_missing_symbol(self._get_current_filename(), name, context_str)
-      warning(f'At: {context_str}')
-      warning(f'`{name}` doesn\'t exist in current context! Returning UnknownObject.')
+      # Note: This can happen pretty often due to nuances in cases we don't handle. E.g. manually setting
+      # globals, or sneaky conditionals (that we blow past) can cause this - so it's rather noisy and is thus
+      # a debug instead of a warning.
+      debug(f'At: {context_str}')
+      debug(f'`{name}` doesn\'t exist in current context! Returning UnknownObject.')
       return UnknownObject(f'frame[{name}]')
 
   def __contains__(self, variable, nested=False):

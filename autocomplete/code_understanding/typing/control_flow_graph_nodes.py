@@ -191,8 +191,10 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
+          filename, is_package, module_type = self.module_loader.get_module_info_from_name(current_name, collector.get_current_context_dir())
+          # assert is_package
           ancestor_module = SimplePackageModule(
-              current_name, module.module_type, filename=None, is_package=True, members={}, module_loader=self.module_loader)
+              current_name, module_type, filename=filename, is_package=True, members={}, module_loader=self.module_loader)
 
         if last_module:
           last_module.add_members({name: AugmentedObject(ancestor_module, imported=True)})
@@ -282,8 +284,6 @@ class FromImportCfgNode(CfgNode):
           lo_name,
           partial(self.module_loader.get_pobject_from_module, self.module_path, from_import_name, curr_dir),
           imported=True)
-      if 'Visib' in from_import_name:
-        info(f'{lo_name} id(pobject): {id(pobject)}')
       curr_frame[name] = pobject
 
   def imported_symbol_names(self):

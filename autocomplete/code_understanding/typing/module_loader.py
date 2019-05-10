@@ -200,7 +200,7 @@ def _get_module_stub_source_filename(name) -> str:
 
 
 def load_module_from_source(source, include_graph=False):
-  module = create_main_module()
+  module = create_main_module(sys.modules[__name__])
   if include_graph:
     module._members, graph = _module_exports_from_source(
         module, source, filename='__main__', return_graph=True)

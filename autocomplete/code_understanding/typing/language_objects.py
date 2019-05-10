@@ -101,8 +101,8 @@ class ModuleType(Enum):
     return self == ModuleType.BUILTIN or self == ModuleType.COMPILED
 
 
-def create_main_module(filename=None):
-  return ModuleImpl('__main__', ModuleType.MAIN, members={}, filename=filename, is_package=False)
+def create_main_module(module_loader, filename=None):
+  return ModuleImpl('__main__', ModuleType.MAIN, members={}, filename=filename, is_package=False, module_loader=module_loader)
 
 
 @attr.s(slots=True)

@@ -10,7 +10,7 @@ from autocomplete.nsn_logging import debug, info
 
 def graph_from_source(source: str, module=None, parso_default=False) -> CfgNode:
   if not module:
-    module = create_main_module()
+    module = create_main_module(module_loader)
   builder = control_flow_graph.ControlFlowGraphBuilder(module_loader, parso_default=parso_default)
   return builder.graph_from_source(source, module)
 
