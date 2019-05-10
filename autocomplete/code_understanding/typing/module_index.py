@@ -70,7 +70,8 @@ class ModuleIndex:
         filename=module_store.attrs['filename'],
         module_type=ModuleType(module_store.attrs['module_type']),
         is_package=module_store.attrs['_is_package'],
-        members=members)
+        members=members,
+        module_loader=module_loader)
 
 
 def members_from_group(group):

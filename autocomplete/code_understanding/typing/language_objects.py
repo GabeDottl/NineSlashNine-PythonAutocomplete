@@ -12,6 +12,7 @@ In general, we work around this by using non-dunder methods that match the dunde
 So __getitem__, __getattribute__, __call__, etc. translate into get_item, get_attribute, call.
 '''
 import itertools
+import os
 from abc import ABC, abstractmethod
 from copy import copy
 from enum import Enum
@@ -19,7 +20,7 @@ from functools import wraps
 from typing import Dict, Iterable
 
 import attr
-from autocomplete.code_understanding.typing import collector, serialization
+from autocomplete.code_understanding.typing import collector, serialization, errors
 from autocomplete.code_understanding.typing.errors import (
     LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, LiteralExpression,
@@ -174,6 +175,7 @@ class ModuleImpl(Module):
   _is_package = attr.ib(kw_only=True)
   _members: Dict = attr.ib(kw_only=True)
   graph = attr.ib(None, kw_only=True)
+  module_loader = attr.ib(kw_only=True)
 
   @staticmethod
   def get_module_builtin_symbols():
@@ -188,6 +190,13 @@ class ModuleImpl(Module):
     try:
       return super().__getitem__(name)
     except SourceAttributeError:
+      if not self.module_type.should_be_readable():
+        return UnknownObject(f'{self.name}.{name}')
+      if self._is_package:
+        try:
+          return AugmentedObject(self.module_loader.get_module(f'.{name}', os.path.dirname(self.filename), unknown_fallback=False))
+        except errors.InvalidModuleError as e:
+          pass
       if self.module_type.should_be_readable():
         warning(f'Failed to get {name} from {self.name}')
       return UnknownObject(f'{self.name}.{name}')

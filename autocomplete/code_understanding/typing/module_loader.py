@@ -23,7 +23,7 @@ from typing import Dict, Set, Tuple
 import typeshed
 from autocomplete.code_understanding.typing import (api, collector, frame, serialization)
 from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError,
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError, InvalidModuleError,
                                                            UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.language_objects import (
     LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
@@ -39,9 +39,6 @@ __loaded_paths: Set[str] = set()
 
 keep_graphs_default = False
 
-
-class InvalidModuleError(Exception):
-  ...
 
 
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
@@ -66,7 +63,6 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
     return AugmentedObject(module[pobject_name], imported=True)
 
   return UnknownObject(full_pobject_name, imported=True)
-
 
 def get_module(name: str, directory: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   filename, is_package, module_type = get_module_info_from_name(name, directory)
@@ -410,7 +406,8 @@ def _load_module_from_filename(name,
         name, filename, is_package=is_package, module_type=module_type, include_graph=include_graph)
 
   module = ModuleImpl(
-      name=name, module_type=module_type, filename=filename, members={}, is_package=is_package)
+      name=name, module_type=module_type, filename=filename, members={}, is_package=is_package,
+        module_loader=sys.modules[__name__])
 
   try:
     if include_graph or keep_graphs_default:
@@ -432,7 +429,8 @@ def _create_lazy_module(name, filename, is_package, module_type, include_graph) 
       filename=filename,
       load_module_exports_from_filename=_load_module_exports_from_filename,
       is_package=is_package,
-      keep_graph=include_graph or keep_graphs_default)
+      keep_graph=include_graph or keep_graphs_default,
+      module_loader=sys.modules[__name__])
 
 
 def _create_empty_module(name, module_type):
@@ -441,4 +439,5 @@ def _create_empty_module(name, module_type):
       module_type=module_type,
       filename=name,  # TODO
       members={},
-      is_package=False)
+      is_package=False,
+      module_loader=sys.modules[__name__])

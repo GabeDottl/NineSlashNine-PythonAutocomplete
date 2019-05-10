@@ -192,7 +192,7 @@ class ImportCfgNode(CfgNode):
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
           ancestor_module = SimplePackageModule(
-              current_name, module.module_type, filename=None, is_package=True, members={})
+              current_name, module.module_type, filename=None, is_package=True, members={}, module_loader=self.module_loader)
 
         if last_module:
           last_module.add_members({name: AugmentedObject(ancestor_module, imported=True)})
