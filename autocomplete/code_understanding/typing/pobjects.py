@@ -1,10 +1,11 @@
 import itertools
 import types
 import typing
+import collections
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
 from enum import Enum
-from functools import partialmethod, wraps
+from functools import partialmethod, wraps, partial
 from typing import Dict, List
 
 import attr
@@ -423,6 +424,32 @@ def _passthrough_if_loaded(func):
 
   return wrapper
 
+_lazy_object_loading_dict = collections.OrderedDict()
+
+@attr.s
+class LazyInfiniteLoopContext:
+  function = attr.ib()
+  lazy_object = attr.ib()
+
+  def __enter__(self):
+    _lazy_object_loading_dict[(self.function, id(self.lazy_object))] = self.lazy_object.name
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    del _lazy_object_loading_dict[(self.function, id(self.lazy_object))]
+
+def loop_checker(func):
+  @wraps(func)
+  def wrapper(self, *args, **kwargs):
+    if (func, id(self)) in _lazy_object_loading_dict:
+      error(f'Infinite loop while loading lazy objects - either source error or error in our code.')
+      info(f'_lazy_object_loading_dict: {_lazy_object_loading_dict}')
+      info(f'collector._filename_context: {collector._filename_context}')
+      assert False
+    with LazyInfiniteLoopContext(func, self):
+      out = func(self, *args, **kwargs)
+    return out
+  return wrapper
+
 
 @attr.s(str=False, repr=False, slots=True)
 class LazyObject(PObject):
@@ -441,6 +468,7 @@ class LazyObject(PObject):
   def __attrs_post_init__(self):
     self._loader_filecontext = collector._filename_context[-1]
 
+  # @loop_checker
   def _load(self):
     if self._loaded_object is not None or self._loading_failed or self._loading:
       return
@@ -503,15 +531,18 @@ class LazyObject(PObject):
   #     return FuzzyBoolean.TRUE if self == other else FuzzyBoolean.MAYBE
   #   else:
 
+  @loop_checker
   def value_is_a(self, type_) -> FuzzyBoolean:
     self._load()
     return self._loaded_object.value_is_a(type_)
 
   # TODO: Rename 'dereference'?
+  @loop_checker
   def value(self) -> object:
     self._load()
     return self._loaded_object.value()
 
+  @loop_checker
   def bool_value(self) -> FuzzyBoolean:
     return self._load_and_ret().bool_value()
 
@@ -537,7 +568,7 @@ class LazyObject(PObject):
     # delayed time as if the Frame was as it is now. This does *not* snapshot PObject states.
     # TODO: Consider somehow snapshotting PObjects too.
     frame = curr_frame.snapshot()
-    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', lambda: self._load_and_ret().call(
+    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', partial(lambda a,b,c,: self._load_and_ret().call(a,b,c),
         frame, args, kwargs))
 
   @_passthrough_if_loaded
@@ -545,6 +576,7 @@ class LazyObject(PObject):
     # We have to do a snapshot here because the call is delayed - we want to do the function call at the
     # delayed time as if the Frame was as it is now. This does *not* snapshot PObject states.
     frame = curr_frame.snapshot()
+    # TODO: Drop this deferred_value nonsense?
     return LazyObject(
         f'{self.name}[{index_pobject}]', lambda: self._load_and_ret().get_item(
             frame,

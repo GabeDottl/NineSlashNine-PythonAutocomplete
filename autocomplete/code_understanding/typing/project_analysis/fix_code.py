@@ -1,4 +1,4 @@
-
+import os
 import sys
 from functools import partial
 from itertools import chain
@@ -10,13 +10,13 @@ from autocomplete.code_understanding.typing import (api, module_loader, symbol_c
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode, FromImportCfgNode,
                                                                              ImportCfgNode)
 from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
-from autocomplete.nsn_logging import warning
+from autocomplete.nsn_logging import warning, info
 from isort import SortImports
 
 def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=False):
   with open(filename) as f:
     source = ''.join(f.readlines())
-  new_code = fix_missing_symbols_in_source(source, index, os.path.dirname())
+  new_code = fix_missing_symbols_in_source(source, index, os.path.dirname(filename))
   if write:
     with open(filename, 'w') as f:
       f.writelines(new_code)
@@ -28,6 +28,7 @@ def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_import
   existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
   # TODO: remove_extra_imports=False
   missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
+  info(f'missing_symbols: {list(missing_symbols.keys())}')
   fixes = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
   changes = defaultdict(list)
   remaining_fixes = []
@@ -246,14 +247,16 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     # TODO: Renames.
   return out
 
-  def main(index_file, target_file):
-    index = symbol_index.SymbolIndex.load(index_file)
-    fix_missing_symbols_in_file(target_file, index)
+def main(index_file, target_file):
+  assert os.path.exists(index_file)
+  assert os.path.exists(target_file)
+  index = symbol_index.SymbolIndex.load(index_file)
+  fix_missing_symbols_in_file(target_file, index)
 
-  if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('index_file')
-    parser.add_argument('target_file')
-    args = parser.parse_args()
-    main(args.index_file, args.target_file)
+if __name__ == "__main__":
+  import argparse
+  parser = argparse.ArgumentParser()
+  parser.add_argument('index_file')
+  parser.add_argument('target_file')
+  args = parser.parse_args()
+  main(args.index_file, args.target_file)

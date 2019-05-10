@@ -64,8 +64,8 @@ c = AClass()'''
 
 def test_fix_imports_typing_match_actual():
   index = symbol_index.SymbolIndex.load(f'{CODE}/autocomplete/index.msg')
-  typing_dir = os.path.join(os.path.dirname(__file__), '..')
-  filenames = glob(os.path.join(typing_dir, '*.py'), recursive=True)
+  typing_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+  filenames = glob(os.path.join(typing_dir, '**/*.py'), recursive=True)
   for filename in filter(lambda f: 'grammar.py' not in f and 'examples' not in f, filenames):
     info(f'filename: {filename}')
     with open(filename) as f:

@@ -258,7 +258,7 @@ class Visitor(ast.NodeVisitor):
     # alias = (identifier name, identifier? asname)
     self.push(
         FromImportCfgNode(
-            ast_node.module if ast_node.module else '.',
+            f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.',
             {alias.name: alias.asname
              for alias in ast_node.names},
             module_loader=self.module_loader,

@@ -169,6 +169,7 @@ class SymbolIndex:
 
   @staticmethod
   def build_index_from_package(package_path, target_index_filename):
+    assert os.path.exists(package_path)
     index = SymbolIndex()
     index.path = target_index_filename
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
@@ -217,6 +218,7 @@ class SymbolIndex:
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
     if not os.path.exists(path):
       return
+
     if track_imported_modules:
       module_loader.keep_graphs_default = True
     init_file = os.path.join(path, '__init__.py')

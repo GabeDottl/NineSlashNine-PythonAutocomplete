@@ -9,7 +9,7 @@ INDEX_PATH = f'/tmp/index.msg'
 
 def test_build_test_index():
   index = symbol_index.SymbolIndex.build_index_from_package(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/test_index_package',
+      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package',
       INDEX_PATH)
   index.save(INDEX_PATH)
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.import_count)
@@ -41,7 +41,10 @@ def test_build_typing_index():
 def test_add_file():
   index = symbol_index.SymbolIndex()
   index.add_file(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/test_index_package/boo.py')
+      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/boo.py')
+  # index.add_path(
+  #     f'/usr/local/lib/python3.6/site-packages/numpy')
+      
   entries = index.find_symbol('attr')
   assert len(
       entries) == 1 and entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE

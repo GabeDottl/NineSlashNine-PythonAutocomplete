@@ -1,7 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
 from builtins import NotImplementedError
-from functools import wraps
+from functools import wraps, partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
@@ -254,19 +254,36 @@ class FromImportCfgNode(CfgNode):
         # if we have from a import *, b and c will only be brought in to the namespace if they were
         # already imported. Such subtleties..
         module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
-        # Python does not include private members when importing with star.
-        for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
-          curr_frame[name] = AugmentedObject(pobject, imported=True)
+        if '__all__' in module:
+          try:
+            all_iter = iter(module['__all__'].value())
+          except TypeError:
+            pass
+          else:
+            for val in all_iter:
+              val_str = val.value()
+              if val_str in module:
+                curr_frame[val_str] = module[val_str]
+        else:
+          # Python does not include private members when importing with star.
+          for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
+            curr_frame[name] = AugmentedObject(pobject, imported=True)
         break
 
       # Normal case.
       name = as_name if as_name else from_import_name
 
       curr_dir = collector.get_current_context_dir()
+      # We must use a partial in here to process our loop variables immediately rather than accessing them
+      # from a cell object to make multiple imports work. Otherwise all imports will load the last item in the
+      # list.
+      lo_name = f'{self.module_path}.{from_import_name}'
       pobject = LazyObject(
-          f'{self.module_path}.{from_import_name}',
-          lambda: self.module_loader.get_pobject_from_module(self.module_path, from_import_name, curr_dir),
+          lo_name,
+          partial(self.module_loader.get_pobject_from_module, self.module_path, from_import_name, curr_dir),
           imported=True)
+      if 'Visib' in from_import_name:
+        info(f'{lo_name} id(pobject): {id(pobject)}')
       curr_frame[name] = pobject
 
   def imported_symbol_names(self):

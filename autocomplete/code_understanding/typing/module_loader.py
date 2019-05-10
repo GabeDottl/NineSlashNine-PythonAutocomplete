@@ -251,7 +251,9 @@ def _relative_path_from_relative_module(name):
     relative_prefix = f'.{os.sep}'
   else:
     relative_prefix = ''
-    for i in range(dot_prefix_count - 1):
+    # TODO:
+    # relative_prefix = f'..{os.sep}'* (dot_prefix_count - 1)
+    for _ in range(dot_prefix_count - 1):
       relative_prefix += f'..{os.sep}'
   return f'{relative_prefix}{remaining_name.replace(".", os.sep)}'
 
@@ -272,14 +274,15 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
       if os.path.isdir(absolute_path):
         is_package = True
         for name in ('__init__.pyi', '__init__.py'):
-          filename = os.path.join(curr_dir, name)
+          filename = os.path.join(absolute_path, name)
           if os.path.exists(filename):
             return filename, is_package, _module_type_from_filename(filename)
       else:
         assert False
         warning(f'Bizarre case - {absolute_path} is file but not dir...')
         return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
-    for file_extension in ('.pyi', '.py'):
+    # Name refer's to a .py[i] module; not a package.
+    for file_extension in ('.py', '.pyi'):
       filename = f'{absolute_path}{file_extension}'
       if os.path.exists(filename):
         return filename, False, _module_type_from_filename(filename)
@@ -295,16 +298,17 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
     debug(f'Exception while getting spec for {name}')
     debug(e)
   else:
-    if spec and spec.has_location:
-      filename = spec.loader.get_filename()
-      ext = os.path.splitext(filename)[1]
-      if ext != '.pyi' and ext != '.py':
-        debug(f'Cannot read module filetype - {filename}')
-        if ext == '.so':
-          return None, False, ModuleType.COMPILED
-        return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
-      return os.path.abspath(filename), _is_init(filename), _module_type_from_filename(filename)
-    return None, False, ModuleType.BUILTIN
+    if spec:
+      if spec.has_location:
+        filename = spec.loader.get_filename()
+        ext = os.path.splitext(filename)[1]
+        if ext != '.pyi' and ext != '.py':
+          debug(f'Cannot read module filetype - {filename}')
+          if ext == '.so':
+            return None, False, ModuleType.COMPILED
+          return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
+        return os.path.abspath(filename), _is_init(filename), _module_type_from_filename(filename)
+      return None, False, ModuleType.BUILTIN
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 

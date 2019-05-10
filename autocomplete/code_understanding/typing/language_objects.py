@@ -175,6 +175,10 @@ class ModuleImpl(Module):
   _members: Dict = attr.ib(kw_only=True)
   graph = attr.ib(None, kw_only=True)
 
+  @staticmethod
+  def get_module_builtin_symbols():
+    return ['__package__', '__name__', '__path__', '__file__', '__loader__']
+
   def __attrs_post_init__(self):
     self._members['__package__'] = self._members['__name__'] = pobject_from_object(self.name)
     self._members['__path__'] = self._members['__file__'] = pobject_from_object(self.filename)
@@ -274,16 +278,13 @@ class LazyModule(ModuleImpl):
     self._loading = True
     try:
       if self.keep_graph:
-        new_members, self.graph = self.load_module_exports_from_filename(
+        _, self.graph = self.load_module_exports_from_filename(
             self, self.filename, return_graph=True)
       else:
-        new_members = self.load_module_exports_from_filename(self, self.filename)
+        _ = self.load_module_exports_from_filename(self, self.filename)
     except UnableToReadModuleFileError:
       error(f'Unable to lazily load {self.filename}')
     else:
-      # Prefer existing members as these have essentially been manually added.
-      new_members.update(self._members)
-      self._members = new_members
       self._loaded = True
     finally:
       self._loading_failed = not self._loaded

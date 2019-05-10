@@ -22,6 +22,13 @@ PYTHON2_EXCLUSIVE_BUILTINS = [
 ]
 
 
+def assert_expected_iterable(actual, expected):
+  actual = set(actual)
+  expected = set(expected)
+  difference = actual.difference(expected)
+  assert not difference, difference  # Should be empty set.
+
+
 def get_possible_builtin_symbols():
   return itertools.chain(['__builtins__', '__builtin__'], __builtins__.keys(), PYTHON2_EXCLUSIVE_BUILTINS)
 

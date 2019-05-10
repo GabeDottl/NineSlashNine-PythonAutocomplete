@@ -3,7 +3,7 @@ import os
 import msgpack
 from autocomplete.code_understanding.typing import (language_objects, module_loader, serialization)
 from autocomplete.code_understanding.typing.module_index import ModuleIndex
-from autocomplete.code_understanding.typing.tests.utils import (assert_expected_iterable)
+from autocomplete.code_understanding.typing.utils import (assert_expected_iterable)
 
 # def test_store_retrieve():
 #   tmp_file = '/tmp/tmp.hdf'
@@ -19,7 +19,7 @@ from autocomplete.code_understanding.typing.tests.utils import (assert_expected_
 
 
 def test_serialization_deserialization():
-  module_name = 'autocomplete.code_understanding.typing.examples.storage_example'
+  module_name = 'autocomplete.code_understanding.typing.examples.index_test_package.storage_example'
   # module_name = 'autocomplete.code_understanding.typing.control_flow_graph'
   module = module_loader.get_module(module_name, '', lazy=False)
 

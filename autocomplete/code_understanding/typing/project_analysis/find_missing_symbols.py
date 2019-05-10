@@ -2,8 +2,9 @@ import argparse
 import os
 from glob import glob
 from pprint import pprint
+from itertools import chain
 
-from autocomplete.code_understanding.typing import (api, collector, module_loader, utils)
+from autocomplete.code_understanding.typing import (api, collector, module_loader, utils, language_objects)
 from autocomplete.code_understanding.typing.control_flow_graph import (FromImportCfgNode)
 from autocomplete.nsn_logging import info
 
@@ -18,7 +19,7 @@ def scan_missing_symbols_in_file(filename):
 
 def scan_missing_symbols_in_graph(graph, directory=None):
   missing_symbols = graph.get_non_local_symbols()
-  for builtin in utils.get_possible_builtin_symbols():
+  for builtin in chain(utils.get_possible_builtin_symbols(), language_objects.ModuleImpl.get_module_builtin_symbols()):
     if builtin in missing_symbols:
       del missing_symbols[builtin]
   # The above method will find a superset of the actual missing symbols using pure static-analysis. Some of

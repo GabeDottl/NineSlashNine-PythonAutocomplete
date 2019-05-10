@@ -1,6 +1,7 @@
 import _ast
 from typing import Dict, List, Tuple
 from collections import defaultdict
+from autocomplete.nsn_logging import info
 
 
 def apply_import_changes(source:str, add_remove_node_tuple_lists: List[List[Tuple[str,str,'CfgNode']]]) -> str:
@@ -36,11 +37,12 @@ def insert_imports(source, source_dir, fixes):
   out = []
   for module_name, values in module_to_value_dict.items():
     if len(values) > 1:
-      out.append(f'from {module_name} import ({",".join(values)})\n')
+      out.append(f'from {module_name} import ({", ".join(sorted(values))})\n')
     else:
       out.append(f'from {module_name} import {values[0]}\n')
   for module in module_imports:
     out.append(f'import {module}\n')
 
   code_insertion = ''.join(out)
+  info(f'code_insertion: {code_insertion}')
   return code_insertion + source
