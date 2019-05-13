@@ -174,8 +174,8 @@ class SymbolIndex:
     index.path = target_index_filename
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
 
-    for (value, module_name, module_filename), count in index.value_module_reference_map.items():
-      index.add_module_by_name(module_name, module_filename)
+    for (value, as_name, module_name, module_filename), count in index.value_module_reference_map.items():
+      index.add_module_by_name(module_name, as_name, module_filename)
       if module_filename:
         module_index = index.normal_module_dict[module_filename]
       else:
@@ -195,7 +195,7 @@ class SymbolIndex:
           break
     return index
 
-  def add_module_by_name(self, module_name, filename):
+  def add_module_by_name(self, module_name, as_name, filename):
     # if not filename:
     #   filename, _, _ = module_loader.get_module_info_from_name(module_name)
 
@@ -207,11 +207,11 @@ class SymbolIndex:
         return  # Already loaded.
 
     if filename and os.path.exists(filename):
-      self.add_file(filename)
+      self.add_file(filename, as_name=as_name)
     else:
       module = module_loader.get_module(module_name, '', lazy=False)
       index = len(self.native_module_list)
-      self.add_module(module, index)
+      self.add_module(module, as_name, index)
       self.native_module_dict[module_name] = index
       self.native_module_list.append(module_name)
 
@@ -237,12 +237,10 @@ class SymbolIndex:
     imported_symbols_and_modules = []
     for node in import_nodes:
       if isinstance(node, control_flow_graph_nodes.ImportCfgNode):
-        values = [None]
+        values = [(None, node.as_name)]
       else:
-        values = node.imported_symbol_names()
-      for value in values:
-      # value = node.imported_symbol_name() if isinstance(node,
-      #                                                   control_flow_graph_nodes.FromImportCfgNode) else None
+        values = node.from_import_name_alias_dict.items()
+      for value, as_name in values:
         imported_filename = ''
         module_name = node.module_path
         if value:
@@ -254,11 +252,11 @@ class SymbolIndex:
             value = None
         if not imported_filename:
           imported_filename = module_loader.get_module_info_from_name(module_name, directory)[0]
-        imported_symbols_and_modules.append((value, module_name, imported_filename))
-    for value_module_name_filename in imported_symbols_and_modules:
-      self.value_module_reference_map[value_module_name_filename] += 1
+        imported_symbols_and_modules.append((value, as_name, module_name, imported_filename))
+    for value_as_name_module_name_filename in imported_symbols_and_modules:
+      self.value_module_reference_map[value_as_name_module_name_filename] += 1
 
-  def add_file(self, filename, track_imported_modules=False):
+  def add_file(self, filename, track_imported_modules=False, as_name=None):
     if filename in self.normal_module_dict or filename in self.failed_files:
       warning(f'Skipping {filename} - already processed.')
       return
@@ -278,7 +276,7 @@ class SymbolIndex:
         self.failed_files.add(filename)
         return
 
-      self.add_module(module, file_index)
+      self.add_module(module, as_name, file_index)
     except OSError as e:  # Exception
       info(f'Failed on {filename}: {e}')
       self.failed_files.add(filename)
@@ -291,7 +289,7 @@ class SymbolIndex:
         self.save(self.path)
         # self.files_added = 0
 
-  def add_module(self, module, module_index):
+  def add_module(self, module, as_name, module_index):
     module_type = module.module_type
     # filename = module.filename
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
@@ -313,6 +311,9 @@ class SymbolIndex:
           SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
     else:  # Native.
       self.symbol_dict[module.name].append(
+          SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
+    if as_name:
+      self.symbol_dict[as_name].append(
           SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
 
 

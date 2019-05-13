@@ -123,6 +123,7 @@ class Rename:
 class Import:
   # DO NOT ACCESS THESE DIRECTLY. Use get_module_name_and_value.
   _module_name = attr.ib()
+  as_name = attr.ib()
   module_filename = attr.ib()
   _value = attr.ib()
 

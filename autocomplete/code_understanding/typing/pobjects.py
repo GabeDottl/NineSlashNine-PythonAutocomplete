@@ -337,7 +337,7 @@ class NativeObject(PObject):
 
   def set_item(self, curr_frame, index, value):
     if self._read_only:
-      info(f'Cannot set {index} on read-only NO.')
+      debug(f'Cannot set {index} on read-only NO.')
       return
 
     # TODO: item_dynamic_container?
