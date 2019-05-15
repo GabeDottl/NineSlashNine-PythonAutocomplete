@@ -69,10 +69,7 @@ class SymbolEntry:
     args = list(tuple_)
     args[0] = SymbolType(args[0])  # symbol_type
     args[1] = language_objects.ModuleType(args[1])  # module_type
-    # if tuple_[1] is not None:
-    #   return SymbolEntry(SymbolType(tuple_[0]), language_objects.ModuleType(tuple_[1]), *tuple_[2:])
     return SymbolEntry(*args)
-    # return SymbolEntry(SymbolType(tuple_[0]), *tuple_[1:])
 
   def is_from_native_module(self):
     return self.module_type == language_objects.ModuleType.BUILTIN
@@ -125,8 +122,6 @@ class SymbolIndex:
     symbol_entries_dict = {}
     for symbol, module_index_symbol_entry_dict in index.symbol_dict.items():
       d[symbol] = [v.serialize() for v in module_index_symbol_entry_dict.values()]
-    # module_list = index.module_list if index.module_list else [0]
-    # module_list = index.module_list if index.module_list else [0]
     serialized_module_list = [(key.module_source_type.value, key.path) for key in index.module_list]
     return [d, serialized_module_list, tuple(index.failed_module_keys)]
 
@@ -208,25 +203,6 @@ class SymbolIndex:
           continue
         else:
           index.symbol_dict[as_name][key] = entry
-      # TODO: Hash on module_index?
-      # for entry in module_index_symbol_entry_dict:
-      #   if entry.module_index == module_index and ((not value and entry.is_module_itself) or
-      #                                              (value and not entry.is_module_itself)):
-      #     if as_name:
-      #         # if as_name in index.symbol_dict:
-      #       real_name = value if value else base_module_name(module_name)
-
-      #       if value:
-      #         module = module_loader.get_module_from_key(module_key)
-      #         # if module_filename:
-      #         #   module = module_loader.get_module_from_filename(module_name, module_filename)
-      #         # else:
-      #         #   module = module_loader.get_module(module_name, directory=None)
-      #         symbol_type = SymbolType.from_pobject_value(module[value])
-      #       else:
-      #         symbol_type = SymbolType.MODULE
-      #     entry.import_count += count
-      #     break
     return index
 
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
@@ -314,27 +290,6 @@ class SymbolIndex:
       if self.files_added and self.files_added % 20 == 0 and self.path:
         info(f'Saving index to {self.path}. {self.files_added} files added.')
         self.save(self.path)
-        # self.files_added = 0
-
-  # def add_module_by_name(self, module_name, filename):
-  #   if filename and filename in self.module_dict:
-  #     return  # Already added.
-
-  #   if not filename:
-  #     if module_name in self.module_dict:
-  #       return  # Already loaded.
-
-  #   if filename and os.path.exists(filename):
-  #     self.add_file(filename)
-  #   else:
-  #     module = module_loader.get_module(module_name, '', lazy=False)
-  #     index = len(self.module_list)
-  #     self.add_module(module, index)
-
-  #     self.symbol_dict[module_key.get_module_basename()].append(
-  #         SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True))
-  #     self.module_dict[module_name] = index
-  #     self.module_list.append(module_name)
 
   def add_module(self, module, module_index):
     # filename = module.filename
@@ -350,15 +305,6 @@ class SymbolIndex:
                                                                     module.module_type,
                                                                     module_index,
                                                                     imported=member.imported)
-    # if module.filename:
-    #   module_basename = os.path.splitext(os.path.basename(module.filename))[0]
-    #   if module_basename == '__init__':
-    #     module_basename = os.path.basename(os.path.dirname(module.filename))
-    #   self.symbol_dict[module_basename].append(
-    #       SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True))
-    # else:  # Native.
-    #   self.symbol_dict[module_key.get_module_basename()].append(
-    #       SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True))
 
 
 def _should_scan_file(filename, include_private_files):

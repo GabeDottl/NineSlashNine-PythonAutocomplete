@@ -37,8 +37,7 @@ from autocomplete.nsn_logging import debug, error, info, warning
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
 
 __module_key_module_dict: Dict['ModuleKey', Module] = {}
-__filename_module_dict: Dict[str, Module] = {}
-__native_module_dict: Dict[str, Module] = {}
+
 # This is primarily to ensure we never read in a file twice - which should be essentially impossible
 # given the public API.
 __loaded_paths: Set[str] = set()
@@ -76,10 +75,6 @@ class ModuleKey:
     else:
       raise ValueError(f'Not a Module: {filename}')
     return ModuleKey(type_, os.path.abspath(filename))
-
-  # @staticmethod
-  # def from_name_and_filename(module_name, filename):
-  #   if filename is N
 
   def get_module_basename(self):
     if self.module_source_type == ModuleSourceType.BUILTIN:
@@ -126,10 +121,6 @@ def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_gr
 
 def get_module(name: str, directory: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   module_key, is_package, module_type = get_module_info_from_name(name, directory)
-  # if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
-  #   if unknown_fallback:
-  #     return _create_empty_module(name, module_type)
-  #   raise InvalidModuleError(name)
 
   return _get_module_internal(module_key=module_key,
                               is_package=is_package,
@@ -177,57 +168,6 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
       else:
         warning(f'Cannot include graph on module that is natively loaded.')
     return module
-  # global __filename_module_dict
-  # global __native_module_dict
-
-  # name = module_key.get_module_basename()
-  # Modules we load natively are stored in a separate dict from the filename dict because they
-  # typically don't have a valid filename.
-  # TODO: This could get murky if we allowed more modules to be loaded natively.
-  # if name in NATIVE_MODULE_WHITELIST or module_type.is_native():
-  #   if name in __native_module_dict:
-  #     return __native_module_dict[name]
-  #   out = __native_module_dict[name] = _load_module_from_module_info(name,
-  #                                                                    filename,
-  #                                                                    directory,
-  #                                                                    is_package,
-  #                                                                    module_type,
-  #                                                                    unknown_fallback=unknown_fallback,
-  #                                                                    lazy=lazy,
-  #                                                                    include_graph=include_graph)
-  #   return out
-
-  # assert filename is not None and os.path.exists(filename)
-  # assert filename == os.path.abspath(filename)
-
-  # Normal case, check if we have a module for the specified file already.
-  # if filename in __filename_module_dict:
-  #   module = __filename_module_dict[filename]
-  #   if module is None:  # Oddly enough, a module is alrectly invoke itself when it's
-  #     # __main__ at least - see pdb.py where it importe it is the main module.
-  #     if unknown_fallback:
-  #       return _create_empty_module(name, module_type)
-  #     raise InvalidModuleError(name)
-
-  #   assert module is not None, collector._filename_context
-
-  #   # Load module if it's not alread loaded and we're specifically retrieving a non-Lazy version.
-  #   if isinstance(module, LazyModule) and not lazy:
-  #     if include_graph:
-  #       module.keep_graph = True
-
-  #     module.load()
-  #     # Even if the module is loaded, it'll still act lazily unless we explicitly indicate not to.
-  #     module.lazy = False
-  #   if include_graph and not module.graph:
-  #     # Damn, alreadly loaded but did not keep the graph the first time...
-  #     with open(filename) as f:
-  #       module.graph = api.graph_from_source(''.join(f.readlines()))
-  #   return module
-
-  # We set this to None to start as a form of dependency-cycle-checking. This is the only way that
-  # an object is this dict is None and we check if a value retrieved from it is None above.
-  # __filename_module_dict[filename] = None
 
   # We set this to None to start as a form of dependency-cycle-checking. This is the only way that
   # an object is this dict is None and we check if a value retrieved from it is None above.
