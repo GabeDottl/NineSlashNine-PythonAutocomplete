@@ -10,8 +10,9 @@ from typing import Dict, List
 
 import attr
 from autocomplete.code_understanding.typing import collector, serialization
-from autocomplete.code_understanding.typing.errors import (
-    AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError)
+from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError,
+                                                           LoadingModuleAttributeError,
+                                                           NoDictImplementationError, SourceAttributeError)
 from autocomplete.code_understanding.typing.utils import to_dict_iter
 from autocomplete.nsn_logging import debug, error, info, warning
 
@@ -424,7 +425,9 @@ def _passthrough_if_loaded(func):
 
   return wrapper
 
+
 _lazy_object_loading_dict = collections.OrderedDict()
+
 
 @attr.s
 class LazyInfiniteLoopContext:
@@ -437,6 +440,7 @@ class LazyInfiniteLoopContext:
   def __exit__(self, exc_type, exc_value, traceback):
     del _lazy_object_loading_dict[(self.function, id(self.lazy_object))]
 
+
 def loop_checker(func):
   @wraps(func)
   def wrapper(self, *args, **kwargs):
@@ -448,6 +452,7 @@ def loop_checker(func):
     with LazyInfiniteLoopContext(func, self):
       out = func(self, *args, **kwargs)
     return out
+
   return wrapper
 
 
@@ -568,8 +573,8 @@ class LazyObject(PObject):
     # delayed time as if the Frame was as it is now. This does *not* snapshot PObject states.
     # TODO: Consider somehow snapshotting PObjects too.
     frame = curr_frame.snapshot()
-    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})', partial(lambda a,b,c,: self._load_and_ret().call(a,b,c),
-        frame, args, kwargs))
+    return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})',
+                      partial(lambda a, b, c, : self._load_and_ret().call(a, b, c), frame, args, kwargs))
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):

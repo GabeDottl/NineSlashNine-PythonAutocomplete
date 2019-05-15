@@ -99,12 +99,11 @@ class SymbolIndex:
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
       for symbol, value in builtins.__dict__.items():
-        self.symbol_dict[symbol][(-1, False)] = 
-            SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1)
+
+        self.symbol_dict[symbol][(-1, False)] = SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1)
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol][(-2, False)] =
-              SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -2)
+          self.symbol_dict[symbol][(-2, False)] =            SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -2)
     if len(self.module_list) != len(self.module_dict):
       self.module_dict = {x: i for i, x in enumerate(self.module_list)}
 

@@ -30,8 +30,9 @@ from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
     FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode, TryCfgNode,
     WhileCfgNode, WithCfgNode)
 from autocomplete.code_understanding.typing.errors import ParsingError
-from autocomplete.code_understanding.typing.expressions import (
-    AnonymousExpression, Expression, LiteralExpression, UnknownExpression, VariableExpression)
+from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, Expression,
+                                                                LiteralExpression, UnknownExpression,
+                                                                VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame
 from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
 from autocomplete.nsn_logging import debug, error, info, warning

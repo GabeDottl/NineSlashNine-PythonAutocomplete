@@ -79,13 +79,12 @@ class Visitor(ast.NodeVisitor):
     # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
     suite = GroupCfgNode()
     old_containing_func = self._containing_func_node
-    out = FuncCfgNode(
-        ast_node.name,
-        parameters_from_arguments(ast_node.args),
-        suite,
-        module=self._module,
-        containing_func_node=old_containing_func,
-        parse_node=parse_from_ast(ast_node))
+    out = FuncCfgNode(ast_node.name,
+                      parameters_from_arguments(ast_node.args),
+                      suite,
+                      module=self._module,
+                      containing_func_node=old_containing_func,
+                      parse_node=parse_from_ast(ast_node))
     self._containing_func_node = out
     with ListPopper(self._container_stack, suite.children):
       for stmt in ast_node.body:
@@ -127,21 +126,19 @@ class Visitor(ast.NodeVisitor):
   def visit_AugAssign(self, ast_node):
     # (expr target, operator op, expr value)
     self.push(
-        AssignmentStmtCfgNode(
-            expression_from_node(ast_node.target),
-            f'{operator_symbol_from_operator(ast_node.op)}=',
-            expression_from_node(ast_node.value),
-            parse_node=parse_from_ast(ast_node)))
+        AssignmentStmtCfgNode(expression_from_node(ast_node.target),
+                              f'{operator_symbol_from_operator(ast_node.op)}=',
+                              expression_from_node(ast_node.value),
+                              parse_node=parse_from_ast(ast_node)))
 
   def visit_AnnAssign(self, ast_node):
     # (expr target, expr annotation, expr? value, int simple)
     # 'simple' indicates that we annotate simple name without parens
     self.push(
-        AssignmentStmtCfgNode(
-            expression_from_node(ast_node.target),
-            '=',
-            expression_from_node(ast_node.value),
-            parse_node=parse_from_ast(ast_node)))
+        AssignmentStmtCfgNode(expression_from_node(ast_node.target),
+                              '=',
+                              expression_from_node(ast_node.value),
+                              parse_node=parse_from_ast(ast_node)))
 
   def _group_from_body(self, body):
     suite = GroupCfgNode()
@@ -155,12 +152,11 @@ class Visitor(ast.NodeVisitor):
     suite = self._group_from_body(ast_node.body)
     else_suite = self._group_from_body(ast_node.orelse)
     self.push(
-        ForCfgNode(
-            expression_from_node(ast_node.target),
-            expression_from_node(ast_node.iter),
-            suite,
-            else_suite=else_suite,
-            parse_node=parse_from_ast(ast_node)))
+        ForCfgNode(expression_from_node(ast_node.target),
+                   expression_from_node(ast_node.iter),
+                   suite,
+                   else_suite=else_suite,
+                   parse_node=parse_from_ast(ast_node)))
 
   def visit_AsyncFor(self, ast_node):
     # (expr target, expr iter, stmt* body, stmt* orelse)
@@ -171,8 +167,10 @@ class Visitor(ast.NodeVisitor):
     suite = self._group_from_body(ast_node.body)
     else_suite = self._group_from_body(ast_node.orelse)
     self.push(
-        WhileCfgNode(
-            expression_from_node(ast_node.test), suite, else_suite, parse_node=parse_from_ast(ast_node)))
+        WhileCfgNode(expression_from_node(ast_node.test),
+                     suite,
+                     else_suite,
+                     parse_node=parse_from_ast(ast_node)))
 
   def test_suite_from_if(self, ast_node):
     suite = self._group_from_body(ast_node.body)
@@ -207,11 +205,10 @@ class Visitor(ast.NodeVisitor):
       if withitem.optional_vars:
         as_exprs.append(expression_from_node(withitem.optional_vars))
     self.push(
-        WithCfgNode(
-            ItemListExpression(with_exprs),
-            ItemListExpression(as_exprs),
-            suite,
-            parse_node=parse_from_ast(ast_node)))
+        WithCfgNode(ItemListExpression(with_exprs),
+                    ItemListExpression(as_exprs),
+                    suite,
+                    parse_node=parse_from_ast(ast_node)))
 
   def visit_AsyncWith(self, ast_node):
     self.visit_With(ast_node)
@@ -247,22 +244,20 @@ class Visitor(ast.NodeVisitor):
     # alias = (identifier name, identifier? asname)
     for alias in ast_node.names:
       self.push(
-          ImportCfgNode(
-              alias.name,
-              as_name=alias.asname,
-              module_loader=self.module_loader,
-              parse_node=parse_from_ast(ast_node)))
+          ImportCfgNode(alias.name,
+                        as_name=alias.asname,
+                        module_loader=self.module_loader,
+                        parse_node=parse_from_ast(ast_node)))
 
   def visit_ImportFrom(self, ast_node):
     # (identifier? module, alias* names, int? level)
     # alias = (identifier name, identifier? asname)
     self.push(
-        FromImportCfgNode(
-            f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.',
-            {alias.name: alias.asname
-             for alias in ast_node.names},
-            module_loader=self.module_loader,
-            parse_node=parse_from_ast(ast_node)))
+        FromImportCfgNode(f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.',
+                          {alias.name: alias.asname
+                           for alias in ast_node.names},
+                          module_loader=self.module_loader,
+                          parse_node=parse_from_ast(ast_node)))
 
   def visit_Global(self, ast_node):
     # (identifier* names)
@@ -341,9 +336,8 @@ def expression_from_node(ast_node):
     return UnknownExpression(astor.to_source(ast_node))
   if isinstance(ast_node, _ast.IfExp):
     # (expr test, expr body, expr orelse)
-    return IfElseExpression(
-        expression_from_node(ast_node.body), expression_from_node(ast_node.test),
-        expression_from_node(ast_node.orelse))
+    return IfElseExpression(expression_from_node(ast_node.body), expression_from_node(ast_node.test),
+                            expression_from_node(ast_node.orelse))
   if isinstance(ast_node, _ast.Dict):
     # (expr* keys, expr* values)
     value_iter = iter(ast_node.values)
@@ -360,25 +354,24 @@ def expression_from_node(ast_node):
     return SetExpression([expression_from_node(node) for node in ast_node.elts])
   if isinstance(ast_node, _ast.ListComp):
     # (expr elt, comprehension* generators)
-    return ForComprehensionExpression(
-        expression_from_node(ast_node.elt), for_comprehension_from_comprehensions(ast_node.generators))
+    return ForComprehensionExpression(expression_from_node(ast_node.elt),
+                                      for_comprehension_from_comprehensions(ast_node.generators))
   if isinstance(ast_node, _ast.SetComp):
     # (expr elt, comprehension* generators)
     return SetExpression([
-        ForComprehensionExpression(
-            expression_from_node(ast_node.elt), for_comprehension_from_comprehensions(ast_node.generators))
+        ForComprehensionExpression(expression_from_node(ast_node.elt),
+                                   for_comprehension_from_comprehensions(ast_node.generators))
     ])
   if isinstance(ast_node, _ast.DictComp):
     # (expr key, expr value, comprehension* generators)
     return DictExpression([
-        KeyValueForComp(
-            expression_from_node(ast_node.key), expression_from_node(ast_node.value),
-            for_comprehension_from_comprehensions(ast_node.generators))
+        KeyValueForComp(expression_from_node(ast_node.key), expression_from_node(ast_node.value),
+                        for_comprehension_from_comprehensions(ast_node.generators))
     ])
   if isinstance(ast_node, _ast.GeneratorExp):
     # (expr elt, comprehension* generators)
-    return ForComprehensionExpression(
-        expression_from_node(ast_node.elt), for_comprehension_from_comprehensions(ast_node.generators))
+    return ForComprehensionExpression(expression_from_node(ast_node.elt),
+                                      for_comprehension_from_comprehensions(ast_node.generators))
   if isinstance(ast_node, _ast.Await):
     # (expr value)
     # TODO
@@ -404,8 +397,10 @@ def expression_from_node(ast_node):
     # TODO: Clean this up with parso impl.
     if kwargs_val:
       args.append(kwargs_val)
-    return CallExpression(
-        expression_from_node(ast_node.func), args, kwargs, parse_node=parse_from_ast(ast_node))
+    return CallExpression(expression_from_node(ast_node.func),
+                          args,
+                          kwargs,
+                          parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.Num):
     # (object n) -- a number as a PyObject.
     return LiteralExpression(ast_node.n)
@@ -433,14 +428,14 @@ def expression_from_node(ast_node):
     return LiteralExpression(ast_node.value)
   if isinstance(ast_node, _ast.Attribute):
     # (expr value, identifier attr, expr_context ctx)
-    return AttributeExpression(
-        expression_from_node(ast_node.value), ast_node.attr, parse_node=parse_from_ast(ast_node))
+    return AttributeExpression(expression_from_node(ast_node.value),
+                               ast_node.attr,
+                               parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.Subscript):
     # (expr value, slice slice, expr_context ctx)
-    return SubscriptExpression(
-        expression_from_node(ast_node.value),
-        expression_from_slice(ast_node.slice),
-        parse_node=parse_from_ast(ast_node))
+    return SubscriptExpression(expression_from_node(ast_node.value),
+                               expression_from_slice(ast_node.slice),
+                               parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.Starred):
     # (expr value, expr_context ctx)
     return StarredExpression('*', expression_from_node(ast_node.value))
@@ -463,8 +458,8 @@ def string_from_boolop(boolop):
 
 def expression_from_boolop(ast_node):
   op = string_from_boolop(ast_node.op)
-  last_expression = AndOrExpression(
-      expression_from_node(ast_node.values[0]), op, expression_from_node(ast_node.values[1]))
+  last_expression = AndOrExpression(expression_from_node(ast_node.values[0]), op,
+                                    expression_from_node(ast_node.values[1]))
   for node in ast_node.values[2:]:
     last_expression = AndOrExpression(last_expression, op, expression_from_node(node))
   return last_expression
@@ -501,11 +496,10 @@ def operator_symbol_from_operator(operator):
 
 
 def expression_from_binop(ast_node):
-  return MathExpression(
-      expression_from_node(ast_node.left),
-      operator_symbol_from_operator(ast_node.op),
-      expression_from_node(ast_node.right),
-      parse_node=parse_from_ast(ast_node))
+  return MathExpression(expression_from_node(ast_node.left),
+                        operator_symbol_from_operator(ast_node.op),
+                        expression_from_node(ast_node.right),
+                        parse_node=parse_from_ast(ast_node))
 
 
 def expression_from_unaryop(ast_node):
@@ -514,11 +508,10 @@ def expression_from_unaryop(ast_node):
   if isinstance(ast_node.op, _ast.UAdd):
     return expression_from_node(ast_node.operand)
   if isinstance(ast_node.op, _ast.USub):
-    return MathExpression(
-        LiteralExpression(-1),
-        '*',
-        expression_from_node(ast_node.operand),
-        parse_node=parse_from_ast(ast_node))
+    return MathExpression(LiteralExpression(-1),
+                          '*',
+                          expression_from_node(ast_node.operand),
+                          parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node.op, _ast.Invert):
     # TODO: ~a.
     return UnknownExpression(astor.to_source(ast_node))
@@ -566,9 +559,9 @@ def for_comprehension_from_comprehensions(comprehensions):
 def comparison_expression_from_compare(ast_node):
   # (expr left, cmpop* ops, expr* comparators)
   # cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
-  last_expression = ComparisonExpression(
-      expression_from_node(ast_node.left), operator_from_cmpop(ast_node.ops[0]),
-      expression_from_node(ast_node.comparators[0]))
+  last_expression = ComparisonExpression(expression_from_node(ast_node.left),
+                                         operator_from_cmpop(ast_node.ops[0]),
+                                         expression_from_node(ast_node.comparators[0]))
   for cmpop, node in zip(ast_node.ops[1:], ast_node.comparators[1:]):
     last_expression = AndOrExpression(
         last_expression, 'and',

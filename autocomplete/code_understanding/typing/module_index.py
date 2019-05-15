@@ -65,13 +65,12 @@ class ModuleIndex:
     module_store = self.file[path_from_dot_name(name)]
     members = members_from_group(module_store)
 
-    return ModuleImpl(
-        name,
-        filename=module_store.attrs['filename'],
-        module_type=ModuleType(module_store.attrs['module_type']),
-        is_package=module_store.attrs['_is_package'],
-        members=members,
-        module_loader=module_loader)
+    return ModuleImpl(name,
+                      filename=module_store.attrs['filename'],
+                      module_type=ModuleType(module_store.attrs['module_type']),
+                      is_package=module_store.attrs['_is_package'],
+                      members=members,
+                      module_loader=module_loader)
 
 
 def members_from_group(group):

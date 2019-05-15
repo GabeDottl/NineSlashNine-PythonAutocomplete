@@ -19,7 +19,8 @@ def scan_missing_symbols_in_file(filename):
 
 def scan_missing_symbols_in_graph(graph, directory=None):
   missing_symbols = graph.get_non_local_symbols()
-  for builtin in chain(utils.get_possible_builtin_symbols(), language_objects.ModuleImpl.get_module_builtin_symbols()):
+  for builtin in chain(utils.get_possible_builtin_symbols(),
+                       language_objects.ModuleImpl.get_module_builtin_symbols()):
     if builtin in missing_symbols:
       del missing_symbols[builtin]
   # The above method will find a superset of the actual missing symbols using pure static-analysis. Some of

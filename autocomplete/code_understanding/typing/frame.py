@@ -11,8 +11,9 @@ from autocomplete.code_understanding.typing import collector, utils
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (AttributeExpression, Expression,
                                                                 SubscriptExpression, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject, UnknownObject, pobject_from_object)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyObject,
+                                                             NativeObject, PObject, UnknownObject,
+                                                             pobject_from_object)
 from autocomplete.nsn_logging import info, warning, debug
 
 
@@ -132,13 +133,12 @@ class Frame:
       module = self._module
     if cell_symbols is None:
       cell_symbols = self._cell_symbols
-    return Frame(
-        frame_type=frame_type,
-        back=self,
-        module=module,
-        namespace=namespace,
-        builtins=self._builtins,
-        cell_symbols=cell_symbols)
+    return Frame(frame_type=frame_type,
+                 back=self,
+                 module=module,
+                 namespace=namespace,
+                 builtins=self._builtins,
+                 cell_symbols=cell_symbols)
 
   def _set_free_variable(self, name, value):
     if name in self._locals:

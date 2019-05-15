@@ -25,10 +25,11 @@ from enum import Enum
 import typeshed
 from autocomplete.code_understanding.typing import (api, collector, frame, serialization)
 from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError, InvalidModuleError,
-                                                           UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.language_objects import (
-    LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError,
+                                                           InvalidModuleError, UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.language_objects import (LazyModule, Module, ModuleImpl,
+                                                                     ModuleType, NativeModule,
+                                                                     create_main_module)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, NativeObject, PObject,
                                                              UnknownObject)
 from autocomplete.nsn_logging import debug, error, info, warning
@@ -41,16 +42,18 @@ __loaded_paths: Set[str] = set()
 
 keep_graphs_default = False
 
+
 class ModuleSourceType(Enum):
   BUILTIN = 0
   COMPILED = 1
   NORMAL = 2
 
+
 @attr.s
 class ModuleKey:
   '''A key for uniquely identifying and retrieving any module - builtin, compiled, or normal.'''
   module_source_type = attr.ib()
-  path = attr.ib() # filepath or name for builtins.
+  path = attr.ib()  # filepath or name for builtins.
 
   @staticmethod
   def from_filename(self, filename):
@@ -70,7 +73,8 @@ class ModuleKey:
     if filename == '__init__.py' or filename == '__init__.pyi':
       return os.path.basename(os.path.dirname(self.path))
     return os.path.splitext(os.path.basename(self.path))[0]
-  
+
+
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.
   # module_name will only end with '.' if it's purely periods- 1 or more. In that
@@ -94,14 +98,23 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
 
   return UnknownObject(full_pobject_name, imported=True)
 
+
 def get_module(name: str, directory: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   filename, is_package, module_type = get_module_info_from_name(name, directory)
-  return _get_module_internal(
-      name, filename, directory, is_package, module_type, unknown_fallback, lazy, include_graph=include_graph)
+  return _get_module_internal(name,
+                              filename,
+                              directory,
+                              is_package,
+                              module_type,
+                              unknown_fallback,
+                              lazy,
+                              include_graph=include_graph)
+
 
 def get_module_from_key(module_key):
   if module_key.module_source_type == ModuleSourceType.BUILTIN:
     return get_module(module_key.path, None)
+
 
 def get_module_from_filename(name,
                              filename,
@@ -110,15 +123,14 @@ def get_module_from_filename(name,
                              lazy=True,
                              include_graph=False) -> Module:
   filename = os.path.abspath(filename)  # Ensure its absolute.
-  return _get_module_internal(
-      name,
-      filename,
-      os.path.dirname(filename),
-      is_package,
-      module_type_from_filename(filename),
-      unknown_fallback=unknown_fallback,
-      lazy=lazy,
-      include_graph=include_graph)
+  return _get_module_internal(name,
+                              filename,
+                              os.path.dirname(filename),
+                              is_package,
+                              module_type_from_filename(filename),
+                              unknown_fallback=unknown_fallback,
+                              lazy=lazy,
+                              include_graph=include_graph)
 
 
 def _get_module_internal(name, filename, directory, is_package, module_type, unknown_fallback, lazy,
@@ -137,15 +149,14 @@ def _get_module_internal(name, filename, directory, is_package, module_type, unk
   if name in NATIVE_MODULE_WHITELIST or module_type.is_native():
     if name in __native_module_dict:
       return __native_module_dict[name]
-    out = __native_module_dict[name] = _load_module_from_module_info(
-        name,
-        filename,
-        directory,
-        is_package,
-        module_type,
-        unknown_fallback=unknown_fallback,
-        lazy=lazy,
-        include_graph=include_graph)
+    out = __native_module_dict[name] = _load_module_from_module_info(name,
+                                                                     filename,
+                                                                     directory,
+                                                                     is_package,
+                                                                     module_type,
+                                                                     unknown_fallback=unknown_fallback,
+                                                                     lazy=lazy,
+                                                                     include_graph=include_graph)
     return out
 
   assert filename is not None and os.path.exists(filename)
@@ -180,15 +191,14 @@ def _get_module_internal(name, filename, directory, is_package, module_type, unk
   # an object is this dict is None and we check if a value retrieved from it is None above.
   __filename_module_dict[filename] = None
 
-  module = _load_module_from_module_info(
-      name,
-      filename,
-      directory,
-      is_package,
-      module_type,
-      unknown_fallback=unknown_fallback,
-      lazy=lazy,
-      include_graph=include_graph)
+  module = _load_module_from_module_info(name,
+                                         filename,
+                                         directory,
+                                         is_package,
+                                         module_type,
+                                         unknown_fallback=unknown_fallback,
+                                         lazy=lazy,
+                                         include_graph=include_graph)
   assert module is not None
   debug(f'Adding {filename} to module dict.')
   # Note: This will essentially stop us from storing modules which are unreadable because they are
@@ -235,8 +245,10 @@ def _get_module_stub_source_filename(name) -> str:
 def load_module_from_source(source, include_graph=False):
   module = create_main_module(sys.modules[__name__])
   if include_graph:
-    module._members, graph = _module_exports_from_source(
-        module, source, filename='__main__', return_graph=True)
+    module._members, graph = _module_exports_from_source(module,
+                                                         source,
+                                                         filename='__main__',
+                                                         return_graph=True)
     module.graph = graph
   else:
     module._members = _module_exports_from_source(module, source, filename='__main__')
@@ -289,6 +301,7 @@ def _relative_path_from_relative_module(name):
 
 # def get_module_meta_from_name(name:str, filename: str):
 
+
 def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, ModuleType]:
   try:
     stub_filename, is_package = _get_module_stub_source_filename(name)
@@ -337,6 +350,7 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
+
 def get_module_info_from_filename(filename):
   ext = os.path.splitext(filename)[1]
   if ext != '.pyi' and ext != '.py':
@@ -345,6 +359,7 @@ def get_module_info_from_filename(filename):
       return os.path.abspath(filename), False, ModuleType.COMPILED
     return os.path.abspath(filename), False, ModuleType.UNKNOWN_OR_UNREADABLE
   return os.path.abspath(filename), _is_init(filename), module_type_from_filename(filename)
+
 
 def _load_module(name: str, directory, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   debug(f'Loading module: {name}')
@@ -409,16 +424,17 @@ def _load_module_from_module_info(name: str,
     except ImportError:
       return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
     else:
-      return NativeModule(
-          name, module_type, filename=filename, native_module=NativeObject(python_module, read_only=True))
-  return _load_module_from_filename(
-      name,
-      filename,
-      is_package=is_package,
-      module_type=module_type,
-      unknown_fallback=unknown_fallback,
-      lazy=lazy,
-      include_graph=include_graph)
+      return NativeModule(name,
+                          module_type,
+                          filename=filename,
+                          native_module=NativeObject(python_module, read_only=True))
+  return _load_module_from_filename(name,
+                                    filename,
+                                    is_package=is_package,
+                                    module_type=module_type,
+                                    unknown_fallback=unknown_fallback,
+                                    lazy=lazy,
+                                    include_graph=include_graph)
 
 
 def _is_init(filename):
@@ -439,12 +455,18 @@ def _load_module_from_filename(name,
       raise InvalidModuleError(filename)
     return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   if lazy:
-    return _create_lazy_module(
-        name, filename, is_package=is_package, module_type=module_type, include_graph=include_graph)
+    return _create_lazy_module(name,
+                               filename,
+                               is_package=is_package,
+                               module_type=module_type,
+                               include_graph=include_graph)
 
-  module = ModuleImpl(
-      name=name, module_type=module_type, filename=filename, members={}, is_package=is_package,
-        module_loader=sys.modules[__name__])
+  module = ModuleImpl(name=name,
+                      module_type=module_type,
+                      filename=filename,
+                      members={},
+                      is_package=is_package,
+                      module_loader=sys.modules[__name__])
 
   try:
     if include_graph or keep_graphs_default:
@@ -460,14 +482,13 @@ def _load_module_from_filename(name,
 
 
 def _create_lazy_module(name, filename, is_package, module_type, include_graph) -> LazyModule:
-  return LazyModule(
-      name=name,
-      module_type=module_type,
-      filename=filename,
-      load_module_exports_from_filename=_load_module_exports_from_filename,
-      is_package=is_package,
-      keep_graph=include_graph or keep_graphs_default,
-      module_loader=sys.modules[__name__])
+  return LazyModule(name=name,
+                    module_type=module_type,
+                    filename=filename,
+                    load_module_exports_from_filename=_load_module_exports_from_filename,
+                    is_package=is_package,
+                    keep_graph=include_graph or keep_graphs_default,
+                    module_loader=sys.modules[__name__])
 
 
 def _create_empty_module(name, module_type):

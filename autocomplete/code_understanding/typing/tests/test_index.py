@@ -44,7 +44,7 @@ def test_add_file():
       f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/boo.py')
   # index.add_path(
   #     f'/usr/local/lib/python3.6/site-packages/numpy')
-      
+
   entries = index.find_symbol('attr')
   assert len(
       entries) == 1 and entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE

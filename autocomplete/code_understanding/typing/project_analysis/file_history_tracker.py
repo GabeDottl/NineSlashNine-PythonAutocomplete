@@ -3,6 +3,7 @@ import time
 import os
 import attr
 
+
 @attr.s
 class FileHistoryTracker:
   tracking_file = attr.ib()
@@ -24,7 +25,6 @@ class FileHistoryTracker:
       d = msgpack.unpack(f, raw=False, use_list=False)
       return FileHistoryTracker(filepath, d)
 
-
   def update_timestamp_for_file(self, filename, timestamp=None):
     if timestamp is None:
       timestamp = time.time()
@@ -33,7 +33,7 @@ class FileHistoryTracker:
   def has_file_changed_since_timestamp(self, filename):
     if filename not in self.file_timestamp_dict:
       return True
-    
+
     modified_timestamp = os.path.getmtime(filename)
     last_update_timestamp = self.file_timestamp_dict[filename]
     return modified_timestamp > last_update_timestamp

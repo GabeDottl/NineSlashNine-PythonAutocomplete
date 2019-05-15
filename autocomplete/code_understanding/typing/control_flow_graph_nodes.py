@@ -8,12 +8,14 @@ import attr
 from autocomplete.code_understanding.typing import collector, symbol_context
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError, ParsingError,
                                                            assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (
-    Expression, StarredExpression, SubscriptExpression, VariableExpression, _assign_variables_to_results)
+from autocomplete.code_understanding.typing.expressions import (Expression, StarredExpression,
+                                                                SubscriptExpression, VariableExpression,
+                                                                _assign_variables_to_results)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.language_objects import (
-    BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, ModuleImpl, NativeModule, Parameter,
-    SimplePackageModule)
+from autocomplete.code_understanding.typing.language_objects import (BoundFunction, Function, FunctionImpl,
+                                                                     FunctionType, Klass, Module, ModuleImpl,
+                                                                     NativeModule, Parameter,
+                                                                     SimplePackageModule)
 from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
                                                              LazyObject, UnknownObject)
 from autocomplete.code_understanding.typing.utils import (assert_returns_type, instance_memoize)
@@ -115,9 +117,8 @@ class GroupCfgNode(CfgNode):
     return chained
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(
-        filter(lambda x: isinstance(x, type_), self.children),
-        *[c.get_descendents_of_types(type_) for c in self.children])
+    return itertools.chain(filter(lambda x: isinstance(x, type_), self.children),
+                           *[c.get_descendents_of_types(type_) for c in self.children])
 
   def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
     if recursive:
@@ -191,10 +192,15 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
-          filename, is_package, module_type = self.module_loader.get_module_info_from_name(current_name, collector.get_current_context_dir())
+          filename, is_package, module_type = self.module_loader.get_module_info_from_name(
+              current_name, collector.get_current_context_dir())
           # assert is_package
-          ancestor_module = SimplePackageModule(
-              current_name, module_type, filename=filename, is_package=True, members={}, module_loader=self.module_loader)
+          ancestor_module = SimplePackageModule(current_name,
+                                                module_type,
+                                                filename=filename,
+                                                is_package=True,
+                                                members={},
+                                                module_loader=self.module_loader)
 
         if last_module:
           last_module.add_members({name: AugmentedObject(ancestor_module, imported=True)})
@@ -280,10 +286,10 @@ class FromImportCfgNode(CfgNode):
       # from a cell object to make multiple imports work. Otherwise all imports will load the last item in the
       # list.
       lo_name = f'{self.module_path}.{from_import_name}'
-      pobject = LazyObject(
-          lo_name,
-          partial(self.module_loader.get_pobject_from_module, self.module_path, from_import_name, curr_dir),
-          imported=True)
+      pobject = LazyObject(lo_name,
+                           partial(self.module_loader.get_pobject_from_module, self.module_path,
+                                   from_import_name, curr_dir),
+                           imported=True)
       curr_frame[name] = pobject
 
   def imported_symbol_names(self):
@@ -381,8 +387,8 @@ class ForCfgNode(CfgNode):
             self.else_suite.get_defined_and_exported_symbols())
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(
-        self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
+    return itertools.chain(self.suite.get_descendents_of_types(type_),
+                           self.else_suite.get_descendents_of_types(type_))
 
   def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -419,8 +425,8 @@ class WhileCfgNode(CfgNode):
         set(self.else_suite.get_defined_and_exported_symbols()))
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(
-        self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_))
+    return itertools.chain(self.suite.get_descendents_of_types(type_),
+                           self.else_suite.get_descendents_of_types(type_))
 
   def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -507,17 +513,19 @@ class TryCfgNode(CfgNode):
         ]))
 
   def get_descendents_of_types(self, type_):
-    return itertools.chain(
-        self.suite.get_descendents_of_types(type_), self.else_suite.get_descendents_of_types(type_),
-        self.finally_suite.get_descendents_of_types(type_))
+    return itertools.chain(self.suite.get_descendents_of_types(type_),
+                           self.else_suite.get_descendents_of_types(type_),
+                           self.finally_suite.get_descendents_of_types(type_))
 
   def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
     finally_suite = self.finally_suite.strip_descendents_of_types(type_, recursive=recursive)
     except_nodes = [x.strip_descendants_of_types(type_, recursive=True) for x in self.except_nodes]
-    return TryCfgNode(
-        suite=suite, except_nodes=except_nodes, else_suite=else_suite, finally_suite=finally_suite)
+    return TryCfgNode(suite=suite,
+                      except_nodes=except_nodes,
+                      else_suite=else_suite,
+                      finally_suite=finally_suite)
 
   def pretty_print(self, indent=''):
     out = f'{indent}Try\n{self.suite.pretty_print(indent+"  ")}'
@@ -727,13 +735,12 @@ class FuncCfgNode(CfgNode):
         processed_params.append(Parameter(param.name, param.parameter_type, default_value=default))
     # Include full name.
     func_name = '.'.join([curr_frame.namespace.name, self.name]) if curr_frame.namespace else self.name
-    func = FunctionImpl(
-        name=func_name,
-        namespace=curr_frame.namespace,
-        parameters=processed_params,
-        module=self._module,
-        graph=self.suite,
-        cell_symbols=self._get_new_cell_symbols())
+    func = FunctionImpl(name=func_name,
+                        namespace=curr_frame.namespace,
+                        parameters=processed_params,
+                        module=self._module,
+                        graph=self.suite,
+                        cell_symbols=self._get_new_cell_symbols())
     collector.add_function_node(func)
 
     # Handle closures, if any.
@@ -785,14 +792,13 @@ class FuncCfgNode(CfgNode):
 
   def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
-    return FuncCfgNode(
-        name=self.name,
-        parameters=self.parameters,
-        suite=suite,
-        module=self._module,
-        containing_func_node=self._containing_func_node,
-        parse_node=self.parse_node,
-        child_functions=self._child_functions)
+    return FuncCfgNode(name=self.name,
+                       parameters=self.parameters,
+                       suite=suite,
+                       module=self._module,
+                       containing_func_node=self._containing_func_node,
+                       parse_node=self.parse_node,
+                       child_functions=self._child_functions)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'

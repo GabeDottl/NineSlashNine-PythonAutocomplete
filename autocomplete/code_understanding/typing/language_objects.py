@@ -21,14 +21,16 @@ from typing import Dict, Iterable
 
 import attr
 from autocomplete.code_understanding.typing import collector, serialization, errors
-from autocomplete.code_understanding.typing.errors import (
-    LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
+from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
+                                                           NoDictImplementationError, SourceAttributeError,
+                                                           UnableToReadModuleFileError)
 from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, LiteralExpression,
                                                                 StarredExpression, VariableExpression)
 from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (
-    NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject,
-    PObjectType, UnknownObject, pobject_from_object)
+from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyBoolean,
+                                                             LanguageObject, LazyObject, NativeObject,
+                                                             PObject, PObjectType, UnknownObject,
+                                                             pobject_from_object)
 from autocomplete.code_understanding.typing.serialization import type_name
 from autocomplete.code_understanding.typing.utils import (attrs_names_from_class, instance_memoize)
 from autocomplete.nsn_logging import debug, error, info, warning
@@ -102,7 +104,12 @@ class ModuleType(Enum):
 
 
 def create_main_module(module_loader, filename=None):
-  return ModuleImpl('__main__', ModuleType.MAIN, members={}, filename=filename, is_package=False, module_loader=module_loader)
+  return ModuleImpl('__main__',
+                    ModuleType.MAIN,
+                    members={},
+                    filename=filename,
+                    is_package=False,
+                    module_loader=module_loader)
 
 
 @attr.s(slots=True)
@@ -194,7 +201,10 @@ class ModuleImpl(Module):
         return UnknownObject(f'{self.name}.{name}')
       if self._is_package:
         try:
-          return AugmentedObject(self.module_loader.get_module(f'.{name}', os.path.dirname(self.filename), unknown_fallback=False))
+          return AugmentedObject(
+              self.module_loader.get_module(f'.{name}',
+                                            os.path.dirname(self.filename),
+                                            unknown_fallback=False))
         except errors.InvalidModuleError as e:
           pass
       if self.module_type.should_be_readable():
@@ -287,8 +297,7 @@ class LazyModule(ModuleImpl):
     self._loading = True
     try:
       if self.keep_graph:
-        _, self.graph = self.load_module_exports_from_filename(
-            self, self.filename, return_graph=True)
+        _, self.graph = self.load_module_exports_from_filename(self, self.filename, return_graph=True)
       else:
         _ = self.load_module_exports_from_filename(self, self.filename)
     except UnableToReadModuleFileError:
@@ -459,8 +468,10 @@ class FunctionImpl(Function):
       )
       # TODO: Search for breakout condition somehow?
       return UnknownObject(self.name)
-    new_frame = curr_frame.make_child(
-        frame_type=FrameType.FUNCTION, namespace=self, module=self._module, cell_symbols=self._cell_symbols)
+    new_frame = curr_frame.make_child(frame_type=FrameType.FUNCTION,
+                                      namespace=self,
+                                      module=self._module,
+                                      cell_symbols=self._cell_symbols)
     new_frame._locals.update(bound_locals)
 
     self._process_args(args, kwargs, new_frame)

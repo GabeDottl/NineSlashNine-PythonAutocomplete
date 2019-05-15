@@ -4,7 +4,8 @@ from collections import defaultdict
 from autocomplete.nsn_logging import info
 
 
-def apply_import_changes(source:str, add_remove_node_tuple_lists: List[List[Tuple[str,str,'CfgNode']]]) -> str:
+def apply_import_changes(source: str,
+                         add_remove_node_tuple_lists: List[List[Tuple[str, str, 'CfgNode']]]) -> str:
   # TODO: Create a little OSS lib for apply multiple operations to a single string creation.
   # ADD, DELETE, REPLACE.
   # Otherwise, we're essentially recreating an arbi
@@ -21,8 +22,10 @@ def apply_import_changes(source:str, add_remove_node_tuple_lists: List[List[Tupl
       # TODO: Handle multiple insertions more cleanly...
       if add:
         line = new_source_lines[insertion_point[0] - 1]
-        new_source_lines[insertion_point[0] - 1] = f'{line[:insertion_point[1]]}{add}, {line[insertion_point[1]:]}'
+        new_source_lines[insertion_point[0] -
+                         1] = f'{line[:insertion_point[1]]}{add}, {line[insertion_point[1]:]}'
   return '\n'.join(new_source_lines)
+
 
 def insert_imports(source, source_dir, fixes):
   module_to_value_dict = defaultdict(list)
@@ -33,7 +36,7 @@ def insert_imports(source, source_dir, fixes):
       module_imports.append(module_name)
     else:
       module_to_value_dict[module_name].append(value)
-  
+
   out = []
   for module_name, values in module_to_value_dict.items():
     if len(values) > 1:

@@ -33,8 +33,8 @@ from functools import wraps
 from importlib.util import find_spec
 from x.y.z import (q, r as s)'''
   module = module_loader.load_module_from_source(source, include_graph=True)
-  imports = module.graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
-                                                   control_flow_graph_nodes.FromImportCfgNode))
+  imports = module.graph.get_descendents_of_types(
+      (control_flow_graph_nodes.ImportCfgNode, control_flow_graph_nodes.FromImportCfgNode))
   assert len(list(imports)) == 9
   assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
   assert 'tensorflow' in module and isinstance(module['tensorflow'].value(), Module)

@@ -6,12 +6,14 @@ from typing import Dict, List, Union
 from collections import defaultdict
 
 import attr
-from autocomplete.code_understanding.typing import (api, module_loader, symbol_context, symbol_index, refactor)
+from autocomplete.code_understanding.typing import (api, module_loader, symbol_context, symbol_index,
+                                                    refactor)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode, FromImportCfgNode,
                                                                              ImportCfgNode)
 from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
 from autocomplete.nsn_logging import warning, info
 from isort import SortImports
+
 
 def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=False):
   with open(filename) as f:
@@ -60,10 +62,10 @@ def apply_fixes_to_source(source, source_dir, fixes):
 
 def _relative_from_path(filename, directory):
   if filename[-(len('__init__.py')):] == '__init__.py':
-    filename = filename[:-len('__init__.py') -1]
+    filename = filename[:-len('__init__.py') - 1]
     return filename[len(directory) + 1:].replace(os.sep, '.')
   elif filename[-(len('__init__.pyi')):] == '__init__.pyi':
-    filename = filename[:-len('__init__.pyi') -1]
+    filename = filename[:-len('__init__.pyi') - 1]
     return filename[len(directory) + 1:].replace(os.sep, '.')
   return os.path.splitext(filename[len(directory) + 1:])[0].replace(os.sep, '.')
 
@@ -93,7 +95,7 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
   for from_import_name, as_name in cfg_node.from_import_name_alias_dict.items():
     filename = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{from_import_name}',
                                                        directory)[0]
-      # If the from import is importing a module itself, then put it in the module_name
+    # If the from import is importing a module itself, then put it in the module_name
     if not filename:
       filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
     if not filename:
@@ -118,6 +120,7 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
 
 class Rename:
   ...
+
 
 @attr.s
 class Import:
@@ -221,8 +224,8 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
   out = []
   for symbol, context in missing_symbols.items():
     # Prefer symbols which are imported already very often.
-    entries = sorted(
-        filter(partial(matches_context, context), index.find_symbol(symbol)), key=symbol_entry_preference_key)
+    entries = sorted(filter(partial(matches_context, context), index.find_symbol(symbol)),
+                     key=symbol_entry_preference_key)
     if not entries:
       warning(f'Could not find import for {symbol}')
       continue
@@ -244,12 +247,12 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
         entry) if entry.is_from_native_module() else None
     module_filename = index.get_module_filename_from_symbol_entry(
         entry) if not entry.is_from_native_module() else None
-    
+
     as_name = None
     if entry.is_module_itself:
       # Example: import pandas
       value = None
-      if entry.real_name: # Should be module_name
+      if entry.real_name:  # Should be module_name
         # Example: import pandas as pd
         as_name = symbol
     elif entry.real_name:
@@ -263,11 +266,13 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     # TODO: Renames.
   return out
 
+
 def main(index_file, target_file):
   assert os.path.exists(index_file)
   assert os.path.exists(target_file)
   index = symbol_index.SymbolIndex.load(index_file)
   fix_missing_symbols_in_file(target_file, index)
+
 
 if __name__ == "__main__":
   import argparse
