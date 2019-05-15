@@ -628,6 +628,9 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   imported = attr.ib(False)
   _dynamic_container = attr.ib(init=False, factory=DynamicContainer)
 
+  def __attrs_post_init__(self):
+    assert self._object is not None
+
   def has_attribute(self, name):
     return self._object.has_attribute(name) or self._dynamic_container.has_attribute(name)
 

@@ -14,7 +14,7 @@
 # from x.y.z import q
 # from x.y.z import r as s
 #
-# from autocomplete.code_understanding.typing..code_understanding import typing
+# from autocomplete.code_understanding.typing.code_understanding import typing
 
 # def bar(a, b, c):
 #   return a * (b - c)

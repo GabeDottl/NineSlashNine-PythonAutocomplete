@@ -26,7 +26,7 @@ def create_symbol_index(sys_path):
       info(f'Processing {filename}')
       name = os.path.splitext(os.path.basename(filename))[0]
       push_context(name)
-      module = module_loader.get_module_from_filename(name, filename)
+      module = module_loader.get_module_from_filename(filename)
       pop_context()
       for symbol, value in module.items():
         if symbol not in symbol_index:

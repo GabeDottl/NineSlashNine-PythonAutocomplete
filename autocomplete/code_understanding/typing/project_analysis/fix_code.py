@@ -85,8 +85,8 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
   if isinstance(cfg_node, ImportCfgNode):
     if value:
       return False
-    filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
-    if filename != import_.module_filename:
+    module_key, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+    if module_key.path != import_.module_filename:
       return False
     return True
 
@@ -94,10 +94,10 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
   filename = ''
   for from_import_name, as_name in cfg_node.from_import_name_alias_dict.items():
     filename = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{from_import_name}',
-                                                       directory)[0]
+                                                       directory)[0].path
     # If the from import is importing a module itself, then put it in the module_name
     if not filename:
-      filename, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+      filename = module_loader.get_module_info_from_name(cfg_node.module_path, directory)[0].path
     if not filename:
       if module_name != cfg_node.module_path:
         continue
@@ -125,21 +125,17 @@ class Rename:
 @attr.s
 class Import:
   # DO NOT ACCESS THESE DIRECTLY. Use get_module_name_and_value.
-  _module_name = attr.ib()
+  _module_key = attr.ib()
   as_name = attr.ib()
-  module_filename = attr.ib()
+  # module_filename = attr.ib()
   _value = attr.ib()
-
-  def __attrs_post_init__(self):
-    assert not (self.module_filename and self._module_name)
 
   # TODO @instance_memoize
   def get_module_name_and_value(self, source_dir):
-    if self.module_filename:
-      assert self._module_name is None
-      module_name = module_name_from_filename(self.module_filename, source_dir)
+    if self._module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN:
+      module_name = module_name_from_filename(self._module_key.path, source_dir)
     else:
-      module_name = self._module_name
+      module_name = self._module_key.path
 
     value = self._value
     if not self._value:
@@ -236,17 +232,14 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
       keyed_entries = sort_keyed(keyed_entries)
       if keyed_entries[-1][1] == keyed_entries[-2][1]:
         warning(
-            f'Ambiguous for {symbol} :/: {keyed_entries[-1][0]} - {index.get_module_str(keyed_entries[-1][0])}\n{keyed_entries[-2][0]} - {index.get_module_str(keyed_entries[-2][0])}'
+            f'Ambiguous for {symbol} : {keyed_entries[-1][0]} - {index.get_module_str(keyed_entries[-1][0])}\n{keyed_entries[-2][0]} - {index.get_module_str(keyed_entries[-2][0])}'
         )
         continue
       entry = keyed_entries[-1][0]
     else:
       entry = entries[-1]
-    # if entry.import_countin
-    module_name = index.get_native_module_name_from_symbol_entry(
-        entry) if entry.is_from_native_module() else None
-    module_filename = index.get_module_filename_from_symbol_entry(
-        entry) if not entry.is_from_native_module() else None
+
+    module_key = index.get_module_key_from_symbol_entry(entry)
 
     as_name = None
     if entry.is_module_itself:
@@ -262,7 +255,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     else:
       # From a import b.
       value = symbol
-    out.append(Import(module_name, as_name, module_filename, value))
+    out.append(Import(module_key, as_name, value))
     # TODO: Renames.
   return out
 

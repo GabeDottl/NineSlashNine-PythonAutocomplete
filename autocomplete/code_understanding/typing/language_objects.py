@@ -290,8 +290,11 @@ class LazyModule(ModuleImpl):
   keep_graph = attr.ib(False, kw_only=True)
   load_module_exports_from_filename = attr.ib(kw_only=True)
 
+  def has_loaded_or_loading(self):
+    return self._loaded or self._loading_failed or self._loading
+
   def load(self):
-    if self._loaded or self._loading_failed or self._loading:
+    if self.has_loaded_or_loading():
       return
 
     self._loading = True

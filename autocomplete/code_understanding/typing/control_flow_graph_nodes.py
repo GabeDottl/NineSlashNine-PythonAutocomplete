@@ -192,12 +192,12 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
-          filename, is_package, module_type = self.module_loader.get_module_info_from_name(
+          module_key, is_package, module_type = self.module_loader.get_module_info_from_name(
               current_name, collector.get_current_context_dir())
           # assert is_package
           ancestor_module = SimplePackageModule(current_name,
                                                 module_type,
-                                                filename=filename,
+                                                filename=module_key.path,
                                                 is_package=True,
                                                 members={},
                                                 module_loader=self.module_loader)

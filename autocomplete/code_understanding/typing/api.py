@@ -28,7 +28,7 @@ def analyze_file(filename):
   #       return collector_from_source(source)
 
   # def collector_from_source(source: str):
-  module = module_loader.get_module_from_filename('', filename, is_package=False, lazy=False)
+  module = module_loader.get_module_from_filename(filename, is_package=False, lazy=False)
   # graph = graph_from_source(source)
   # a_frame = frame.Frame()
   # graph.process(a_frame)

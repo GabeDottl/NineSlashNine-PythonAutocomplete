@@ -155,8 +155,8 @@ def test_processing_all_typing_dir():
     if os.path.basename(filename) == 'grammar.py':
       debug(f'Skipping {filename}')
       continue
-    name = os.path.splitext(os.path.basename(filename))[0]
-    module_loader.get_module_from_filename(name, filename)
+    # name = os.path.splitext(os.path.basename(filename))[0]
+    module_loader.get_module_from_filename(filename)
 
 
 if __name__ == '__main__':
