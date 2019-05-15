@@ -53,9 +53,10 @@ class SymbolEntry:
   module_type: 'ModuleType' = attr.ib()
   module_index: int = attr.ib()
   symbol_meta = attr.ib(None)
-  is_module_itself = attr.ib(False)
-  imported = attr.ib(False)
-  import_count = attr.ib(0)
+  is_module_itself: bool = attr.ib(False)
+  imported : bool= attr.ib(False)
+  import_count: int = attr.ib(0)
+  real_name: str = attr.ib(None)  # Only used if the entry is an alias.
 
   def serialize(self):
     args = list(attr.astuple(self))
@@ -79,11 +80,11 @@ class SymbolEntry:
 
 @attr.s
 class SymbolIndex:
-  symbol_dict = attr.ib(factory=partial(defaultdict, list))
-  native_module_list = attr.ib(factory=list)
-  normal_module_list = attr.ib(factory=list)
-  native_module_dict = attr.ib(factory=dict)
-  normal_module_dict = attr.ib(factory=dict)
+  symbol_dict = attr.ib(factory=partial(defaultdict, dict))
+  # Bi-directional dict.
+  module_list: List[module_loader.ModuleKey] = attr.ib(factory=list)
+  module_dict: Dict[module_loader.ModuleKey, int]  = attr.ib(factory=dict)
+
   failed_files = attr.ib(factory=set)
   files_added = attr.ib(0, init=False)
   path = attr.ib(None, init=False)
@@ -92,59 +93,60 @@ class SymbolIndex:
       factory=partial(defaultdict, int), init=False)
 
   def get_native_module_name_from_symbol_entry(self, symbol_entry):
-    assert symbol_entry.is_from_native_module()
-    return self.native_module_list[symbol_entry.module_index]
-
-  def get_module_filename_from_symbol_entry(self, symbol_entry):
-    assert not symbol_entry.is_from_native_module()
-    return self.normal_module_list[symbol_entry.module_index]
-
-  def get_module_str(self, symbol_entry):
-    if symbol_entry.is_from_native_module():
-      return self.get_native_module_name_from_symbol_entry(symbol_entry)
-    return self.get_module_filename_from_symbol_entry(symbol_entry)
+    return self.module_list[symbol_entry.module_index]
 
   def __attrs_post_init__(self):
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
       for symbol, value in builtins.__dict__.items():
-        self.symbol_dict[symbol].append(
-            SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1))
+        self.symbol_dict[symbol][(-1, False)] = 
+            SymbolEntry(SymbolType.from_real_obj(value), language_objects.ModuleType.BUILTIN, -1)
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol].append(
-              SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -1))
-    if len(self.normal_module_list) != len(self.normal_module_dict):
-      self.normal_module_dict = {x: i for i, x in enumerate(self.normal_module_list)}
-    if len(self.native_module_list) != len(self.native_module_dict):
-      self.native_module_dict = {x: i for i, x in enumerate(self.native_module_list)}
+          self.symbol_dict[symbol][(-2, False)] =
+              SymbolEntry(SymbolType.UNKNOWN, language_objects.ModuleType.BUILTIN, -2)
+    if len(self.module_list) != len(self.module_dict):
+      self.module_dict = {x: i for i, x in enumerate(self.module_list)}
 
   def find_symbol(self, symbol):
     if symbol not in self.symbol_dict:
       return []
-    return self.symbol_dict[symbol]
+    return self.symbol_dict[symbol].values()
 
   def get_modules_for_symbol_entries(self, symbol_entries):
     for symbol_entry in symbol_entries:
-      if symbol_entry.module_type.is_native():
-        yield symbol_entry, self.native_module_list[symbol_entry.module_index]
-      else:
-        yield symbol_entry, self.normal_module_list[symbol_entry.module_index]
+      # if symbol_entry.module_type.is_native():
+      #   yield symbol_entry, self.module_list[symbol_entry.module_index]
+      # else:
+      yield symbol_entry, self.module_list[symbol_entry.module_index]
 
   @staticmethod
   def _serialize(index):
     d = {}
-    for symbol, values in index.symbol_dict.items():
-      d[symbol] = [v.serialize() for v in values]
-    # native_module_list = index.native_module_list if index.native_module_list else [0]
-    # normal_module_list = index.normal_module_list if index.normal_module_list else [0]
-    return [d, index.native_module_list, index.normal_module_list, tuple(index.failed_files)]
+    symbol_entries = []
+    symbol_entries_dict = {}
+    for symbol, module_index_symbol_entry_dict in index.symbol_dict.items():
+      d[symbol] = [v.serialize() for v in module_index_symbol_entry_dict.values()]
+    # module_list = index.module_list if index.module_list else [0]
+    # module_list = index.module_list if index.module_list else [0]
+    serialized_module_list = [key.module_source_type.value, key.path for key in index.module_list]
+    return [d, serialized_module_list, tuple(index.failed_files)]
 
   @staticmethod
   def _deserialize(unpacked):
-    d, native_module_list, normal_module_list, failed_files = unpacked
-    symbol_dict = {s: [SymbolEntry.deserialize(v) for v in values] for s, values in d.items()}
-    return SymbolIndex(symbol_dict, native_module_list, normal_module_list, set(failed_files))
+    d, symbol_entries, serialized_module_list, failed_files_list = unpacked
+    module_list = [module_loader.ModuleKey(module_loader.ModuleSourceType(type_), path) for type_, path in serialized_module_list]
+    symbol_dict = {}
+    for s, serialized_symbol_entries in d.items():
+      module_index_symbol_entry_dict = {}
+      for serialized_entry in serialized_symbol_entries:
+        # TODO: Need to match this!!!!!!
+        symbol_entry = SymbolEntry.deserialize(serialized_entry)
+        module_index_symbol_entry_dict[(symbol_entry.module_index, symbol_entry.is_module_itself)] = symbol_entry
+      symbol_dict[s]= module_index_symbol_entry_dict
+
+    module_dict = {x: i for i, x in enumerate(module_list)}
+    return SymbolIndex(symbol_dict, module_list=module_list, module_dict=module_dict, failed_files=set(failed_files_list))
 
   @staticmethod
   def load(filename, readonly=False):
@@ -174,47 +176,51 @@ class SymbolIndex:
     index.path = target_index_filename
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
 
-    for (value, as_name, module_name, module_filename), count in index.value_module_reference_map.items():
-      index.add_module_by_name(module_name, as_name, module_filename)
-      if module_filename:
-        module_index = index.normal_module_dict[module_filename]
-      else:
-        if module_name in index.native_module_dict:
-          module_index = index.native_module_dict[module_name]
-        else:
-          continue
+    for (value, as_name, module_key), count in index.value_module_reference_map.items():
+      index.add_module_by_key(module_key)
+
       if value:
-        iterator = index.find_symbol(value)
+        module_index_symbol_entry_dict = index.symbol_dict[value]
       else:
         symbol = module_name[module_name.rfind('.') + 1:]
-        iterator = index.find_symbol(symbol)
-      for entry in iterator:
+        module_index_symbol_entry_dict = index.symbol_dict[symbol]
+
+      is_module_itself = not value
+      module_index = self.module_dict[module_key]
+      
+      key = (module_index, is_module_itself)
+      assert key in module_index_symbol_entry_dict:
+      entry = module_index_symbol_entry_dict[key]
+      entry.import_count += 1
+
+      if as_name:
+        module_index_symbol_entry_dict = index.symbol_dict[as_name]
+        if key in module_index_symbol_entry_dict:
+          # Already have alias recorded.
+          continue
+        else:
+          index.symbol_dict[as_name][key] = entry
+      # TODO: Hash on module_index?
+      for entry in module_index_symbol_entry_dict:
         if entry.module_index == module_index and ((not value and entry.is_module_itself) or
                                                    (value and not entry.is_module_itself)):
+          if as_name:
+              # if as_name in index.symbol_dict:
+            real_name = value if value else base_module_name(module_name)
+
+            if value:
+              if module_filename:
+                module = module_loader.get_module_from_filename(module_name, module_filename)
+              else:
+                module = module_loader.get_module(module_name, directory=None)
+              symbol_type = SymbolType.from_pobject_value(module[value])
+            else:
+              symbol_type = SymbolType.MODULE
           entry.import_count += count
           break
     return index
 
-  def add_module_by_name(self, module_name, as_name, filename):
-    # if not filename:
-    #   filename, _, _ = module_loader.get_module_info_from_name(module_name)
-
-    if filename and filename in self.normal_module_dict:
-      return  # Already added.
-
-    if not filename:
-      if module_name in self.native_module_dict:
-        return  # Already loaded.
-
-    if filename and os.path.exists(filename):
-      self.add_file(filename, as_name=as_name)
-    else:
-      module = module_loader.get_module(module_name, '', lazy=False)
-      index = len(self.native_module_list)
-      self.add_module(module, as_name, index)
-      self.native_module_dict[module_name] = index
-      self.native_module_list.append(module_name)
-
+  
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
     if not os.path.exists(path):
       return
@@ -244,7 +250,7 @@ class SymbolIndex:
         imported_filename = ''
         module_name = node.module_path
         if value:
-          imported_filename = module_loader.get_module_info_from_name(f'{node.module_path}.{value}',
+          imported_filename, _, _ = module_loader.get_module_info_from_name(f'{node.module_path}.{value}',
                                                                       directory)[0]
           # If the from import is importing a module itself, then put it in the module_name
           if imported_filename:
@@ -256,13 +262,21 @@ class SymbolIndex:
     for value_as_name_module_name_filename in imported_symbols_and_modules:
       self.value_module_reference_map[value_as_name_module_name_filename] += 1
 
-  def add_file(self, filename, track_imported_modules=False, as_name=None):
-    if filename in self.normal_module_dict or filename in self.failed_files:
+  def add_file(self, filename, track_imported_modules=False):
+    try:
+      module_key = module_loader.ModuleKey.from_filename(filename)
+    except ValueError:
+      return
+    return self.add_module_by_key(module_key, track_imported_modules)
+    
+  def add_module_by_key(self, module_key, track_imported_modules=False)
+    filename = module_key.path if module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN else None
+    if module_key in self.module_dict or filename in self.failed_files:
       warning(f'Skipping {filename} - already processed.')
       return
 
-    info(f'Adding to index: {filename}')
-    file_index = len(self.normal_module_list)
+    info(f'Adding to index: {module_key}')
+    module_index = len(self.module_list)
     try:
       if track_imported_modules:
         module = module_loader.get_module_from_filename('__main__', filename, lazy=False, include_graph=True)
@@ -276,46 +290,65 @@ class SymbolIndex:
         self.failed_files.add(filename)
         return
 
-      self.add_module(module, as_name, file_index)
+      self.add_module(module, module_index)
     except OSError as e:  # Exception
       info(f'Failed on {filename}: {e}')
       self.failed_files.add(filename)
     else:
       self.files_added += 1
-      self.normal_module_dict[filename] = len(self.normal_module_list)
-      self.normal_module_list.append(filename)
+      self.module_dict[module_key] = module_index
+      self.module_list.append(module_key)
+      self.symbol_dict[module_key.to_module_basename()][(module_index, True)] = 
+          SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True)
       if self.files_added and self.files_added % 20 == 0 and self.path:
         info(f'Saving index to {self.path}. {self.files_added} files added.')
         self.save(self.path)
         # self.files_added = 0
 
-  def add_module(self, module, as_name, module_index):
-    module_type = module.module_type
+  # def add_module_by_name(self, module_name, filename):
+  #   if filename and filename in self.module_dict:
+  #     return  # Already added.
+
+  #   if not filename:
+  #     if module_name in self.module_dict:
+  #       return  # Already loaded.
+
+  #   if filename and os.path.exists(filename):
+  #     self.add_file(filename)
+  #   else:
+  #     module = module_loader.get_module(module_name, '', lazy=False)
+  #     index = len(self.module_list)
+  #     self.add_module(module, index)
+
+  #     self.symbol_dict[module_key.to_module_basename()].append(
+  #         SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True))
+  #     self.module_dict[module_name] = index
+  #     self.module_list.append(module_name)
+
+
+  def add_module(self, module, module_index):
     # filename = module.filename
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
       try:
-        self.symbol_dict[name].append(
+        self.symbol_dict[name][(module_index, False)] = 
             SymbolEntry(
                 SymbolType.from_pobject_value(member.value()),
-                module_type,
+                module.module_type,
                 module_index,
-                imported=member.imported))
+                imported=member.imported)
       except errors.AmbiguousFuzzyValueError:
-        self.symbol_dict[name].append(
-            SymbolEntry(SymbolType.AMBIGUOUS, module_type, module_index, imported=member.imported))
-    if module.filename:
-      module_basename = os.path.splitext(os.path.basename(module.filename))[0]
-      if module_basename == '__init__':
-        module_basename = os.path.basename(os.path.dirname(module.filename))
-      self.symbol_dict[module_basename].append(
-          SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
-    else:  # Native.
-      self.symbol_dict[module.name].append(
-          SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
-    if as_name:
-      self.symbol_dict[as_name].append(
-          SymbolEntry(SymbolType.MODULE, module_type, module_index, is_module_itself=True))
-
+        self.symbol_dict[name][(module_index, False)] = 
+            SymbolEntry(SymbolType.AMBIGUOUS, module.module_type, module_index, imported=member.imported)
+    # if module.filename:
+    #   module_basename = os.path.splitext(os.path.basename(module.filename))[0]
+    #   if module_basename == '__init__':
+    #     module_basename = os.path.basename(os.path.dirname(module.filename))
+    #   self.symbol_dict[module_basename].append(
+    #       SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True))
+    # else:  # Native.
+    #   self.symbol_dict[module_key.to_module_basename()].append(
+    #       SymbolEntry(SymbolType.MODULE, module.module_type, module_index, is_module_itself=True))
+    
 
 def get_imported_modules(graph, directory):
   import_nodes = graph.get_descendents_of_types((control_flow_graph_nodes.ImportCfgNode,
@@ -342,6 +375,12 @@ def _should_export_symbol(current_module, name, pobject):
     return False
 
   return True
+
+def base_module_name(module_name):
+  if '.' not in module_name:
+    return module_name
+  else:
+    return module_name[:module_name.find('.')]
 
 
 def main(target_package, output_path):

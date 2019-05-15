@@ -14,11 +14,13 @@ Python's tutorial on module's is a rather quick, helpful reference for some
 peculiarities like the purposes of __all__:
 https://docs.python.org/3/tutorial/modules.html
 '''
+import attr
 import importlib
 import os
 import pkgutil
 import sys
 from typing import Dict, Set, Tuple
+from enum import Enum
 
 import typeshed
 from autocomplete.code_understanding.typing import (api, collector, frame, serialization)
@@ -39,8 +41,36 @@ __loaded_paths: Set[str] = set()
 
 keep_graphs_default = False
 
+class ModuleSourceType(Enum):
+  BUILTIN = 0
+  COMPILED = 1
+  NORMAL = 2
 
+@attr.s
+class ModuleKey:
+  '''A key for uniquely identifying and retrieving any module - builtin, compiled, or normal.'''
+  module_source_type = attr.ib()
+  path = attr.ib() # filepath or name for builtins.
 
+  @staticmethod
+  def from_filename(self, filename):
+    ext = os.path.splitext(filename)[1]
+    if ext == '.so':
+      type_ = ModuleSourceType.COMPILED
+    elif ext == '.py' or '.pyi':
+      type_ = ModuleSourceType.NORMAL
+    else:
+      raise ValueError(f'Not a Module: {filename}')
+    return ModuleKey(type_, os.path.abspath(filename))
+
+  def to_module_basename(self):
+    if self.module_source_type == ModuleSourceType.BUILTIN:
+      return self.path
+    filename = os.path.basename(self.path)
+    if filename == '__init__.py' or filename == '__init__.pyi':
+      return os.path.basename(os.path.dirname(self.path))
+    return os.path.splitext(os.path.basename(self.path))[0]
+  
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.
   # module_name will only end with '.' if it's purely periods- 1 or more. In that
@@ -69,6 +99,9 @@ def get_module(name: str, directory: str, unknown_fallback=True, lazy=True, incl
   return _get_module_internal(
       name, filename, directory, is_package, module_type, unknown_fallback, lazy, include_graph=include_graph)
 
+def get_module_from_key(module_key):
+  if module_key.module_source_type == ModuleSourceType.BUILTIN:
+    return get_module(module_key.path, None)
 
 def get_module_from_filename(name,
                              filename,
@@ -82,7 +115,7 @@ def get_module_from_filename(name,
       filename,
       os.path.dirname(filename),
       is_package,
-      _module_type_from_filename(filename),
+      module_type_from_filename(filename),
       unknown_fallback=unknown_fallback,
       lazy=lazy,
       include_graph=include_graph)
@@ -223,7 +256,7 @@ def _load_module_exports_from_filename(module, filename, return_graph=False):
     raise UnableToReadModuleFileError(e)
 
 
-def _module_type_from_filename(filename) -> ModuleType:
+def module_type_from_filename(filename) -> ModuleType:
   # TODO: Refine / include LOCAL.
   # https://github.com/GabeDottl/autocomplete/issues/1
   for third_party in ('dist-packages', 'site-packages'):
@@ -254,6 +287,8 @@ def _relative_path_from_relative_module(name):
   return f'{relative_prefix}{remaining_name.replace(".", os.sep)}'
 
 
+# def get_module_meta_from_name(name:str, filename: str):
+
 def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, ModuleType]:
   try:
     stub_filename, is_package = _get_module_stub_source_filename(name)
@@ -272,7 +307,7 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
         for name in ('__init__.pyi', '__init__.py'):
           filename = os.path.join(absolute_path, name)
           if os.path.exists(filename):
-            return filename, is_package, _module_type_from_filename(filename)
+            return filename, is_package, module_type_from_filename(filename)
       else:
         assert False
         warning(f'Bizarre case - {absolute_path} is file but not dir...')
@@ -281,7 +316,7 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
     for file_extension in ('.py', '.pyi'):
       filename = f'{absolute_path}{file_extension}'
       if os.path.exists(filename):
-        return filename, False, _module_type_from_filename(filename)
+        return filename, False, module_type_from_filename(filename)
     # return '', False, ModuleType.UNKNOWN_OR_UNREADABLE
   package = None
   if name[0] == '.':
@@ -297,17 +332,19 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[str, bool, Modu
     if spec:
       if spec.has_location:
         filename = spec.loader.get_filename()
-        ext = os.path.splitext(filename)[1]
-        if ext != '.pyi' and ext != '.py':
-          debug(f'Cannot read module filetype - {filename}')
-          if ext == '.so':
-            return None, False, ModuleType.COMPILED
-          return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
-        return os.path.abspath(filename), _is_init(filename), _module_type_from_filename(filename)
+        return get_module_info_from_filename(filename)
       return None, False, ModuleType.BUILTIN
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return None, False, ModuleType.UNKNOWN_OR_UNREADABLE
 
+def get_module_info_from_filename(filename):
+  ext = os.path.splitext(filename)[1]
+  if ext != '.pyi' and ext != '.py':
+    debug(f'Cannot read module filetype - {filename}')
+    if ext == '.so':
+      return os.path.abspath(filename), False, ModuleType.COMPILED
+    return os.path.abspath(filename), False, ModuleType.UNKNOWN_OR_UNREADABLE
+  return os.path.abspath(filename), _is_init(filename), module_type_from_filename(filename)
 
 def _load_module(name: str, directory, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
   debug(f'Loading module: {name}')
@@ -325,7 +362,7 @@ def deserialize_hook_fn(type_str, obj):
   if type_str == 'import_module':
     name, filename = obj
     return get_module_from_filename(name, filename, is_package=_is_init(filename))
-    #module_type=_module_type_from_filename(filename))
+    #module_type=module_type_from_filename(filename))
   if type_str == 'from_import':
     filename = obj
     index = filename.rindex('.')

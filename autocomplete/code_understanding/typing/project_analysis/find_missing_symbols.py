@@ -5,7 +5,7 @@ from pprint import pprint
 from itertools import chain
 
 from autocomplete.code_understanding.typing import (api, collector, module_loader, utils, language_objects)
-from autocomplete.code_understanding.typing.control_flow_graph import (FromImportCfgNode)
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FromImportCfgNode)
 from autocomplete.nsn_logging import info
 
 

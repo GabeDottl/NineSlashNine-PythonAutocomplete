@@ -244,7 +244,22 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
         entry) if entry.is_from_native_module() else None
     module_filename = index.get_module_filename_from_symbol_entry(
         entry) if not entry.is_from_native_module() else None
-    out.append(Import(module_name, module_filename, symbol if not entry.is_module_itself else None))
+    
+    as_name = None
+    if entry.is_module_itself:
+      # Example: import pandas
+      value = None
+      if entry.real_name: # Should be module_name
+        # Example: import pandas as pd
+        as_name = symbol
+    elif entry.real_name:
+      # Example: From a import b as c
+      value = entry.real_name
+      as_name = symbol
+    else:
+      # From a import b.
+      value = symbol
+    out.append(Import(module_name, as_name, module_filename, value))
     # TODO: Renames.
   return out
 
