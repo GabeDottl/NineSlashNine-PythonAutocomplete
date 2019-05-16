@@ -10,9 +10,8 @@ from typing import Dict, Tuple, List
 
 import attr
 import msgpack
-from . import (control_flow_graph_nodes, errors, language_objects,
-                                                    module_loader, utils)
-from autocomplete.nsn_logging import info, warning
+from . import (control_flow_graph_nodes, errors, language_objects, module_loader, utils)
+from ...nsn_logging import info, warning
 
 
 class SymbolType(Enum):

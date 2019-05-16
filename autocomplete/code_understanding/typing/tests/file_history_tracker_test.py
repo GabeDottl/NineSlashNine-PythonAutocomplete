@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-from autocomplete.code_understanding.typing.project_analysis import file_history_tracker
+from ..project_analysis import file_history_tracker
 
 STORAGE_FILE = '/tmp/fht_tmp.msg'
 TEST_FILE = '/tmp/x_fht'

@@ -8,13 +8,11 @@ from typing import Dict, List
 
 import attr
 from . import collector, utils
-from autocomplete.code_understanding.typing.errors import CellValueNotSetError
-from autocomplete.code_understanding.typing.expressions import (AttributeExpression, Expression,
-                                                                SubscriptExpression, VariableExpression)
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyObject,
-                                                             NativeObject, PObject, UnknownObject,
-                                                             pobject_from_object)
-from autocomplete.nsn_logging import info, warning, debug
+from .errors import CellValueNotSetError
+from .expressions import (AttributeExpression, Expression, SubscriptExpression, VariableExpression)
+from .pobjects import (NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject, UnknownObject,
+                       pobject_from_object)
+from ...nsn_logging import info, warning, debug
 
 
 @attr.s(slots=True)

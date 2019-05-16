@@ -1,19 +1,18 @@
 import argparse
 
 from . import (collector, control_flow_graph, frame, module_loader)
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode)
-from autocomplete.code_understanding.typing.expressions import (UnknownExpression)
-from autocomplete.code_understanding.typing.language_objects import (Function, Klass, create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, UnknownObject)
-from autocomplete.nsn_logging import debug, info
+from .control_flow_graph_nodes import (CfgNode)
+from .expressions import (UnknownExpression)
+from .language_objects import (Function, Klass, create_main_module)
+from .pobjects import (AugmentedObject, FuzzyBoolean, UnknownObject)
+from ...nsn_logging import debug, info
 
 
-def graph_from_source(source: str, source_dir:str, module=None, parso_default=False) -> CfgNode:
+def graph_from_source(source: str, source_dir: str, module=None, parso_default=False) -> CfgNode:
   if not module:
     module = create_main_module(module_loader)
   builder = control_flow_graph.ControlFlowGraphBuilder(module_loader, parso_default=parso_default)
   return builder.graph_from_source(source, source_dir, module)
-
 
 
 def analyze_file(filename):

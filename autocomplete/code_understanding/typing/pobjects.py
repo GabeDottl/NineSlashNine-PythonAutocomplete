@@ -10,11 +10,10 @@ from typing import Dict, List
 
 import attr
 from . import collector, serialization
-from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError,
-                                                           LoadingModuleAttributeError,
-                                                           NoDictImplementationError, SourceAttributeError)
-from autocomplete.code_understanding.typing.utils import to_dict_iter
-from autocomplete.nsn_logging import debug, error, info, warning
+from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError,
+                     SourceAttributeError)
+from .utils import to_dict_iter
+from ...nsn_logging import debug, error, info, warning
 
 _OPERATORS = [
     '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__', '__mod__', '__mul__',

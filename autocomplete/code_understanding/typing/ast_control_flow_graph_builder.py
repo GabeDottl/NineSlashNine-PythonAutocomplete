@@ -4,10 +4,10 @@ import _ast
 import astor
 import attr
 from . import errors
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import *  # Temporary.
-from autocomplete.code_understanding.typing.expressions import *  # Temporary.
-from autocomplete.code_understanding.typing.language_objects import *  # Temporary.
-from autocomplete.nsn_logging import warning
+from .control_flow_graph_nodes import *  # Temporary.
+from .expressions import *  # Temporary.
+from .language_objects import *  # Temporary.
+from ...nsn_logging import warning
 
 
 @attr.s
@@ -48,7 +48,6 @@ class Visitor(ast.NodeVisitor):
   _container_stack = attr.ib(factory=list)
   root = attr.ib(None, init=False)
   _containing_func_node = None
-
 
   def new_group(self):
     group = GroupCfgNode()
@@ -256,9 +255,9 @@ class Visitor(ast.NodeVisitor):
     # (identifier? module, alias* names, int? level)
     # alias = (identifier name, identifier? asname)
     self.push(
-        FromImportCfgNode(f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.',
-                          {alias.name: alias.asname
-                           for alias in ast_node.names},
+        FromImportCfgNode(f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.' *
+                          ast_node.level, {alias.name: alias.asname
+                                           for alias in ast_node.names},
                           source_dir=self.source_dir,
                           module_loader=self.module_loader,
                           parse_node=parse_from_ast(ast_node)))

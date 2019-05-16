@@ -4,10 +4,9 @@ from builtins import ValueError
 import attr
 import h5py
 from . import module_loader
-from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
-from autocomplete.code_understanding.typing.language_objects import (Function, Instance, Klass, ModuleImpl,
-                                                                     ModuleType)
-from autocomplete.code_understanding.typing.pobjects import (FuzzyObject, UnknownObject, pobject_from_object)
+from .errors import (AmbiguousFuzzyValueError)
+from .language_objects import (Function, Instance, Klass, ModuleImpl, ModuleType)
+from .pobjects import (FuzzyObject, UnknownObject, pobject_from_object)
 
 
 @attr.s

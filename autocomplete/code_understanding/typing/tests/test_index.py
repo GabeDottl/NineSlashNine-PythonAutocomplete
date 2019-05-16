@@ -1,7 +1,7 @@
 import os
 
-from autocomplete.code_understanding.typing import symbol_index
-from autocomplete.nsn_logging import info
+from .. import symbol_index
+from ....nsn_logging import info
 
 HOME = os.getenv('HOME')
 INDEX_PATH = f'/tmp/index.msg'

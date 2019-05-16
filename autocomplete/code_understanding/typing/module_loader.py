@@ -24,15 +24,12 @@ from enum import Enum
 
 import typeshed
 from . import (api, collector, frame, serialization)
-from autocomplete.code_understanding.typing.collector import FileContext
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError,
-                                                           InvalidModuleError, UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.language_objects import (LazyModule, Module, ModuleImpl,
-                                                                     ModuleType, NativeModule,
-                                                                     create_main_module)
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, NativeObject, PObject,
-                                                             UnknownObject)
-from autocomplete.nsn_logging import debug, error, info, warning
+from .collector import FileContext
+from .errors import (LoadingModuleAttributeError, SourceAttributeError, InvalidModuleError,
+                     UnableToReadModuleFileError)
+from .language_objects import (LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
+from .pobjects import (AugmentedObject, NativeObject, PObject, UnknownObject)
+from ...nsn_logging import debug, error, info, warning
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
 
@@ -98,15 +95,18 @@ class ModuleKey:
     return ModuleKey(ModuleSourceType(args[0]), args[1])
 
 
+def join_module_attribute(module_name, attribute_name):
+  if module_name[-1] == '.':
+    return f'{module_name}{attribute_name}'
+  return f'{module_name}.{attribute_name}'
+
+
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.
   # module_name will only end with '.' if it's purely periods- 1 or more. In that
   # case, we don't want to mess things up by adding an additional period at the
   # end of the module name.
-  if module_name[-1] == '.':
-    full_pobject_name = f'{module_name}{pobject_name}'
-  else:
-    full_pobject_name = f'{module_name}.{pobject_name}'
+  full_pobject_name = join_module_attribute(module_name, pobject_name)
   try:
     return AugmentedObject(get_module(full_pobject_name, directory, unknown_fallback=False), imported=True)
   except InvalidModuleError:

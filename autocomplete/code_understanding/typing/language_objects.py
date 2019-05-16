@@ -21,19 +21,15 @@ from typing import Dict, Iterable
 
 import attr
 from . import collector, serialization, errors
-from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
-                                                           NoDictImplementationError, SourceAttributeError,
-                                                           UnableToReadModuleFileError)
-from autocomplete.code_understanding.typing.expressions import (AnonymousExpression, LiteralExpression,
-                                                                StarredExpression, VariableExpression)
-from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.pobjects import (NONE_POBJECT, AugmentedObject, FuzzyBoolean,
-                                                             LanguageObject, LazyObject, NativeObject,
-                                                             PObject, PObjectType, UnknownObject,
-                                                             pobject_from_object)
-from autocomplete.code_understanding.typing.serialization import type_name
-from autocomplete.code_understanding.typing.utils import (attrs_names_from_class, instance_memoize)
-from autocomplete.nsn_logging import debug, error, info, warning
+from .errors import (LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError,
+                     UnableToReadModuleFileError)
+from .expressions import (AnonymousExpression, LiteralExpression, StarredExpression, VariableExpression)
+from .frame import Frame, FrameType
+from .pobjects import (NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject,
+                       PObject, PObjectType, UnknownObject, pobject_from_object)
+from .serialization import type_name
+from .utils import (attrs_names_from_class, instance_memoize)
+from ...nsn_logging import debug, error, info, warning
 
 
 @attr.s(slots=True)

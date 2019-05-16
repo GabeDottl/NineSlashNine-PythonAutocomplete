@@ -1,7 +1,7 @@
 import _ast
 from typing import Dict, List, Tuple
 from collections import defaultdict
-from autocomplete.nsn_logging import info
+from ...nsn_logging import info
 
 
 def apply_import_changes(source: str,
@@ -40,7 +40,7 @@ def insert_imports(source, source_dir, fixes):
   out = []
   for module in sorted(module_imports):
     out.append(f'import {module}\n')
-  
+
   if module_to_value_dict and out:
     out.append('\n')
 
@@ -49,9 +49,9 @@ def insert_imports(source, source_dir, fixes):
       out.append(f'from {module_name} import ({", ".join(sorted(values))})\n')
     else:
       out.append(f'from {module_name} import {values[0]}\n')
-  
+
   code_insertion = ''.join(out)
   if code_insertion:
     info(f'code_insertion: {code_insertion}')
-  
+
   return code_insertion + source

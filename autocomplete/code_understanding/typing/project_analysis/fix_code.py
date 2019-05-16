@@ -6,30 +6,28 @@ from typing import Dict, List, Union
 from collections import defaultdict
 
 import attr
-from autocomplete.code_understanding.typing import (api, module_loader, symbol_context, symbol_index,
-                                                    refactor)
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode, FromImportCfgNode,
-                                                                             ImportCfgNode)
-from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols, fix_code)
-from autocomplete.nsn_logging import warning, info
+from .. import (api, module_loader, symbol_context, symbol_index, refactor)
+from ..control_flow_graph_nodes import (CfgNode, FromImportCfgNode, ImportCfgNode)
+from . import (find_missing_symbols, fix_code)
+from ....nsn_logging import warning, info
 from isort import SortImports
 
 
 def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=False):
   with open(filename) as f:
     source = ''.join(f.readlines())
-  new_code, changed = fix_missing_symbols_in_source(source, index, os.path.dirname(filename))
+  new_code, changed = fix_missing_symbols_in_source(source, os.path.dirname(filename), index)
   if write and changed:
     with open(filename, 'w') as f:
       f.writelines(new_code)
   return new_code, changed
 
 
-def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_imports=False) -> str:
+def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=False) -> str:
   graph = api.graph_from_source(source, source_dir, parso_default=True)
   existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
   # TODO: remove_extra_imports=False
-  missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
+  missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
   if missing_symbols:
     info(f'missing_symbols: {list(missing_symbols.keys())}')
   fixes = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
@@ -67,10 +65,10 @@ def _relative_from_path(filename, directory, relative_prefix: bool):
   filename = os.path.relpath(filename, directory)
   if filename[0] != '.' and relative_prefix:
     filename = f'.{os.sep}{filename}'
-   # Just in case - /./ should translate to . at the end.
+  # Just in case - /./ should translate to . at the end.
   filename = filename.replace(f'..{os.sep}', '.')
   filename = filename.replace(f'.{os.sep}', '.')
-  
+
   if filename[-(len('__init__.py')):] == '__init__.py':
     filename = filename[:-len('__init__.py') - 1]
     return filename.replace(os.sep, '.')
@@ -110,8 +108,8 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
   # FromImportCfgNode.
   filename = ''
   for from_import_name, as_name in cfg_node.from_import_name_alias_dict.items():
-    module_key = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{from_import_name}',
-                                                         directory)[0]
+    module_key = module_loader.get_module_info_from_name(
+        module_loader.join_module_attribute(cfg_node.module_path, from_import_name), directory)[0]
     # If the from import is importing a module itself, then put it in the module_name
     if module_key.is_bad():
       module_key = module_loader.get_module_info_from_name(cfg_node.module_path, directory)[0]
@@ -202,6 +200,7 @@ def symbol_entry_file_distance(symbol_entry, directory):
     return 4  # No filename is probably a builtin - fallback to some reasonable default score.
   return file_distance(module_key.path, directory)
 
+
 def file_distance(filename1, filename2):
   a_iter = iter(filename1.split(os.sep))
   b_iter = iter(filename2.split(os.sep))
@@ -212,14 +211,15 @@ def file_distance(filename1, filename2):
       b_iter = chain([b], b_iter)
       break
 
-
   a_rem = list(a_iter)
   b_rem = list(b_iter)
   return max(len(a_rem), len(b_rem))
 
 
 def relative_symbol_entry_preference_key(symbol_entry, directory):
-  return tuple(list(symbol_entry_preference_key(symbol_entry)) + [-symbol_entry_file_distance(symbol_entry, directory)])
+  return tuple(
+      list(symbol_entry_preference_key(symbol_entry)) +
+      [-symbol_entry_file_distance(symbol_entry, directory)])
 
 
 def key_list(l, key_fn):
@@ -274,7 +274,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     out.append(Import(module_key, as_name, value))
     # TODO: Renames.
   return out
- 
+
 
 def main(index_file, target_file):
   assert os.path.exists(index_file)
@@ -282,9 +282,12 @@ def main(index_file, target_file):
   index = symbol_index.SymbolIndex.load(index_file)
   if os.path.isdir(target_file):
     from glob import glob
-    from autocomplete.code_understanding.typing.project_analysis import file_history_tracker
-    filenames = glob(f'{target_file}{os.sep}**{os.sep}*py', recursive=True)
-    fht = file_history_tracker.FileHistoryTracker.load(f'{os.getenv("HOME")}{os.sep}fix_code_updates.msg')
+    from . import file_history_tracker
+    pattern = f'{target_file}{os.sep}**{os.sep}*py'
+    filenames = glob(pattern, recursive=True)
+    fht = file_history_tracker.FileHistoryTracker.load(os.path.join(os.getenv('HOME'),
+                                                                    'fix_code_updates.msg'))
+    updated_a_file = False
     for filename in filenames:
       path = os.path.join(target_file, filename)
       if fht.has_file_changed_since_timestamp(path):
@@ -293,8 +296,12 @@ def main(index_file, target_file):
         if changed:
           info(f'Made updates to {path}')
         fht.update_timestamp_for_file(path)
+        updated_a_file = True
     fht.save()
+    if not updated_a_file:
+      info(f'All {len(filenames)} files already up-to-date.')
   else:
+    info(f'Fixing in {target_file}')
     fix_missing_symbols_in_file(target_file, index)
 
 

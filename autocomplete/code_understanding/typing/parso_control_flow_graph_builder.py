@@ -9,22 +9,22 @@ from typing import Dict, List, Tuple, Union
 import parso
 
 import attr
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (
-    AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode,
-    FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode,
-    TryCfgNode, WhileCfgNode, WithCfgNode)
-from autocomplete.code_understanding.typing.errors import (ParsingError, assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (
-    AndOrExpression, AnonymousExpression, AttributeExpression, CallExpression, ComparisonExpression,
-    DictExpression, Expression, FactorExpression, ForComprehension, ForComprehensionExpression,
-    IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression,
-    LiteralExpression, MathExpression, NotExpression, SetExpression, StarredExpression, SubscriptExpression,
-    TupleExpression, UnknownExpression, VariableExpression)
-from autocomplete.code_understanding.typing.frame import Frame
-from autocomplete.code_understanding.typing.language_objects import (Parameter, ParameterType)
-from autocomplete.code_understanding.typing.pobjects import NONE_POBJECT
-from autocomplete.code_understanding.typing.utils import assert_returns_type
-from autocomplete.nsn_logging import debug, error, info, warning
+from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
+                                       ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
+                                       ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode,
+                                       TryCfgNode, WhileCfgNode, WithCfgNode)
+from .errors import (ParsingError, assert_unexpected_parso)
+from .expressions import (AndOrExpression, AnonymousExpression, AttributeExpression, CallExpression,
+                          ComparisonExpression, DictExpression, Expression, FactorExpression,
+                          ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression,
+                          KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
+                          MathExpression, NotExpression, SetExpression, StarredExpression,
+                          SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)
+from .frame import Frame
+from .language_objects import (Parameter, ParameterType)
+from .pobjects import NONE_POBJECT
+from .utils import assert_returns_type
+from ...nsn_logging import debug, error, info, warning
 
 EXPRESSION_NODES = {
     'testlist_star_expr', 'comparison', 'star_expr', 'expr', 'xor_expr', 'arith_expr', 'and_expr', 'and_test',

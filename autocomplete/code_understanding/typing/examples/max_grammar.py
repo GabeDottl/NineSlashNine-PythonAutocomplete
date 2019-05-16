@@ -9,7 +9,7 @@ import numpy
 from a import a
 from a import b as c
 from a import d
-from autocomplete.code_understanding.typing.code_understanding import typing
+from ... import typing
 from g import h, w
 from x.y.z import q
 from x.y.z import r as s

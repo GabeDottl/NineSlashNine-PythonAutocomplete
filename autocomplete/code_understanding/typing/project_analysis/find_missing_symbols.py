@@ -4,9 +4,9 @@ from glob import glob
 from pprint import pprint
 from itertools import chain
 
-from autocomplete.code_understanding.typing import (api, collector, module_loader, utils, language_objects)
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FromImportCfgNode)
-from autocomplete.nsn_logging import info
+from .. import (api, collector, module_loader, utils, language_objects)
+from ..control_flow_graph_nodes import (FromImportCfgNode)
+from ....nsn_logging import info
 
 
 def scan_missing_symbols_in_file(filename):
@@ -17,7 +17,7 @@ def scan_missing_symbols_in_file(filename):
   return scan_missing_symbols_in_graph(graph, os.path.dirname(filename))
 
 
-def scan_missing_symbols_in_graph(graph, directory=None):
+def scan_missing_symbols_in_graph(graph, directory):
   missing_symbols = graph.get_non_local_symbols()
   for builtin in chain(utils.get_possible_builtin_symbols(),
                        language_objects.ModuleImpl.get_module_builtin_symbols()):

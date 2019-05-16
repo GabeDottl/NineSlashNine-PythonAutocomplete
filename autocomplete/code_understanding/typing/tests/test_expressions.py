@@ -1,5 +1,5 @@
-from autocomplete.code_understanding.typing import module_loader
-from autocomplete.code_understanding.typing.pobjects import FuzzyBoolean
+from .. import module_loader
+from ..pobjects import FuzzyBoolean
 
 
 def test_dicts():

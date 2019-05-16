@@ -1,12 +1,12 @@
 import os
 from glob import glob
 
-from autocomplete.code_understanding.typing import (collector, control_flow_graph, module_loader, utils)
-from autocomplete.code_understanding.typing.api import graph_from_source
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import (FuncCfgNode)
-from autocomplete.code_understanding.typing.project_analysis import (find_missing_symbols)
-from autocomplete.code_understanding.typing.utils import (assert_expected_iterable)
-from autocomplete.nsn_logging import debug, info
+from .. import (collector, control_flow_graph, module_loader, utils)
+from ..api import graph_from_source
+from ..control_flow_graph_nodes import (FuncCfgNode)
+from ..project_analysis import (find_missing_symbols)
+from ..utils import (assert_expected_iterable)
+from ....nsn_logging import debug, info
 
 
 def test_cfg_symbol_visibility():

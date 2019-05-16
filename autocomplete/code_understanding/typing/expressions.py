@@ -5,12 +5,11 @@ from wsgiref.validate import validator
 
 import attr
 from . import collector, symbol_context
-from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
-                                                             LazyObject, NativeObject, PObject, PObjectType,
-                                                             UnknownObject, pobject_from_object)
-from autocomplete.code_understanding.typing.utils import (assert_returns_type, instance_memoize)
-from autocomplete.nsn_logging import debug, info, warning
+from .errors import (AmbiguousFuzzyValueError)
+from .pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, NativeObject, PObject,
+                       PObjectType, UnknownObject, pobject_from_object)
+from .utils import (assert_returns_type, instance_memoize)
+from ...nsn_logging import debug, info, warning
 
 
 class Expression(ABC):

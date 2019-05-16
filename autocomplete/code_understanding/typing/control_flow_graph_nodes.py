@@ -6,22 +6,17 @@ from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
 from . import collector, symbol_context
-from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError, ParsingError,
-                                                           assert_unexpected_parso)
-from autocomplete.code_understanding.typing.expressions import (Expression, StarredExpression,
-                                                                SubscriptExpression, VariableExpression,
-                                                                _assign_variables_to_results)
-from autocomplete.code_understanding.typing.frame import Frame, FrameType
-from autocomplete.code_understanding.typing.language_objects import (BoundFunction, Function, FunctionImpl,
-                                                                     FunctionType, Klass, Module, ModuleImpl,
-                                                                     NativeModule, Parameter,
-                                                                     SimplePackageModule)
-from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject,
-                                                             LazyObject, UnknownObject)
-from autocomplete.code_understanding.typing.utils import (assert_returns_type, instance_memoize)
-from autocomplete.nsn_logging import error, info, warning
+from .errors import (AmbiguousFuzzyValueError, ParsingError, assert_unexpected_parso)
+from .expressions import (Expression, StarredExpression, SubscriptExpression, VariableExpression,
+                          _assign_variables_to_results)
+from .frame import Frame, FrameType
+from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, ModuleImpl,
+                               NativeModule, Parameter, SimplePackageModule)
+from .pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, UnknownObject)
+from .utils import (assert_returns_type, instance_memoize)
+from ...nsn_logging import error, info, warning
 
-# from autocomplete.code_understanding.typing.collector import Collector
+# from .collector import Collector
 
 
 @attr.s
@@ -253,7 +248,6 @@ class FromImportCfgNode(CfgNode):
 
   @instance_memoize
   def get_module_key(self):
-    # Fix matching absolute v. relative path comparison in fix_code:44
     return self.module_loader.get_module_info_from_name(self.module_path, self.source_dir)[0]
 
   def _process_impl(self, curr_frame):
