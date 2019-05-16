@@ -7,7 +7,7 @@ from collections import OrderedDict, defaultdict
 from glob import glob
 from tokenize import NAME, tokenize
 
-from autocomplete.nsn_logging import *
+from ..nsn_logging import *
 
 
 def count_names(path, verbose=True):

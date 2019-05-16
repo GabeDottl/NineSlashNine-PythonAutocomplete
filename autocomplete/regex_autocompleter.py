@@ -4,7 +4,7 @@ import re
 from time import time
 
 import tensorflow as tf
-from autocomplete.nsn_logging import *
+from ..nsn_logging import *
 
 
 def wildcard_wrapper(s):

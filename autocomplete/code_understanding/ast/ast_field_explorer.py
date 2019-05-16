@@ -1,6 +1,6 @@
 import ast
 
-from autocomplete.code_understanding.utils import type_name
+from ..utils import type_name
 
 
 class AstFieldExplorer(ast.NodeVisitor):

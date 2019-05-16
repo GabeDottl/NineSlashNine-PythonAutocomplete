@@ -3,7 +3,7 @@ import glob
 
 import autocomplete.code_understanding.fake3 as fake3
 import numpy as np
-from autocomplete.code_understanding.fake2 import a_func
+from .fake2 import a_func
 
 print(f'executed {__file__}')
 
