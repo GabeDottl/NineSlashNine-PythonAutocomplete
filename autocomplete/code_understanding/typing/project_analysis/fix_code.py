@@ -13,20 +13,21 @@ from ....nsn_logging import warning, info
 from isort import SortImports
 
 
-def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=False):
+def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=True):
   with open(filename) as f:
     source = ''.join(f.readlines())
-  new_code, changed = fix_missing_symbols_in_source(source, os.path.dirname(filename), index)
+  new_code, changed = fix_missing_symbols_in_source(source, os.path.dirname(filename), index, remove_extra_imports=remove_extra_imports)
   if write and changed:
     with open(filename, 'w') as f:
       f.writelines(new_code)
   return new_code, changed
 
 
-def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=False) -> str:
+def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=True) -> str:
   graph = api.graph_from_source(source, source_dir, parso_default=True)
   existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
-  # TODO: remove_extra_imports=False
+  if remove_extra_imports:
+    pass
   missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
   if missing_symbols:
     info(f'missing_symbols: {list(missing_symbols.keys())}')
@@ -62,12 +63,16 @@ def apply_fixes_to_source(source, source_dir, fixes):
 
 
 def _relative_from_path(filename, directory, relative_prefix: bool):
-  filename = os.path.relpath(filename, directory)
+  filename = os.path.relpath(os.path.abspath(filename), directory)
+  # Guaranteed all relative-pathing will be at the beginning, if any.
   if filename[0] != '.' and relative_prefix:
-    filename = f'.{os.sep}{filename}'
-  # Just in case - /./ should translate to . at the end.
-  filename = filename.replace(f'..{os.sep}', '.')
-  filename = filename.replace(f'.{os.sep}', '.')
+    # filename is contained in directory - make it explicity.
+    filename = f'.{filename}'
+  else:
+    # filename is downward from directory - need to convert ../ to dots.
+    down_count = filename.count(f'..{os.sep}')
+    if down_count:
+      filename = f'{"."*(down_count+1)}{filename[3*down_count:]}'
 
   if filename[-(len('__init__.py')):] == '__init__.py':
     filename = filename[:-len('__init__.py') - 1]
@@ -137,7 +142,6 @@ class Rename:
 class Import:
   module_key = attr.ib()
   as_name = attr.ib()
-  # module_filename = attr.ib()
   _value = attr.ib()
 
   # TODO @instance_memoize
@@ -153,7 +157,13 @@ class Import:
         i = module_name.rfind('.')
         value = module_name[i + 1:]
         if i > 0:
-          module_name = module_name[:i]
+          pure_relative = '.'*(i+1)
+          if pure_relative == module_name[:(i+1)]:
+            module_name = pure_relative
+          else:
+            # Don't include final '.'.
+            module_name = module_name[:i]
+
         else:
           module_name = '.'
 
@@ -310,5 +320,5 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('index_file')
   parser.add_argument('target_file')
-  args = parser.parse_args()
+  args, _ = parser.parse_known_args()
   main(args.index_file, args.target_file)
