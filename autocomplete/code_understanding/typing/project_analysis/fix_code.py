@@ -86,24 +86,20 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
     if value:
       return False
     module_key, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
-    if module_key.path != import_.module_filename:
+    if module_key != import_.module_key:
       return False
     return True
 
   # FromImportCfgNode.
   filename = ''
   for from_import_name, as_name in cfg_node.from_import_name_alias_dict.items():
-    filename = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{from_import_name}',
-                                                       directory)[0].path
+    module_key = module_loader.get_module_info_from_name(f'{cfg_node.module_path}.{from_import_name}',
+                                                         directory)[0]
     # If the from import is importing a module itself, then put it in the module_name
-    if not filename:
-      filename = module_loader.get_module_info_from_name(cfg_node.module_path, directory)[0].path
-    if not filename:
-      if module_name != cfg_node.module_path:
-        continue
-    else:
-      if filename != import_.module_filename:
-        continue
+    if module_key.is_bad():
+      module_key = module_loader.get_module_info_from_name(cfg_node.module_path, directory)[0]
+    if module_key != import_.module_key:
+      continue
 
     if from_import_name == '*':
       return True
@@ -124,18 +120,17 @@ class Rename:
 
 @attr.s
 class Import:
-  # DO NOT ACCESS THESE DIRECTLY. Use get_module_name_and_value.
-  _module_key = attr.ib()
+  module_key = attr.ib()
   as_name = attr.ib()
   # module_filename = attr.ib()
   _value = attr.ib()
 
   # TODO @instance_memoize
   def get_module_name_and_value(self, source_dir):
-    if self._module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN:
-      module_name = module_name_from_filename(self._module_key.path, source_dir)
+    if self.module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN:
+      module_name = module_name_from_filename(self.module_key.path, source_dir)
     else:
-      module_name = self._module_key.path
+      module_name = self.module_key.path
 
     value = self._value
     if not self._value:
@@ -159,7 +154,8 @@ class Import:
 def matches_context(context, symbol_entry):
   # TODO: Refine all of this.
   # If we don't know what the symbol is, assume it matches by default.
-  if symbol_entry.symbol_type == symbol_index.SymbolType.AMBIGUOUS or symbol_entry.symbol_type == symbol_index.SymbolType.UNKNOWN:
+  if symbol_entry.get_symbol_type() == symbol_index.SymbolType.AMBIGUOUS or symbol_entry.get_symbol_type(
+  ) == symbol_index.SymbolType.UNKNOWN:
     return True
 
   if isinstance(context, symbol_context.MultipleSymbolContext):
@@ -167,19 +163,20 @@ def matches_context(context, symbol_entry):
 
   if isinstance(context, symbol_context.CallSymbolContext):
     # TODO: param check.
-    return symbol_entry.symbol_type == symbol_index.SymbolType.FUNCTION or symbol_entry.symbol_type == symbol_index.SymbolType.TYPE
+    return symbol_entry.get_symbol_type() == symbol_index.SymbolType.FUNCTION or symbol_entry.get_symbol_type(
+    ) == symbol_index.SymbolType.TYPE
 
   if isinstance(context, symbol_context.SubscriptSymbolContext):
-    return symbol_entry.symbol_type != symbol_index.SymbolType.FUNCTION
+    return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
 
   if isinstance(context, symbol_context.AttributeSymbolContext):
-    return symbol_entry.symbol_type != symbol_index.SymbolType.FUNCTION
+    return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
 
   return True
 
 
 def symbol_entry_preference_key(symbol_entry):
-  return (symbol_entry.import_count(), not symbol_entry.imported(), symbol_entry.is_module_itself())
+  return (symbol_entry.get_import_count(), not symbol_entry.is_imported(), symbol_entry.is_module_itself())
 
 
 def file_distance(symbol_entry, directory):
@@ -240,18 +237,17 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     else:
       entry = entries[-1]
 
-    module_key = index.get_module_key_from_symbol_entry(entry)
+    module_key = entry.get_module_key()
 
     as_name = None
-    if entry.is_module_itself:
+    if entry.is_module_itself():
       # Example: import pandas
       value = None
-      if entry.real_name:  # Should be module_name
-        # Example: import pandas as pd
+      if entry.is_alias():
         as_name = symbol
-    elif entry.real_name:
+    elif entry.is_alias():
       # Example: From a import b as c
-      value = entry.real_name
+      value = entry.get_real_name()
       as_name = symbol
     else:
       # From a import b.

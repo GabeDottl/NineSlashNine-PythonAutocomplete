@@ -84,7 +84,6 @@ class InternalSymbolEntry:
   def deserialize(tuple_):
     args = list(tuple_)
     args[0] = SymbolType(args[0])  # symbol_type
-    # args[1] = language_objects.ModuleType(args[1])  # module_type
     return InternalSymbolEntry(*args)
 
   def is_from_native_module(self):
@@ -101,7 +100,7 @@ class CompleteSymbolEntry:
   _internal_symbol_entry = attr.ib()
   _symbol_alias = attr.ib(None)
 
-  def symbol_type(self):
+  def get_symbol_type(self):
     return self._internal_symbol_entry.symbol_type
 
   def get_module_key(self):
@@ -110,13 +109,17 @@ class CompleteSymbolEntry:
   def is_module_itself(self):
     return self._internal_symbol_entry.is_module_itself
 
-  def imported(self):
+  def is_imported(self):
     return self._internal_symbol_entry.imported
 
-  def import_count(self):
+  def get_import_count(self):
     if self._symbol_alias:
       return self._symbol_alias.import_count
     return self._internal_symbol_entry.import_count
+
+  def get_real_name(self):
+    assert self._symbol_alias is not None
+    return self._symbol_alias.real_name
 
   def is_alias(self):
     return self._symbol_alias is not None
@@ -236,8 +239,7 @@ class SymbolIndex:
   @staticmethod
   def build_index_from_package(package_path, target_index_filename):
     assert os.path.exists(package_path)
-    index = SymbolIndex()
-    index.path = target_index_filename
+    index = SymbolIndex(target_index_filename)
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
     index.process_tracked_imports()
     return index
@@ -398,7 +400,7 @@ def base_module_name(module_name):
 def main(target_package, output_path):
   assert os.path.exists(target_package)
   index = SymbolIndex.build_index_from_package(target_package, output_path)
-  index.save(output_path)
+  index.save()
 
 
 if __name__ == "__main__":

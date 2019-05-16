@@ -52,13 +52,13 @@ def test_add_file():
   for index in (initial_index, loaded_index):
     entries = list(filter(lambda x: not x.imported(), index.find_symbol('attr')))
     assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
-    ).path and entries[0].symbol_type() == symbol_index.SymbolType.MODULE
+    ).path and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE
     entries = list(filter(lambda x: not x.imported(), index.find_symbol('at')))
     assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
-    ).path and entries[0].symbol_type() == symbol_index.SymbolType.MODULE
+    ).path and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE
     entries = list(index.find_symbol('attrib'))
     assert len(entries) >= 1 and not entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
-    ).path and entries[0].symbol_type() == symbol_index.SymbolType.FUNCTION
+    ).path and entries[0].get_symbol_type() == symbol_index.SymbolType.FUNCTION
 
   #     track_imported_modules=True)
 

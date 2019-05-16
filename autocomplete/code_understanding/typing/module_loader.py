@@ -90,6 +90,9 @@ class ModuleKey:
   def serialize(self):
     return self.module_source_type.value, self.path
 
+  def is_bad(self):
+    return self.module_source_type == ModuleSourceType.BAD
+
   @staticmethod
   def deserialize(args):
     return ModuleKey(ModuleSourceType(args[0]), args[1])
