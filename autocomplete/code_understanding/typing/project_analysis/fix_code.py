@@ -249,7 +249,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
       keyed_entries = sort_keyed(keyed_entries)
       if keyed_entries[-1][1] == keyed_entries[-2][1]:
         warning(
-            f'Ambiguous for {symbol} : {keyed_entries[-1][0]} - {index.get_module_str(keyed_entries[-1][0])}\n{keyed_entries[-2][0]} - {index.get_module_str(keyed_entries[-2][0])}'
+            f'Ambiguous for {symbol} : {keyed_entries[-1][0].get_module_key()}\n{keyed_entries[-2][0].get_module_key()}'
         )
         continue
       entry = keyed_entries[-1][0]
