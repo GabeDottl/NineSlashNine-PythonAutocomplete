@@ -39,15 +39,27 @@ def test_build_typing_index():
 
 
 def test_add_file():
-  index = symbol_index.SymbolIndex()
-  index.add_file(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/boo.py')
+  initial_index = symbol_index.SymbolIndex(INDEX_PATH)
+  initial_index.add_file(
+      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/boo.py',
+      track_imported_modules=True)
+  initial_index.process_tracked_imports()
+  initial_index.save()
+  loaded_index = symbol_index.SymbolIndex.load(INDEX_PATH)
+
   # index.add_path(
   #     f'/usr/local/lib/python3.6/site-packages/numpy')
+  for index in (initial_index, loaded_index):
+    entries = list(filter(lambda x: not x.imported(), index.find_symbol('attr')))
+    assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
+    ).path and entries[0].symbol_type() == symbol_index.SymbolType.MODULE
+    entries = list(filter(lambda x: not x.imported(), index.find_symbol('at')))
+    assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
+    ).path and entries[0].symbol_type() == symbol_index.SymbolType.MODULE
+    entries = list(index.find_symbol('attrib'))
+    assert len(entries) >= 1 and not entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
+    ).path and entries[0].symbol_type() == symbol_index.SymbolType.FUNCTION
 
-  entries = index.find_symbol('attr')
-  assert len(
-      entries) == 1 and entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE
   #     track_imported_modules=True)
 
 
@@ -61,8 +73,8 @@ def test_add_file():
 #   index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
 
 if __name__ == "__main__":
-  # test_add_file()
+  test_add_file()
   # test_build_test_index()
-  test_build_typing_index()
+  # test_build_typing_index()
 
   # test_build_full_index()

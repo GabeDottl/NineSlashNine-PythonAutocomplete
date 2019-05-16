@@ -84,6 +84,16 @@ class ModuleKey:
       return os.path.basename(os.path.dirname(self.path))
     return os.path.splitext(os.path.basename(self.path))[0]
 
+  def is_path_file(self):
+    return self.module_source_type == ModuleSourceType.NORMAL or self.module_source_type == ModuleSourceType.COMPILED
+
+  def serialize(self):
+    return self.module_source_type.value, self.path
+
+  @staticmethod
+  def deserialize(args):
+    return ModuleKey(ModuleSourceType(args[0]), args[1])
+
 
 def get_pobject_from_module(module_name: str, pobject_name: str, directory: str) -> PObject:
   # See if there's a module we can read that'd correspond to the full name.

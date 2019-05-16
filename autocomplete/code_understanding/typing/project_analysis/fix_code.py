@@ -179,13 +179,15 @@ def matches_context(context, symbol_entry):
 
 
 def symbol_entry_preference_key(symbol_entry):
-  return (symbol_entry.import_count, not symbol_entry.imported, symbol_entry.is_module_itself)
+  return (symbol_entry.import_count(), not symbol_entry.imported(), symbol_entry.is_module_itself())
 
 
-def file_distance(symbol_entry, index, directory):
-  if symbol_entry.module_type.is_native():
-    return -4  # Relatively random default.
-  module_filename = index.get_module_filename_from_symbol_entry(symbol_entry)
+def file_distance(symbol_entry, directory):
+  module_key = symbol_entry.get_module_key()
+  if not module_key.is_path_file():
+    return -4  # No filename is probably a builtin - fallback to some reasonable default score.
+
+  module_filename = module_key.path
   a_iter = iter(directory)
   b_iter = iter(module_filename)
 
@@ -200,9 +202,8 @@ def file_distance(symbol_entry, index, directory):
   return -max(a_rem.count(os.sep), b_rem.count(os.sep))
 
 
-def relative_symbol_entry_preference_key(symbol_entry, index, directory):
-  return tuple(
-      list(symbol_entry_preference_key(symbol_entry)) + [file_distance(symbol_entry, index, directory)])
+def relative_symbol_entry_preference_key(symbol_entry, directory):
+  return tuple(list(symbol_entry_preference_key(symbol_entry)) + [file_distance(symbol_entry, directory)])
 
 
 def key_list(l, key_fn):
@@ -228,7 +229,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     # TODO: Compare symbol_context w/entry.
     if len(entries) > 1 and symbol_entry_preference_key(entries[-1]) == symbol_entry_preference_key(
         entries[-2]):
-      keyed_entries = key_list(entries, lambda x: relative_symbol_entry_preference_key(x, index, directory))
+      keyed_entries = key_list(entries, lambda x: relative_symbol_entry_preference_key(x, directory))
       keyed_entries = sort_keyed(keyed_entries)
       if keyed_entries[-1][1] == keyed_entries[-2][1]:
         warning(

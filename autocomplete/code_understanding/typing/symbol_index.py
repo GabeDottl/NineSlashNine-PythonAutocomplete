@@ -47,48 +47,98 @@ class SymbolType(Enum):
     return SymbolType.UNKNOWN
 
 
+@attr.s(frozen=True)
+class SymbolAlias:
+  real_name = attr.ib()
+  module_index = attr.ib()
+  is_module_itself = attr.ib()
+  import_count: int = attr.ib(0)
+
+  def serialize(self):
+    return attr.astuple(self)
+
+  @staticmethod
+  def deserialize(tuple_):
+    return SymbolAlias(*tuple_)
+
+
 @attr.s
-class SymbolEntry:
+class InternalSymbolEntry:
+  '''This class stores information about module symbols in a format convenient for serialization.
+
+  It generally should not be exposed through any public APIs outside of this file.
+  '''
   symbol_type: SymbolType = attr.ib()
-  module_type: 'ModuleType' = attr.ib()
   module_index: int = attr.ib()
-  symbol_meta = attr.ib(None)
+  # symbol_meta = attr.ib(None)
   is_module_itself: bool = attr.ib(False)
   imported: bool = attr.ib(False)
   import_count: int = attr.ib(0)
-  real_name: str = attr.ib(None)  # Only used if the entry is an alias.
 
   def serialize(self):
     args = list(attr.astuple(self))
     args[0] = args[0].value  # symbol_type
-    args[1] = args[1].value  # module_type
     return args
 
   @staticmethod
   def deserialize(tuple_):
     args = list(tuple_)
     args[0] = SymbolType(args[0])  # symbol_type
-    args[1] = language_objects.ModuleType(args[1])  # module_type
-    return SymbolEntry(*args)
+    # args[1] = language_objects.ModuleType(args[1])  # module_type
+    return InternalSymbolEntry(*args)
 
   def is_from_native_module(self):
     return self.module_type == language_objects.ModuleType.BUILTIN
 
 
 @attr.s
+class CompleteSymbolEntry:
+  '''This class represents a complete symbol entry including all APIs necessary for importing the
+  symbol and getting info about it without needing to know internal details like whether or not it's
+  an alias and such.
+  '''
+  _index = attr.ib()
+  _internal_symbol_entry = attr.ib()
+  _symbol_alias = attr.ib(None)
+
+  def symbol_type(self):
+    return self._internal_symbol_entry.symbol_type
+
+  def get_module_key(self):
+    return self._index.module_list[self._internal_symbol_entry.module_index]
+
+  def is_module_itself(self):
+    return self._internal_symbol_entry.is_module_itself
+
+  def imported(self):
+    return self._internal_symbol_entry.imported
+
+  def import_count(self):
+    if self._symbol_alias:
+      return self._symbol_alias.import_count
+    return self._internal_symbol_entry.import_count
+
+  def is_alias(self):
+    return self._symbol_alias is not None
+
+
+@attr.s
 class SymbolIndex:
+  save_path = attr.ib(None)
   symbol_dict = attr.ib(factory=partial(defaultdict, dict))
   symbol_alias_dict = attr.ib(factory=partial(defaultdict, dict))
+
   # Bi-directional dict.
   module_list: List[module_loader.ModuleKey] = attr.ib(factory=list)
   module_dict: Dict[module_loader.ModuleKey, int] = attr.ib(factory=dict)
 
   failed_module_keys = attr.ib(factory=set)
-  files_added = attr.ib(0, init=False)
-  path = attr.ib(None, init=False)
-  # Key is: (from_import, module_name, module_filename)
-  value_module_reference_map: Dict[Tuple[str, str, str], int] = attr.ib(factory=partial(defaultdict, int),
-                                                                        init=False)
+  num_files_added = attr.ib(0, init=False)
+
+  # Key is: (module_key,from_import_value, as_name)
+  value_module_reference_map: Dict[Tuple[module_loader.ModuleKey, str, str], int] = attr.ib(factory=partial(
+      defaultdict, int),
+                                                                                            init=False)
 
   def get_module_key_from_symbol_entry(self, symbol_entry):
     return self.module_list[symbol_entry.module_index]
@@ -97,19 +147,19 @@ class SymbolIndex:
     if not len(self.symbol_dict):
       # Add builtins to symbol_dict by default if it's not been initialized with some set.
       for symbol, value in builtins.__dict__.items():
-        self.symbol_dict[symbol][(-1, False)] = SymbolEntry(SymbolType.from_real_obj(value),
-                                                            language_objects.ModuleType.BUILTIN, -1)
+        self.symbol_dict[symbol][(-1, False)] = InternalSymbolEntry(SymbolType.from_real_obj(value), -1)
       for symbol in utils.get_possible_builtin_symbols():
         if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol][(-2, False)] = SymbolEntry(SymbolType.UNKNOWN,
-                                                              language_objects.ModuleType.BUILTIN, -2)
+          self.symbol_dict[symbol][(-2, False)] = InternalSymbolEntry(SymbolType.UNKNOWN, -2)
     if len(self.module_list) != len(self.module_dict):
       self.module_dict = {x: i for i, x in enumerate(self.module_list)}
 
   def find_symbol(self, symbol):
-    if symbol not in self.symbol_dict:
-      return []
-    return self.symbol_dict[symbol].values()
+    for alias in self.symbol_alias_dict[symbol].values():
+      symbol_entry = self.symbol_dict[alias.real_name][(alias.module_index, alias.is_module_itself)]
+      yield CompleteSymbolEntry(self, symbol_entry, alias)
+    for symbol_entry in self.symbol_dict[symbol].values():
+      yield CompleteSymbolEntry(self, symbol_entry, None)
 
   def get_modules_for_symbol_entries(self, symbol_entries):
     for symbol_entry in symbol_entries:
@@ -118,35 +168,50 @@ class SymbolIndex:
   @staticmethod
   def _serialize(index):
     d = {}
-    symbol_entries = []
-    symbol_entries_dict = {}
+    alias_dict = {}
     for symbol, module_index_symbol_entry_dict in index.symbol_dict.items():
       d[symbol] = [v.serialize() for v in module_index_symbol_entry_dict.values()]
-    serialized_module_list = [(key.module_source_type.value, key.path) for key in index.module_list]
-    return [d, serialized_module_list, tuple(index.failed_module_keys)]
+
+    for symbol, alias_params_to_alias_dict in index.symbol_alias_dict.items():
+      aliases = alias_params_to_alias_dict.values()
+      l = alias_dict[symbol] = []
+      for alias in aliases:
+        l.append(alias.serialize())
+    serialized_module_list = [key.serialize() for key in index.module_list]
+    serialized_failed_module_list = [key.serialize() for key in index.failed_module_keys]
+    return [d, alias_dict, serialized_module_list, serialized_failed_module_list]
 
   @staticmethod
   def _deserialize(unpacked):
-    d, symbol_entries, serialized_module_list, failed_module_keys_list = unpacked
+    d, alias_dict, serialized_module_list, failed_module_keys_list = unpacked
     module_list = [
         module_loader.ModuleKey(module_loader.ModuleSourceType(type_), path)
         for type_, path in serialized_module_list
     ]
-    symbol_dict = {}
+    symbol_dict = defaultdict(dict)
     for s, serialized_symbol_entries in d.items():
       module_index_symbol_entry_dict = {}
       for serialized_entry in serialized_symbol_entries:
         # TODO: Need to match this!!!!!!
-        symbol_entry = SymbolEntry.deserialize(serialized_entry)
+        symbol_entry = InternalSymbolEntry.deserialize(serialized_entry)
         module_index_symbol_entry_dict[(symbol_entry.module_index,
                                         symbol_entry.is_module_itself)] = symbol_entry
       symbol_dict[s] = module_index_symbol_entry_dict
 
+    symbol_alias_dict = defaultdict(dict)
+    for symbol, args_lists in alias_dict.items():
+      alias_params_to_alias_dict = {}
+      for args in args_lists:
+        alias_params_to_alias_dict[tuple(args)] = SymbolAlias.deserialize(args)
+      symbol_alias_dict[symbol] = alias_params_to_alias_dict
+      # symbol_alias_dict[symbol] = symbol_alias_dict
+
     module_dict = {x: i for i, x in enumerate(module_list)}
-    return SymbolIndex(symbol_dict,
+    return SymbolIndex(symbol_dict=symbol_dict,
+                       symbol_alias_dict=symbol_alias_dict,
                        module_list=module_list,
                        module_dict=module_dict,
-                       failed_module_keys=set(failed_module_keys_list))
+                       failed_module_keys=set(*failed_module_keys_list))
 
   @staticmethod
   def load(filename, readonly=False):
@@ -154,17 +219,16 @@ class SymbolIndex:
       # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
       # cannot be appended to and thus make the SymbolIndex essentially readonly.
       out = SymbolIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly))
-    out.path = filename
+    out.save_path = filename
     return out
 
-  def save(self, filename):
-    with open(filename, 'wb') as f:
-      msgpack.pack(self, f, default=SymbolIndex._serialize, use_bin_type=True)
+  def save(self):
+    with open(self.save_path, 'wb') as f:
+      msgpack.pack(SymbolIndex._serialize(self), f, use_bin_type=True)
 
   @staticmethod
   def build_index(target_index_filename):
-    index = SymbolIndex()
-    index.path = target_index_filename
+    index = SymbolIndex(target_index_filename)
     for path in sys.path:
       index.add_path(path, ignore_init=True)
     return index
@@ -175,21 +239,20 @@ class SymbolIndex:
     index = SymbolIndex()
     index.path = target_index_filename
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
+    index.process_tracked_imports()
+    return index
 
-    for (module_key, value, as_name), count in index.value_module_reference_map.items():
+  def process_tracked_imports(self):
+    for (module_key, value, as_name), count in self.value_module_reference_map.items():
       if module_key.module_source_type == module_loader.ModuleSourceType.BAD:
         continue
 
-      index.add_module_by_key(module_key)
+      self.add_module_by_key(module_key)
 
-      if value:
-        module_index_symbol_entry_dict = index.symbol_dict[value]
-      else:
-        symbol = module_key.get_module_basename()
-        module_index_symbol_entry_dict = index.symbol_dict[symbol]
-
+      real_name = value if value else module_key.get_module_basename()
+      module_index_symbol_entry_dict = self.symbol_dict[real_name]
       is_module_itself = not value
-      module_index = index.module_dict[module_key]
+      module_index = self.module_dict[module_key]
 
       key = (module_index, is_module_itself)
       assert key in module_index_symbol_entry_dict
@@ -197,13 +260,14 @@ class SymbolIndex:
       entry.import_count += 1
 
       if as_name:
-        module_index_symbol_entry_dict = index.symbol_dict[as_name]
-        if key in module_index_symbol_entry_dict:
-          # Already have alias recorded.
-          continue
+        symbol_alias_count_dict = self.symbol_alias_dict[as_name]
+        args = (real_name, module_index, is_module_itself)
+        if args in symbol_alias_count_dict:
+          symbol_alias_count_dict[args].import_count += 1
         else:
-          index.symbol_dict[as_name][key] = entry
-    return index
+          symbol_alias_count_dict[args] = SymbolAlias(*args, import_count=1)
+    info(f'Processed tracked imports; clearing.')
+    self.value_module_reference_map.clear()
 
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
     if not os.path.exists(path):
@@ -279,32 +343,29 @@ class SymbolIndex:
       info(f'Failed on {module_key}: {e}')
       self.failed_module_keys.add(module_key)
     else:
-      self.files_added += 1
+      self.num_files_added += 1
       self.module_dict[module_key] = module_index
       self.module_list.append(module_key)
       self.symbol_dict[module_key.get_module_basename()][(module_index,
-                                                          True)] = SymbolEntry(SymbolType.MODULE,
-                                                                               module.module_type,
-                                                                               module_index,
-                                                                               is_module_itself=True)
-      if self.files_added and self.files_added % 20 == 0 and self.path:
-        info(f'Saving index to {self.path}. {self.files_added} files added.')
-        self.save(self.path)
+                                                          True)] = InternalSymbolEntry(SymbolType.MODULE,
+                                                                                       module_index,
+                                                                                       is_module_itself=True)
+      if self.num_files_added and self.num_files_added % 20 == 0 and self.save_path:
+        info(f'Saving index to {self.save_path}. {self.num_files_added} files added.')
+        self.save()
 
   def add_module(self, module, module_index):
     # filename = module.filename
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
       try:
         self.symbol_dict[name][(module_index,
-                                False)] = SymbolEntry(SymbolType.from_pobject_value(member.value()),
-                                                      module.module_type,
-                                                      module_index,
-                                                      imported=member.imported)
+                                False)] = InternalSymbolEntry(SymbolType.from_pobject_value(member.value()),
+                                                              module_index,
+                                                              imported=member.imported)
       except errors.AmbiguousFuzzyValueError:
-        self.symbol_dict[name][(module_index, False)] = SymbolEntry(SymbolType.AMBIGUOUS,
-                                                                    module.module_type,
-                                                                    module_index,
-                                                                    imported=member.imported)
+        self.symbol_dict[name][(module_index, False)] = InternalSymbolEntry(SymbolType.AMBIGUOUS,
+                                                                            module_index,
+                                                                            imported=member.imported)
 
 
 def _should_scan_file(filename, include_private_files):

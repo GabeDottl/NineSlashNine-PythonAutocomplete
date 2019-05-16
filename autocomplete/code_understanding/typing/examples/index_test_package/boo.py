@@ -1,6 +1,9 @@
-import functools
+# import functools
+# import pandas as pd
 
 import attr
+import attr as at
+from attr import ib as attrib
 
 
 @attr.s
