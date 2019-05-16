@@ -40,10 +40,13 @@ class ParsoControlFlowGraphBuilder:
   _module: 'Module' = attr.ib()
   root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
   _containing_func_node = None
+  _source_dir = attr.ib(None, init=False)
 
-  def graph_from_source(self, source):
+  def graph_from_source(self, source, source_dir):
     parse_node = parso.parse(source)
+    self._source_dir = source_dir
     self.root.children.append(self._create_cfg_node(parse_node))
+    self._source_dir = None
     return self.root
 
   @assert_returns_type(CfgNode)
@@ -66,9 +69,6 @@ class ParsoControlFlowGraphBuilder:
       error(f'Caught {type(e)}: {e} while creating: {node.get_code()}')
       raise e
     except NotImplementedError as e:
-      # import traceback
-      # traceback.print_tb(e.__traceback__)
-      # warning(f'{type(e)}: {e}')
       pass
 
     return NoOpCfgNode(parse_node=parse_from_parso(node))
@@ -197,6 +197,7 @@ class ParsoControlFlowGraphBuilder:
       path, as_name = path_and_name_from_import_child(child)
       return ImportCfgNode(path,
                            as_name=as_name,
+                           source_dir=self._source_dir,
                            parse_node=parse_from_parso(node),
                            module_loader=self.module_loader)
 
@@ -212,6 +213,7 @@ class ParsoControlFlowGraphBuilder:
         import_nodes.append(
             ImportCfgNode(path,
                           as_name=as_name,
+                          source_dir=self._source_dir,
                           parse_node=parse_from_parso(node),
                           module_loader=self.module_loader))
     return out
@@ -256,6 +258,7 @@ class ParsoControlFlowGraphBuilder:
     # Example: from a import *
     if next_node.type == 'operator' and next_node.value == '*':
       return FromImportCfgNode(path,
+                               source_dir=self._source_dir,
                                from_import_name_alias_dict={'*': None},
                                parse_node=parse_node,
                                module_loader=self.module_loader)
@@ -264,6 +267,7 @@ class ParsoControlFlowGraphBuilder:
     if next_node.type == 'name':
       parse_node.extras = {next_node.value: (next_node.start_pos, next_node.end_pos)}
       return FromImportCfgNode(path, {next_node.value: None},
+                               source_dir=self._source_dir,
                                parse_node=parse_node,
                                module_loader=self.module_loader)
 
@@ -274,6 +278,7 @@ class ParsoControlFlowGraphBuilder:
       assert_unexpected_parso(len(next_node.children) == 3, node_info(next_node))
       return FromImportCfgNode(path,
                                from_import_name_alias_dict={next_node.children[0].value: as_name},
+                               source_dir=self._source_dir,
                                parse_node=parse_node,
                                module_loader=self.module_loader)
 
@@ -299,6 +304,7 @@ class ParsoControlFlowGraphBuilder:
         out[child.children[0].value] = as_name
     return FromImportCfgNode(path,
                              from_import_name_alias_dict=out,
+                             source_dir=self._source_dir,
                              parse_node=parse_node,
                              module_loader=self.module_loader)
 

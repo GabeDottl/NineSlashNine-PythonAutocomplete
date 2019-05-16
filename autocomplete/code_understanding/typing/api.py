@@ -1,6 +1,6 @@
 import argparse
 
-from autocomplete.code_understanding.typing import (collector, control_flow_graph, frame, module_loader)
+from . import (collector, control_flow_graph, frame, module_loader)
 from autocomplete.code_understanding.typing.control_flow_graph_nodes import (CfgNode)
 from autocomplete.code_understanding.typing.expressions import (UnknownExpression)
 from autocomplete.code_understanding.typing.language_objects import (Function, Klass, create_main_module)
@@ -8,30 +8,16 @@ from autocomplete.code_understanding.typing.pobjects import (AugmentedObject, Fu
 from autocomplete.nsn_logging import debug, info
 
 
-def graph_from_source(source: str, module=None, parso_default=False) -> CfgNode:
+def graph_from_source(source: str, source_dir:str, module=None, parso_default=False) -> CfgNode:
   if not module:
     module = create_main_module(module_loader)
   builder = control_flow_graph.ControlFlowGraphBuilder(module_loader, parso_default=parso_default)
-  return builder.graph_from_source(source, module)
+  return builder.graph_from_source(source, source_dir, module)
 
-
-# def frame_from_source(source: str, filename: str) -> frame.Frame:
-#   with collector.FileContext(filename):
-
-#     return control_flow_graph.run_graph(graph_from_source(source))
 
 
 def analyze_file(filename):
-  #   with open(filename) as f:
-  #     source = ''.join(f.readlines())
-  #     with collector.FileContext(filename):
-  #       return collector_from_source(source)
-
-  # def collector_from_source(source: str):
   module = module_loader.get_module_from_filename(filename, is_package=False, lazy=False)
-  # graph = graph_from_source(source)
-  # a_frame = frame.Frame()
-  # graph.process(a_frame)
   with collector.FileContext(filename):
     debug(f'len(collector.functions): {len(collector._functions)}')
     a_frame = frame.Frame(module=module, namespace=module)

@@ -3,7 +3,10 @@ import ast
 import _ast
 import astor
 import attr
-from autocomplete.code_understanding.typing import errors
+from . import errors
+from autocomplete.code_understanding.typing.control_flow_graph_nodes import *  # Temporary.
+from autocomplete.code_understanding.typing.expressions import *  # Temporary.
+from autocomplete.code_understanding.typing.language_objects import *  # Temporary.
 from autocomplete.nsn_logging import warning
 
 
@@ -13,12 +16,12 @@ class AstControlFlowGraphBuilder:
   _module: 'Module' = attr.ib()
   root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
 
-  def graph_from_source(self, source):
+  def graph_from_source(self, source, source_dir):
     try:
       ast_node = ast.parse(source)
     except SyntaxError as e:
       raise errors.AstUnableToParse(e)
-    visitor = Visitor(self.module_loader, module=self._module, container_stack=[])
+    visitor = Visitor(self.module_loader, module=self._module, source_dir=source_dir, container_stack=[])
     visitor.visit(ast_node)
     return visitor.root
 
@@ -41,9 +44,11 @@ class ListPopper:
 class Visitor(ast.NodeVisitor):
   module_loader = attr.ib()
   _module = attr.ib()
+  source_dir: str = attr.ib()
   _container_stack = attr.ib(factory=list)
   root = attr.ib(None, init=False)
   _containing_func_node = None
+
 
   def new_group(self):
     group = GroupCfgNode()
@@ -243,6 +248,7 @@ class Visitor(ast.NodeVisitor):
       self.push(
           ImportCfgNode(alias.name,
                         as_name=alias.asname,
+                        source_dir=self.source_dir,
                         module_loader=self.module_loader,
                         parse_node=parse_from_ast(ast_node)))
 
@@ -253,6 +259,7 @@ class Visitor(ast.NodeVisitor):
         FromImportCfgNode(f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.',
                           {alias.name: alias.asname
                            for alias in ast_node.names},
+                          source_dir=self.source_dir,
                           module_loader=self.module_loader,
                           parse_node=parse_from_ast(ast_node)))
 

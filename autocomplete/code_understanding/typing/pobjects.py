@@ -9,7 +9,7 @@ from functools import partialmethod, wraps, partial
 from typing import Dict, List
 
 import attr
-from autocomplete.code_understanding.typing import collector, serialization
+from . import collector, serialization
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError,
                                                            LoadingModuleAttributeError,
                                                            NoDictImplementationError, SourceAttributeError)

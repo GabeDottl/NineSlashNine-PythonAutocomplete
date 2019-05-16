@@ -3,7 +3,7 @@ from builtins import ValueError
 
 import attr
 import h5py
-from autocomplete.code_understanding.typing import module_loader
+from . import module_loader
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError)
 from autocomplete.code_understanding.typing.language_objects import (Function, Instance, Klass, ModuleImpl,
                                                                      ModuleType)

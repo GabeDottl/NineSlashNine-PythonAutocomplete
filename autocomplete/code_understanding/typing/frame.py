@@ -7,7 +7,7 @@ from functools import wraps
 from typing import Dict, List
 
 import attr
-from autocomplete.code_understanding.typing import collector, utils
+from . import collector, utils
 from autocomplete.code_understanding.typing.errors import CellValueNotSetError
 from autocomplete.code_understanding.typing.expressions import (AttributeExpression, Expression,
                                                                 SubscriptExpression, VariableExpression)

@@ -23,7 +23,7 @@ from typing import Dict, Set, Tuple
 from enum import Enum
 
 import typeshed
-from autocomplete.code_understanding.typing import (api, collector, frame, serialization)
+from . import (api, collector, frame, serialization)
 from autocomplete.code_understanding.typing.collector import FileContext
 from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError, SourceAttributeError,
                                                            InvalidModuleError, UnableToReadModuleFileError)
@@ -166,7 +166,7 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
         if module.graph and module.has_loaded_or_loading():
           # Damn, alreadly loaded but did not keep the graph the first time...
           with open(module.filename) as f:
-            module.graph = api.graph_from_source(''.join(f.readlines()))
+            module.graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module.filename))
         else:
           module.keep_graph = True
       if not lazy and module.lazy and not module.has_loaded_or_loading():
@@ -177,7 +177,7 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
       if not module_key.module_source_type.should_be_natively_loaded():
         # Damn, alreadly loaded but did not keep the graph the first time...
         with open(module_key.path) as f:
-          module.graph = api.graph_from_source(''.join(f.readlines()))
+          module.graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module.filename))
       else:
         warning(f'Cannot include graph on module that is natively loaded.')
     return module
@@ -333,7 +333,7 @@ def _module_exports_from_source(module, source, filename, return_graph=False) ->
   with FileContext(filename):
     debug(f'len(__loaded_paths): {len(__loaded_paths)}')
     a_frame = frame.Frame(module=module, namespace=module, locals=module._members)
-    graph = api.graph_from_source(source, module)
+    graph = api.graph_from_source(source, os.path.dirname(filename), module)
     graph.process(a_frame)
   # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
   # when running, so we through them in anyway for the heck of it.

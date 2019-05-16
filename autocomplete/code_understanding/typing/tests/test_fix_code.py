@@ -17,7 +17,7 @@ from functools import wraps
 a = wraps  # TODO: decorator.
 foo.bar()
 '''
-  graph = api.graph_from_source(source)
+  graph = api.graph_from_source(source, os.path.dirname(__file__))
   assert len(list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))) == 2
   assert len(graph.get_non_local_symbols()) == 0
   stripped_graph = graph.strip_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False)
@@ -35,7 +35,7 @@ c = AClass()'''
   new_source, changed = fix_code.fix_missing_symbols_in_source(
       source, index,
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
-  graph = api.graph_from_source(new_source)
+  graph = api.graph_from_source(new_source, os.path.dirname(__file__))
   print(new_source)
   assert changed
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
@@ -57,7 +57,7 @@ c = AClass()'''
   new_source, changed = fix_code.fix_missing_symbols_in_source(
       source, index,
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
-  graph = api.graph_from_source(new_source)
+  graph = api.graph_from_source(new_source, os.path.dirname(__file__))
   print(new_source)
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
   assert len(graph.get_non_local_symbols()) == 0
@@ -71,7 +71,7 @@ def test_fix_imports_typing_match_actual():
     info(f'filename: {filename}')
     with open(filename) as f:
       source = ''.join(f.readlines())
-    graph = api.graph_from_source(source)
+    graph = api.graph_from_source(source, os.path.dirname(__file__))
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
     assert not missing_symbols
     existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))

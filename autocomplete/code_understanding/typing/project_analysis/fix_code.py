@@ -26,7 +26,7 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
 
 
 def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_imports=False) -> str:
-  graph = api.graph_from_source(source, parso_default=True)
+  graph = api.graph_from_source(source, source_dir, parso_default=True)
   existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
   # TODO: remove_extra_imports=False
   missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
@@ -41,8 +41,10 @@ def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_import
       remaining_fixes.append(fix)
       continue
     for node in filter(lambda x: isinstance(x, FromImportCfgNode), existing_imports):
-      if node.module_path == module_name:
-        changes[module_name].append((value, None, node))
+      # We use module_key instead of module_name directly to handle different import styles - e.g.,
+      # relative import v. absolute of the same module.
+      if node.get_module_key() == fix.module_key:
+        changes[fix.module_key].append((value, None, node))
         break
     else:
       remaining_fixes.append(fix)
@@ -61,22 +63,36 @@ def apply_fixes_to_source(source, source_dir, fixes):
   return SortImports(file_contents=new_source).output
 
 
-def _relative_from_path(filename, directory):
+def _relative_from_path(filename, directory, relative_prefix: bool):
+  filename = os.path.relpath(filename, directory)
+  if filename[0] != '.' and relative_prefix:
+    filename = f'.{os.sep}{filename}'
+   # Just in case - /./ should translate to . at the end.
+  filename = filename.replace(f'..{os.sep}', '.')
+  filename = filename.replace(f'.{os.sep}', '.')
+  
   if filename[-(len('__init__.py')):] == '__init__.py':
     filename = filename[:-len('__init__.py') - 1]
-    return filename[len(directory) + 1:].replace(os.sep, '.')
+    return filename.replace(os.sep, '.')
   elif filename[-(len('__init__.pyi')):] == '__init__.pyi':
     filename = filename[:-len('__init__.pyi') - 1]
-    return filename[len(directory) + 1:].replace(os.sep, '.')
-  return os.path.splitext(filename[len(directory) + 1:])[0].replace(os.sep, '.')
+    return filename.replace(os.sep, '.')
+  return os.path.splitext(filename)[0].replace(os.sep, '.')
 
 
 def module_name_from_filename(filename, source_dir):
+  # We prefer relative names to avoid path issues, however, we don't want to go all the way out of
+  # the current project to create a relative path.
+  relative_distance = file_distance(filename, source_dir)
+
   for path in sorted(sys.path, key=lambda p: -len(p)):
     if path == '.':
       path = source_dir
     if path == filename[:len(path)]:
-      return _relative_from_path(filename, path)
+      absolute_distance = file_distance(path, filename)
+      if absolute_distance > relative_distance:
+        return _relative_from_path(filename, source_dir, True)
+      return _relative_from_path(filename, path, False)
   assert False
 
 
@@ -180,14 +196,15 @@ def symbol_entry_preference_key(symbol_entry):
   return (symbol_entry.get_import_count(), not symbol_entry.is_imported(), symbol_entry.is_module_itself())
 
 
-def file_distance(symbol_entry, directory):
+def symbol_entry_file_distance(symbol_entry, directory):
   module_key = symbol_entry.get_module_key()
   if not module_key.is_path_file():
-    return -4  # No filename is probably a builtin - fallback to some reasonable default score.
+    return 4  # No filename is probably a builtin - fallback to some reasonable default score.
+  return file_distance(module_key.path, directory)
 
-  module_filename = module_key.path
-  a_iter = iter(directory)
-  b_iter = iter(module_filename)
+def file_distance(filename1, filename2):
+  a_iter = iter(filename1.split(os.sep))
+  b_iter = iter(filename2.split(os.sep))
 
   for a, b in zip(a_iter, b_iter):
     if a != b:
@@ -195,13 +212,14 @@ def file_distance(symbol_entry, directory):
       b_iter = chain([b], b_iter)
       break
 
-  a_rem = ''.join(a_iter)
-  b_rem = ''.join(b_iter)
-  return -max(a_rem.count(os.sep), b_rem.count(os.sep))
+
+  a_rem = list(a_iter)
+  b_rem = list(b_iter)
+  return max(len(a_rem), len(b_rem))
 
 
 def relative_symbol_entry_preference_key(symbol_entry, directory):
-  return tuple(list(symbol_entry_preference_key(symbol_entry)) + [file_distance(symbol_entry, directory)])
+  return tuple(list(symbol_entry_preference_key(symbol_entry)) + [-symbol_entry_file_distance(symbol_entry, directory)])
 
 
 def key_list(l, key_fn):

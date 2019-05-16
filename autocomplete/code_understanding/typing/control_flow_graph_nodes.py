@@ -5,7 +5,7 @@ from functools import wraps, partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
-from autocomplete.code_understanding.typing import collector, symbol_context
+from . import collector, symbol_context
 from autocomplete.code_understanding.typing.errors import (AmbiguousFuzzyValueError, ParsingError,
                                                            assert_unexpected_parso)
 from autocomplete.code_understanding.typing.expressions import (Expression, StarredExpression,
@@ -153,13 +153,14 @@ class ExpressionCfgNode(CfgNode):
 @attr.s(slots=True)
 class ImportCfgNode(CfgNode):
   module_path = attr.ib()  # TODO: Rename to name
+  source_dir: str = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
-    module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
+    module = self.module_loader.get_module(self.module_path, self.source_dir)
 
     if self.as_name:
       curr_frame[name] = AugmentedObject(module, imported=True)
@@ -193,7 +194,7 @@ class ImportCfgNode(CfgNode):
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
           module_key, is_package, module_type = self.module_loader.get_module_info_from_name(
-              current_name, collector.get_current_context_dir())
+              current_name, self.source_dir)
           # assert is_package
           ancestor_module = SimplePackageModule(current_name,
                                                 module_type,
@@ -245,9 +246,15 @@ class ImportCfgNode(CfgNode):
 class FromImportCfgNode(CfgNode):
   module_path = attr.ib()
   from_import_name_alias_dict: Dict[str, str] = attr.ib()
+  source_dir: str = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
+
+  @instance_memoize
+  def get_module_key(self):
+    # Fix matching absolute v. relative path comparison in fix_code:44
+    return self.module_loader.get_module_info_from_name(self.module_path, self.source_dir)[0]
 
   def _process_impl(self, curr_frame):
     for from_import_name, as_name in self.from_import_name_alias_dict.items():

@@ -20,7 +20,7 @@ from functools import wraps
 from typing import Dict, Iterable
 
 import attr
-from autocomplete.code_understanding.typing import collector, serialization, errors
+from . import collector, serialization, errors
 from autocomplete.code_understanding.typing.errors import (LoadingModuleAttributeError,
                                                            NoDictImplementationError, SourceAttributeError,
                                                            UnableToReadModuleFileError)
