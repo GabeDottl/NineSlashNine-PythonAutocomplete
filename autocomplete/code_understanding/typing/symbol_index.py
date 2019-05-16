@@ -304,7 +304,7 @@ class SymbolIndex:
           # Check if from import value is a module itself - if so, put it into the module key and
           # remove the value.
           module_key, _, module_type = module_loader.get_module_info_from_name(
-              f'{node.module_path}.{value}', directory)
+              module_loader.join_module_attribute(node.module_path, value), directory)
           if module_key.module_source_type != module_loader.ModuleSourceType.BAD:
             value = None
           else:

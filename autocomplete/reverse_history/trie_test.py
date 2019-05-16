@@ -1,6 +1,6 @@
 from collections import Counter
 
-from autocomplete.reverse_history import trie
+from . import trie
 
 
 def test_trie():

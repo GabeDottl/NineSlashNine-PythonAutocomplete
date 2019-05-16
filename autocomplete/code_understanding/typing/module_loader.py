@@ -385,7 +385,7 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[ModuleKey, bool
     package = package_from_directory(curr_dir)
   try:
     spec = importlib.util.find_spec(name, package)
-  except (ImportError, AttributeError) as e:
+  except (ImportError, AttributeError, ValueError) as e:
     # AttributeError: module '_warnings' has no attribute '__path__
     # find_spec can break for sys modules unexpectedly.
     debug(f'Exception while getting spec for {name}')

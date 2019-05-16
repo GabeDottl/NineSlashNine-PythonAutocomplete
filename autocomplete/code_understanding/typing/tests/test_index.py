@@ -4,12 +4,13 @@ from .. import symbol_index
 from ....nsn_logging import info
 
 HOME = os.getenv('HOME')
+TYPING_DIR = os.path.join(os.path.dirname(__file__), '..')
 INDEX_PATH = f'/tmp/index.msg'
 
 
 def test_build_test_index():
   index = symbol_index.SymbolIndex.build_index_from_package(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package',
+      os.path.join(TYPING_DIR, 'examples', 'index_test_package'),
       INDEX_PATH)
   index.save(INDEX_PATH)
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.import_count)
@@ -22,7 +23,7 @@ def test_build_test_index():
 
 def test_build_typing_index():
   index = symbol_index.SymbolIndex.build_index_from_package(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing', INDEX_PATH)
+      TYPING_DIR, INDEX_PATH)
   symbol_entries = list(filter(lambda x: not x.imported, index.find_symbol('Function')))
   assert len(symbol_entries) == 1
   assert symbol_entries[0].symbol_type == symbol_index.SymbolType.TYPE
@@ -41,8 +42,12 @@ def test_build_typing_index():
 def test_add_file():
   initial_index = symbol_index.SymbolIndex(INDEX_PATH)
   initial_index.add_file(
-      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/boo.py',
+      os.path.join(TYPING_DIR, 'examples', 'index_test_package','boo.py'),
       track_imported_modules=True)
+  # initial_index.add_file(
+  #     os.path.join(TYPING_DIR, 'tests', 'test_fix_code.py'),
+  #     track_imported_modules=True)
+
   initial_index.process_tracked_imports()
   initial_index.save()
   loaded_index = symbol_index.SymbolIndex.load(INDEX_PATH)
@@ -50,10 +55,10 @@ def test_add_file():
   # index.add_path(
   #     f'/usr/local/lib/python3.6/site-packages/numpy')
   for index in (initial_index, loaded_index):
-    entries = list(filter(lambda x: not x.imported(), index.find_symbol('attr')))
+    entries = list(filter(lambda x: not x.is_imported(), index.find_symbol('attr')))
     assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
     ).path and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE
-    entries = list(filter(lambda x: not x.imported(), index.find_symbol('at')))
+    entries = list(filter(lambda x: not x.is_imported(), index.find_symbol('at')))
     assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
     ).path and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE
     entries = list(index.find_symbol('attrib'))
