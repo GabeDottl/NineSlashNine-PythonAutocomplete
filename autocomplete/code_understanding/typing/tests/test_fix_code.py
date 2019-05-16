@@ -32,11 +32,12 @@ c = AClass()'''
   index = symbol_index.SymbolIndex()
   index.add_file(
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package/exports.py')
-  new_source = fix_code.fix_missing_symbols_in_source(
+  new_source, changed = fix_code.fix_missing_symbols_in_source(
       source, index,
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
   graph = api.graph_from_source(new_source)
   print(new_source)
+  assert changed
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
   assert len(graph.get_non_local_symbols()) == 0
 
@@ -53,7 +54,7 @@ c = AClass()'''
   index = symbol_index.SymbolIndex.build_index_from_package(
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package',
       '/tmp/tmp.msg')
-  new_source = fix_code.fix_missing_symbols_in_source(
+  new_source, changed = fix_code.fix_missing_symbols_in_source(
       source, index,
       f'{CODE}/autocomplete/autocomplete/code_understanding/typing/examples/index_test_package')
   graph = api.graph_from_source(new_source)

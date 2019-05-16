@@ -18,11 +18,11 @@ from isort import SortImports
 def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=False):
   with open(filename) as f:
     source = ''.join(f.readlines())
-  new_code = fix_missing_symbols_in_source(source, index, os.path.dirname(filename))
-  if write:
+  new_code, changed = fix_missing_symbols_in_source(source, index, os.path.dirname(filename))
+  if write and changed:
     with open(filename, 'w') as f:
       f.writelines(new_code)
-  return new_code
+  return new_code, changed
 
 
 def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_imports=False) -> str:
@@ -30,7 +30,8 @@ def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_import
   existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
   # TODO: remove_extra_imports=False
   missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph)
-  info(f'missing_symbols: {list(missing_symbols.keys())}')
+  if missing_symbols:
+    info(f'missing_symbols: {list(missing_symbols.keys())}')
   fixes = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
   changes = defaultdict(list)
   remaining_fixes = []
@@ -50,7 +51,7 @@ def fix_missing_symbols_in_source(source, index, source_dir, remove_extra_import
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  return refactor.insert_imports(new_source, source_dir, remaining_fixes)
+  return refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0
 
 
 def apply_fixes_to_source(source, source_dir, fixes):
@@ -255,13 +256,28 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     out.append(Import(module_key, as_name, value))
     # TODO: Renames.
   return out
-
+ 
 
 def main(index_file, target_file):
   assert os.path.exists(index_file)
   assert os.path.exists(target_file)
   index = symbol_index.SymbolIndex.load(index_file)
-  fix_missing_symbols_in_file(target_file, index)
+  if os.path.isdir(target_file):
+    from glob import glob
+    from autocomplete.code_understanding.typing.project_analysis import file_history_tracker
+    filenames = glob(f'{target_file}{os.sep}**{os.sep}*py', recursive=True)
+    fht = file_history_tracker.FileHistoryTracker.load(f'{os.getenv("HOME")}{os.sep}fix_code_updates.msg')
+    for filename in filenames:
+      path = os.path.join(target_file, filename)
+      if fht.has_file_changed_since_timestamp(path):
+        info(f'Fixing symbols in {path}')
+        new_code, changed = fix_missing_symbols_in_file(path, index)
+        if changed:
+          info(f'Made updates to {path}')
+        fht.update_timestamp_for_file(path)
+    fht.save()
+  else:
+    fix_missing_symbols_in_file(target_file, index)
 
 
 if __name__ == "__main__":

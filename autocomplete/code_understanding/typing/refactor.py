@@ -47,5 +47,6 @@ def insert_imports(source, source_dir, fixes):
     out.append(f'import {module}\n')
 
   code_insertion = ''.join(out)
-  info(f'code_insertion: {code_insertion}')
+  if code_insertion:
+    info(f'code_insertion: {code_insertion}')
   return code_insertion + source
