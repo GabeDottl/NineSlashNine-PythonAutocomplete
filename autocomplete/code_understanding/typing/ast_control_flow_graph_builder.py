@@ -4,9 +4,6 @@ import _ast
 import astor
 import attr
 from autocomplete.code_understanding.typing import errors
-from autocomplete.code_understanding.typing.control_flow_graph_nodes import *  # Temporary.
-from autocomplete.code_understanding.typing.expressions import *  # Temporary.
-from autocomplete.code_understanding.typing.language_objects import *  # Temporary.
 from autocomplete.nsn_logging import warning
 
 

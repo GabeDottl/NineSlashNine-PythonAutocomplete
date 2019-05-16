@@ -38,15 +38,20 @@ def insert_imports(source, source_dir, fixes):
       module_to_value_dict[module_name].append(value)
 
   out = []
-  for module_name, values in module_to_value_dict.items():
+  for module in sorted(module_imports):
+    out.append(f'import {module}\n')
+  
+  if module_to_value_dict and out:
+    out.append('\n')
+
+  for module_name, values in sorted(module_to_value_dict.items()):
     if len(values) > 1:
       out.append(f'from {module_name} import ({", ".join(sorted(values))})\n')
     else:
       out.append(f'from {module_name} import {values[0]}\n')
-  for module in module_imports:
-    out.append(f'import {module}\n')
-
+  
   code_insertion = ''.join(out)
   if code_insertion:
     info(f'code_insertion: {code_insertion}')
+  
   return code_insertion + source
