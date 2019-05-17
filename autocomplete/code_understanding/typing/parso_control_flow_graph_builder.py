@@ -156,10 +156,12 @@ class ParsoControlFlowGraphBuilder:
     # Children are: def name params : suite
     name = node.children[1].value
     parameters = parameters_from_parameters(node.children[2])
+    return_type_hint_expression = expression_from_node(node.annotation) if node.annotation else None
     old_containing_func = self._containing_func_node
     out = FuncCfgNode(name,
                       parameters,
                       suite=None,
+                      return_type_hint_expression=return_type_hint_expression,
                       module=self._module,
                       containing_func_node=old_containing_func,
                       parse_node=parse_from_parso(node))
@@ -387,7 +389,12 @@ class ParsoControlFlowGraphBuilder:
   def _create_cfg_node_for_classdef(self, node):
     name = node.children[1].value
     suite = self._create_cfg_node(node.children[-1])
-    return KlassCfgNode(name, suite, module=self._module, parse_node=parse_from_parso(node))
+    if node.children[2].value == ':':
+      base_classes = []
+    else:
+      base_classes, kwargs = args_and_kwargs_from_arglist(node.children[3])
+      assert not kwargs
+    return KlassCfgNode(name, base_classes, suite, module=self._module, parse_node=parse_from_parso(node))
 
   @assert_returns_type(List)
   def create_expression_node_tuples_from_if_stmt(self, node) -> List[Tuple[Expression, CfgNode]]:
@@ -551,11 +558,13 @@ def statement_node_from_expr_stmt(node):
   if len(node.children) == 2:  # a += b - augmented assignment.
     annasign = node.children[1]
     assert_unexpected_parso(annasign.type == 'annassign', node_info(node))
+    type_hint = expression_from_node(annasign.children[1])
+    assert len(annasign.children) == 4
     operator = annasign.children[-2]
     assert_unexpected_parso(operator.type == 'operator', node_info(node))
     value_node = annasign.children[-1]
     result_expression = expression_from_node(value_node)
-    return AssignmentStmtCfgNode(variables, '=', result_expression, parse_node=parse_from_parso(node))
+    return AssignmentStmtCfgNode(variables, operator, result_expression, parse_node=parse_from_parso(node), type_hint_expression=type_hint)
   else:
     value_node = node.children[-1]
     result_expression = expression_from_node(value_node)
@@ -582,11 +591,11 @@ def statement_node_from_expr_stmt(node):
     return GroupCfgNode(assignments, parse_node=parse_from_parso(node))
 
 
-def _param_name_from_param_child(param_child):
+def _param_name_type_from_param_child(param_child):
   if param_child.type == 'name':
-    return param_child.value
+    return param_child.value, None
   assert_unexpected_parso(param_child.type == 'tfpdef')
-  return param_child.children[0].value
+  return param_child.children[0].value, expression_from_node(param_child.children[-1])
 
 
 @assert_returns_type(List)
@@ -602,40 +611,46 @@ def parameters_from_parameters(node) -> List[Parameter]:
     assert_unexpected_parso(param.type == 'param', node_info(param))
     if len(param.children) == 1:  # name
       param_child = param.children[0]
-      param_name = _param_name_from_param_child(param_child)
-      out.append(Parameter(param_name, ParameterType.SINGLE))
+      param_name, type_hint_expression = _param_name_type_from_param_child(param_child)
+      out.append(Parameter(param_name, ParameterType.SINGLE, type_hint_expression=type_hint_expression))
     elif len(param.children) == 2:  # name, ',' OR *, args OR **, kwargs
       if param.children[1].type == 'operator' and param.children[1].value == ',':
         param_child = param.children[0]
-        param_name = _param_name_from_param_child(param_child)
-        out.append(Parameter(param_name, ParameterType.SINGLE))
+        param_name, type_hint_expression = _param_name_type_from_param_child(param_child)
+        out.append(Parameter(param_name, ParameterType.SINGLE, type_hint_expression=type_hint_expression))
       else:
         assert_unexpected_parso(param.children[0].type == 'operator', node_info(param))
         if param.children[0].value == '*':
-          out.append(Parameter(_param_name_from_param_child(param.children[1]), ParameterType.ARGS))
+          param_name, type_hint_expression = _param_name_type_from_param_child(param.children[1])
+          out.append(Parameter(param_name, ParameterType.ARGS, type_hint_expression=type_hint_expression))
         else:  # **
-          out.append(Parameter(_param_name_from_param_child(param.children[1]), ParameterType.KWARGS))
+          param_name, type_hint_expression = _param_name_type_from_param_child(param.children[1])
+          out.append(Parameter(param_name, ParameterType.KWARGS, type_hint_expression=type_hint_expression))
     elif len(param.children) == 3:  # len(3)
       if param.children[0].type == 'operator':
         if param.children[0].value == '*':
-          out.append(Parameter(_param_name_from_param_child(param.children[1]), ParameterType.ARGS))
+          param_name, type_hint_expression = _param_name_type_from_param_child(param.children[1])
+          out.append(Parameter(param_name, ParameterType.ARGS, type_hint_expression=type_hint_expression))
         else:  # **
-          out.append(Parameter(_param_name_from_param_child(param.children[1]), ParameterType.KWARGS))
+          param_name, type_hint_expression = _param_name_type_from_param_child(param.children[1])
+          out.append(Parameter(param_name, ParameterType.KWARGS, type_hint_expression=type_hint_expression))
       elif param.children[0].type == 'name' or param.children[0].type == 'tfpdef':
-        # TODO: typehint.
+        param_name, type_hint_expression = _param_name_type_from_param_child(param.children[0])
         out.append(
-            Parameter(_param_name_from_param_child(param.children[0]),
+            Parameter(param_name,
                       ParameterType.SINGLE,
-                      default_expression=expression_from_node(param.children[2])))
+                      default_expression=expression_from_node(param.children[2]), type_hint_expression=type_hint_expression))
       else:
         assert_unexpected_parso(False)
 
     else:  # if len(param.children) == 4:  # name, =, expr, ','
       assert_unexpected_parso(len(param.children) == 4, node_info(param))
+      param_name, type_hint_expression = _param_name_type_from_param_child(param.children[0])
       out.append(
-          Parameter(_param_name_from_param_child(param.children[0]),
+          Parameter(param_name,
                     ParameterType.SINGLE,
-                    default_expression=expression_from_node(param.children[-2])))
+                    default_expression=expression_from_node(param.children[-2]),
+                    type_hint_expression=type_hint_expression))
 
   return out
 

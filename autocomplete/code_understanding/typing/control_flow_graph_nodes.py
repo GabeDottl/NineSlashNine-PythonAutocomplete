@@ -333,6 +333,7 @@ class AssignmentStmtCfgNode(CfgNode):
   operator = attr.ib()  # Generally equals, but possibly +=, etc.
   right_expression: Expression = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
+  type_hint_expression = attr.ib(None)
 
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
@@ -351,6 +352,8 @@ class AssignmentStmtCfgNode(CfgNode):
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    if self.type_hint_expression:
+      return symbol_context.merge_symbol_context_dicts(self.right_expression.get_used_free_symbols(), self.type_hint_expression.get_used_free_symbols())
     return self.right_expression.get_used_free_symbols()
 
   # @instance_memoize
@@ -640,16 +643,17 @@ def _search_for_module(frame):
     return frame.namespace
   return _search_for_module(frame._back)
 
-
 @attr.s(slots=True)
 class KlassCfgNode(CfgNode):
   name = attr.ib()
+  base_class_expressions = attr.ib()
   suite: GroupCfgNode = attr.ib()
   _module = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
     klass_name = f'{curr_frame.namespace.name}.{self.name}' if curr_frame.namespace else self.name
+    #
     klass = Klass(klass_name, self._module.name)
     curr_frame[self.name] = klass
 
@@ -680,6 +684,8 @@ class KlassCfgNode(CfgNode):
         del out[symbol]
     for child in filter(lambda x: isinstance(x, FuncCfgNode), self.suite):
       out = symbol_context.merge_symbol_context_dicts(out, child.get_non_local_symbols())
+    for base_class_expression in self.base_class_expressions:
+      out = symbol_context.merge_symbol_context_dicts(out, base_class_expression.get_used_free_symbols())
     return out
 
   # @instance_memoize
@@ -691,7 +697,7 @@ class KlassCfgNode(CfgNode):
 
   def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
-    return KlassCfgNode(self.name, suite, self._module, self.parse_node)
+    return KlassCfgNode(self.name, self.base_class_expressions, suite, self._module, self.parse_node)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
@@ -702,6 +708,7 @@ class FuncCfgNode(CfgNode):
   name = attr.ib()
   parameters = attr.ib()
   suite = attr.ib()
+  return_type_hint_expression = attr.ib(None)
   _module = attr.ib(kw_only=True)
   _containing_func_node = attr.ib(kw_only=True)
   parse_node = attr.ib(kw_only=True)
@@ -781,6 +788,11 @@ class FuncCfgNode(CfgNode):
       if parameter.default_expression:
         out = symbol_context.merge_symbol_context_dicts(out,
                                                         parameter.default_expression.get_used_free_symbols())
+      if parameter.type_hint_expression:
+        out = symbol_context.merge_symbol_context_dicts(out,
+                                                        parameter.type_hint_expression.get_used_free_symbols())
+    if self.return_type_hint_expression:
+      out = symbol_context.merge_symbol_context_dicts(out, self.return_type_hint_expression.get_used_free_symbols())
 
     return out
 

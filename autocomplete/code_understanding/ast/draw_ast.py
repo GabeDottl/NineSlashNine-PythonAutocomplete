@@ -8,7 +8,7 @@ import ast
 import webbrowser
 
 import graphviz
-from .ast.ast_utils import _name_id_or_arg
+from .ast_utils import _name_id_or_arg
 from ..utils import type_name
 
 

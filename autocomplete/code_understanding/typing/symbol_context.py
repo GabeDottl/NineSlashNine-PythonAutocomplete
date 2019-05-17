@@ -15,6 +15,10 @@ class RawSymbolContext(SymbolContext):
 
 # parse_node = attr.ib()
 
+# @attr.s
+# class SubclassSymbolContext(SymbolContext):
+#   parse_node = attr.ib()
+
 
 @attr.s
 class CallSymbolContext(SymbolContext):
