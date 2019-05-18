@@ -5,14 +5,15 @@ from itertools import chain
 from typing import Dict, List, Union
 
 import attr
-from .. import (api, module_loader, symbol_context, symbol_index, refactor)
-from ..control_flow_graph_nodes import (FromImportCfgNode, ImportCfgNode)
-from . import (find_missing_symbols)
-from ....nsn_logging import warning, info
 from isort import SortImports
 
+from ....nsn_logging import info, warning
+from .. import api, module_loader, refactor, symbol_context, symbol_index
+from ..control_flow_graph_nodes import FromImportCfgNode, ImportCfgNode
+from . import find_missing_symbols
 
-def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=True):
+
+def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=True, sort_imports=True):
   with open(filename) as f:
     source = ''.join(f.readlines())
   new_code, changed = fix_missing_symbols_in_source(source,
@@ -25,7 +26,7 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
   return new_code, changed
 
 
-def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=True) -> str:
+def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=True, sort_imports=True) -> str:
   graph = api.graph_from_source(source, source_dir, parso_default=True)
   existing_global_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
   if remove_extra_imports:
@@ -92,7 +93,10 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  return refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
+  new_source = refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
+  if sort_imports:
+    return SortImports(file_contents=new_source).output
+  return new_source
 
 
 def apply_fixes_to_source(source, source_dir, fixes):
@@ -329,7 +333,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
   return fixes, still_missing
 
 
-def main(index_file, target_file):
+def main(index_file, target_file, force):
   assert os.path.exists(index_file)
   assert os.path.exists(target_file)
   index = symbol_index.SymbolIndex.load(index_file)
@@ -343,15 +347,16 @@ def main(index_file, target_file):
     updated_a_file = False
     for filename in filenames:
       path = os.path.join(target_file, filename)
-      if fht.has_file_changed_since_timestamp(path):
+      if fht.has_file_changed_since_timestamp(path) or force:
         info(f'Fixing symbols in {path}')
         new_code, changed = fix_missing_symbols_in_file(path, index)
         if changed:
           info(f'Made updates to {path}')
         fht.update_timestamp_for_file(path)
         updated_a_file = True
-    fht.save()
-    if not updated_a_file:
+    if updated_a_file:
+      fht.save()
+    else:
       info(f'All {len(filenames)} files already up-to-date.')
   else:
     info(f'Fixing in {target_file}')
@@ -363,5 +368,6 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('index_file')
   parser.add_argument('target_file')
+  parser.add_argument('force', type=bool, default=False)
   args, _ = parser.parse_known_args()
-  main(args.index_file, args.target_file)
+  main(args.index_file, args.target_file, args.force)
