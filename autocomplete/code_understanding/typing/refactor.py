@@ -2,7 +2,8 @@ import attr
 from itertools import chain
 
 import _ast
-from typing import Dict, List, Tuple
+from os import remove
+from typing import List
 from collections import defaultdict, OrderedDict
 from ...nsn_logging import info
 from . import control_flow_graph_nodes, api, expressions

@@ -1,20 +1,16 @@
 import itertools
 from abc import ABC, abstractmethod
-from builtins import NotImplementedError
-from functools import wraps, partial
+from functools import partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
-from . import collector, symbol_context, expressions
-from .errors import (AmbiguousFuzzyValueError, ParsingError, assert_unexpected_parso)
-from .expressions import (Expression, StarredExpression, SubscriptExpression, VariableExpression,
-                          _assign_variables_to_results)
-from .frame import Frame, FrameType
-from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, ModuleImpl,
-                               NativeModule, Parameter, SimplePackageModule)
-from .pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, UnknownObject)
+from . import (collector, symbol_context)
+from .errors import AmbiguousFuzzyValueError
+from .expressions import (Expression, VariableExpression, _assign_variables_to_results)
+from .frame import FrameType
+from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, Parameter, SimplePackageModule)
+from .pobjects import (AugmentedObject, LazyObject, UnknownObject)
 from .utils import (assert_returns_type, instance_memoize)
-from ...nsn_logging import error, info, warning
 
 # from .collector import Collector
 

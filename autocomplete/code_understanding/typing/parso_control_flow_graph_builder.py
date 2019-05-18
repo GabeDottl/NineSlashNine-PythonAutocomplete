@@ -1,5 +1,5 @@
 import itertools
-# TODO: Clean these....
+
 import sys
 import traceback
 from functools import wraps
@@ -76,13 +76,11 @@ class ParsoControlFlowGraphBuilder:
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_error_leaf(self, node):
     info(f'Error leaf when processing: "{node.get_code()}"')
-    # assert False
     return NoOpCfgNode(parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_error_node(self, node):
     info(f'Error node when processing: "{node.get_code()}"')
-    # assert False
     return NoOpCfgNode(parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
@@ -806,15 +804,9 @@ def expressions_from_subscriptlist(node) -> Expression:
       return values
     else:  # subscript
       # num op num [sliceop]
-      # info(f'Failing to handle node: {node_info(node)}')
-      # return UnknownExpression(node.get_code())
       raise NotImplementedError()  # TODO
   except:
     return UnknownExpression(node.get_code())
-
-
-# @_unimplmented_expression
-
 
 def kwarg_from_argument(argument):
   # argument: ( test [comp_for] |
@@ -844,20 +836,8 @@ def kwarg_from_argument(argument):
   for_comprehension = for_comprehension_from_comp_for(second_child)
   return None, ForComprehensionExpression(first_expression, for_comprehension)
 
-  # if argument.children[0].type == 'name':  # Possible kwarg
-  #   if len(argument.children) == 3 and argument.children[1].type == 'operator' and argument.children.value == '=':
-  #     return argument.children[0].value, expression_from_node(argument.children[2])
-  #   assert False
-
-  #   # elif argument.type == 'operator' and argument.value == '*':
-  #   #   continue
-  # else:  # arg
-  #   assert_unexpected_parso(len(argument.children) == 2, node_info(argument))
-
-
 @assert_returns_type(Tuple)
 def args_and_kwargs_from_arglist(node):
-  # try:
   if node.type != 'arglist' and node.type != 'argument':
     return [expression_from_node(node)], {}
   elif node.type == 'argument':
@@ -881,10 +861,6 @@ def args_and_kwargs_from_arglist(node):
       elif child.type != 'operator':  # not ','
         args.append(expression_from_node(child))
     return args, kwargs
-  # except NotImplementedError as e:
-  #   warning(f'Failed to handle: {node_info(node)}')
-  #   return [UnknownExpression(node.get_code())], {}
-
 
 @assert_returns_type(Expression)
 def expression_from_node(node):
@@ -937,7 +913,7 @@ def expression_from_node(node):
     # return UnknownExpression()
   debug(f'Unhanded type!!!!: {node_info(node)}')
   # return UnknownExpression(node.get_code())
-  assert False
+  assert False, node_info(node)
   raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))
 
