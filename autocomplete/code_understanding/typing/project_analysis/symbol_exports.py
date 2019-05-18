@@ -2,13 +2,13 @@
 import os
 from argparse import ArgumentParser
 from glob import glob
-from pprint import pprint
 from typing import List
 
 import attr
 import pandas as pd
-from .. import (api, collector, module_loader)
-from ....nsn_logging import (info, pop_context, push_context, set_verbosity)
+
+from .. import api, module_loader
+from ....nsn_logging import info, pop_context, push_context, set_verbosity
 
 
 def extract_exports(source, filename):

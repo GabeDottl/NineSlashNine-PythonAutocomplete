@@ -2,15 +2,17 @@ import builtins
 import os
 import sys
 import types
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from enum import Enum
 from functools import partial
 from glob import glob
-from typing import Dict, Tuple, List
+from typing import Dict, List, Tuple
 
 import attr
 import msgpack
-from . import (control_flow_graph_nodes, errors, language_objects, module_loader, utils)
+
+from . import (control_flow_graph_nodes, errors, language_objects,
+               module_loader, utils)
 from ...nsn_logging import info, warning
 
 

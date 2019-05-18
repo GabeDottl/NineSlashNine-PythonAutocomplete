@@ -1,8 +1,6 @@
 from typing import Iterable
 
-import attr
-from .utils import (attrs_names_from_class, to_dict_iter)
-from ...nsn_logging import info
+from .utils import attrs_names_from_class, to_dict_iter
 
 NONE_TYPE = type(None)
 

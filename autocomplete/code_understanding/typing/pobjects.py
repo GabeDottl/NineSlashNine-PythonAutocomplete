@@ -1,19 +1,16 @@
-import itertools
-import types
-import typing
 import collections
 from abc import ABC, abstractmethod
-from builtins import NotImplementedError
 from enum import Enum
-from functools import partialmethod, wraps, partial
-from typing import Dict, List
+from functools import partial, wraps
+from typing import List
 
 import attr
+
 from . import collector, serialization
-from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError,
+from ...nsn_logging import debug, error, info, warning
+from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError,
                      SourceAttributeError)
 from .utils import to_dict_iter
-from ...nsn_logging import debug, error, info, warning
 
 _OPERATORS = [
     '__add__', '__and__', '__ge__', '__gt__', '__le__', '__lt__', '__lshift__', '__mod__', '__mul__',

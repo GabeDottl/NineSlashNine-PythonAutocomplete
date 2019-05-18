@@ -1,18 +1,18 @@
 '''This module defines a Frame type and related types for simulating execution.
 
 https://tech.blog.aknin.name/2010/07/22/pythons-innards-interpreter-stacks/'''
-import itertools
 from enum import Enum
 from functools import wraps
 from typing import Dict, List
 
 import attr
+
 from . import collector, utils
-from .errors import CellValueNotSetError
-from .expressions import (AttributeExpression, Expression, SubscriptExpression, VariableExpression)
-from .pobjects import (NONE_POBJECT, AugmentedObject, FuzzyObject, NativeObject, PObject, UnknownObject,
-                       pobject_from_object)
-from ...nsn_logging import info, warning, debug
+from ...nsn_logging import debug, info
+from .expressions import (AttributeExpression, Expression, SubscriptExpression,
+                          VariableExpression)
+from .pobjects import (NONE_POBJECT, FuzzyObject, NativeObject, PObject,
+                       UnknownObject, pobject_from_object)
 
 
 @attr.s(slots=True)

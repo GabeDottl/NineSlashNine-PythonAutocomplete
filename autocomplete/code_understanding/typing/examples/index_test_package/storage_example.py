@@ -1,7 +1,4 @@
-import sys
-import traceback
 
-import six  # NativeModule
 
 from .boo import Boo
 

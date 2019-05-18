@@ -1,9 +1,8 @@
-import os
 
 import msgpack
-from .. import (language_objects, module_loader, serialization)
-from ..module_index import ModuleIndex
-from ..utils import (assert_expected_iterable)
+
+from .. import module_loader, serialization
+from ..utils import assert_expected_iterable
 
 # def test_store_retrieve():
 #   tmp_file = '/tmp/tmp.hdf'

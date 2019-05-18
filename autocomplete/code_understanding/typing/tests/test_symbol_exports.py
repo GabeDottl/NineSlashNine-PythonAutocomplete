@@ -1,12 +1,12 @@
 import os
 from glob import glob
 
-from .. import (collector, control_flow_graph, module_loader, utils)
+from .. import collector, control_flow_graph, module_loader
+from ....nsn_logging import info
 from ..api import graph_from_source
-from ..control_flow_graph_nodes import (FuncCfgNode)
-from ..project_analysis import (find_missing_symbols)
-from ..utils import (assert_expected_iterable)
-from ....nsn_logging import debug, info
+from ..control_flow_graph_nodes import FuncCfgNode
+from ..project_analysis import find_missing_symbols
+from ..utils import assert_expected_iterable
 
 
 def test_cfg_symbol_visibility():

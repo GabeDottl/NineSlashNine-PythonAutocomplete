@@ -2,12 +2,9 @@
 import os
 from glob import glob
 
-import parso
-
-from .. import (control_flow_graph, control_flow_graph_nodes, module_loader)
-from ..language_objects import (Function, Instance, Klass, Module)
-from ..pobjects import FuzzyBoolean
+from .. import control_flow_graph_nodes, module_loader
 from ....nsn_logging import debug
+from ..language_objects import Function, Instance, Klass, Module
 
 
 def test_simple_assignments():

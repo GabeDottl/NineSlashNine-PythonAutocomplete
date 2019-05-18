@@ -1,12 +1,12 @@
 '''This module is used for caching modules.'''
-from builtins import ValueError
 
 import attr
 import h5py
+
 from . import module_loader
-from .errors import (AmbiguousFuzzyValueError)
-from .language_objects import (Function, Instance, Klass, ModuleImpl, ModuleType)
-from .pobjects import (FuzzyObject, UnknownObject, pobject_from_object)
+from .errors import AmbiguousFuzzyValueError
+from .language_objects import Function, Instance, Klass, ModuleImpl, ModuleType
+from .pobjects import FuzzyObject, pobject_from_object
 
 
 @attr.s

@@ -1,18 +1,8 @@
 import os
-import os as whatever
 from functools import wraps
 from typing import List
 
-import a.b.c
-import django as dj
-import numpy
-from a import a
-from a import b as c
-from a import d
-from ... import typing
-from g import h, w
-from x.y.z import q
-from x.y.z import r as s
+from g import h
 
 
 @wraps

@@ -1,5 +1,4 @@
 from .. import module_loader
-from ..pobjects import FuzzyBoolean
 
 
 def test_dicts():
