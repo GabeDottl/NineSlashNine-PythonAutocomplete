@@ -17,23 +17,10 @@
 #
 # DFS down tree to node to determine values
 # - Memoize where possible + shortcut
-import sys
-import traceback
-from functools import wraps
-from typing import List, Tuple
 
 import attr
-from . import (ast_control_flow_graph_builder, errors, language_objects, parso_control_flow_graph_builder)
-from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
-                                       ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
-                                       ImportCfgNode, KlassCfgNode, NoOpCfgNode, ReturnCfgNode, TryCfgNode,
-                                       WhileCfgNode, WithCfgNode)
-from .errors import ParsingError
-from .expressions import (AnonymousExpression, Expression, LiteralExpression, UnknownExpression,
-                          VariableExpression)
-from .frame import Frame
-from .pobjects import NONE_POBJECT
-from ...nsn_logging import debug, error, info, warning
+from . import (ast_control_flow_graph_builder, errors, parso_control_flow_graph_builder)
+from .control_flow_graph_nodes import (GroupCfgNode, NoOpCfgNode)
 
 
 def condense_graph(graph):

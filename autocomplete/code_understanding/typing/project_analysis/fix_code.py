@@ -3,11 +3,10 @@ import sys
 from functools import partial
 from itertools import chain
 from typing import Dict, List, Union
-from collections import defaultdict
 
 import attr
 from .. import (api, module_loader, symbol_context, symbol_index, refactor)
-from ..control_flow_graph_nodes import (CfgNode, FromImportCfgNode, ImportCfgNode)
+from ..control_flow_graph_nodes import (FromImportCfgNode, ImportCfgNode)
 from . import (find_missing_symbols)
 from ....nsn_logging import warning, info
 from isort import SortImports

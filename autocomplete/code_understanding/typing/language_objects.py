@@ -12,24 +12,18 @@ In general, we work around this by using non-dunder methods that match the dunde
 So __getitem__, __getattribute__, __call__, etc. translate into get_item, get_attribute, call.
 '''
 import itertools
-import os
-from abc import ABC, abstractmethod
-from copy import copy
+from abc import ABC
 from enum import Enum
 from functools import wraps
 from typing import Dict, Iterable
 
 import attr
-from . import collector, serialization, errors
-from .errors import (LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError,
-                     UnableToReadModuleFileError)
-from .expressions import (AnonymousExpression, LiteralExpression, StarredExpression, VariableExpression)
-from .frame import Frame, FrameType
-from .pobjects import (NONE_POBJECT, AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject,
-                       PObject, PObjectType, UnknownObject, pobject_from_object)
-from .serialization import type_name
-from .utils import (attrs_names_from_class, instance_memoize)
-from ...nsn_logging import debug, error, info, warning
+from . import (collector, serialization)
+from .errors import (NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
+from .frame import FrameType
+from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject, PObjectType, UnknownObject, pobject_from_object)
+from .utils import attrs_names_from_class
+from ...nsn_logging import (debug, error, warning)
 
 
 @attr.s(slots=True)

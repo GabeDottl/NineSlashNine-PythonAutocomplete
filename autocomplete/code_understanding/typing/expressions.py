@@ -1,15 +1,12 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import Dict, Iterable, List, Union
-from wsgiref.validate import validator
+from typing import (Dict, List, Union)
 
 import attr
-from . import collector, symbol_context
-from .errors import (AmbiguousFuzzyValueError)
-from .pobjects import (AugmentedObject, FuzzyBoolean, FuzzyObject, LazyObject, NativeObject, PObject,
-                       PObjectType, UnknownObject, pobject_from_object)
-from .utils import (assert_returns_type, instance_memoize)
-from ...nsn_logging import debug, info, warning
+from . import symbol_context
+from .pobjects import (FuzzyObject, LazyObject, NativeObject, PObject, PObjectType, UnknownObject, pobject_from_object)
+from .utils import assert_returns_type
+from ...nsn_logging import debug
 
 
 class Expression(ABC):

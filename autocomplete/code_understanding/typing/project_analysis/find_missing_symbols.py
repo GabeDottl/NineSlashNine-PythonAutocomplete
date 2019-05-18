@@ -4,7 +4,7 @@ from glob import glob
 from pprint import pprint
 from itertools import chain
 
-from .. import (api, collector, module_loader, utils, language_objects)
+from .. import (api, language_objects, module_loader, utils)
 from ..control_flow_graph_nodes import (FromImportCfgNode)
 from ....nsn_logging import info
 

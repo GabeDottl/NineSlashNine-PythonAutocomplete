@@ -17,19 +17,17 @@ https://docs.python.org/3/tutorial/modules.html
 import attr
 import importlib
 import os
-import pkgutil
 import sys
 from typing import Dict, Set, Tuple
 from enum import Enum
 
 import typeshed
-from . import (api, collector, frame, serialization)
+from . import (api, frame, serialization)
 from .collector import FileContext
-from .errors import (LoadingModuleAttributeError, SourceAttributeError, InvalidModuleError,
-                     UnableToReadModuleFileError)
+from .errors import (InvalidModuleError, UnableToReadModuleFileError)
 from .language_objects import (LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
 from .pobjects import (AugmentedObject, NativeObject, PObject, UnknownObject)
-from ...nsn_logging import debug, error, info, warning
+from ...nsn_logging import (debug, info, warning)
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
 

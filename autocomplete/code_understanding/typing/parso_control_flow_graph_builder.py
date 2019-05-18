@@ -1,10 +1,7 @@
 import itertools
 
-import sys
-import traceback
 from functools import wraps
-from symbol import dictorsetmaker
-from typing import Dict, List, Tuple, Union
+from typing import (List, Tuple, Union)
 
 import parso
 
@@ -20,11 +17,10 @@ from .expressions import (AndOrExpression, AnonymousExpression, AttributeExpress
                           KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
                           MathExpression, NotExpression, SetExpression, StarredExpression,
                           SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)
-from .frame import Frame
 from .language_objects import (Parameter, ParameterType)
 from .pobjects import NONE_POBJECT
 from .utils import assert_returns_type
-from ...nsn_logging import debug, error, info, warning
+from ...nsn_logging import (debug, error, info)
 
 EXPRESSION_NODES = {
     'testlist_star_expr', 'comparison', 'star_expr', 'expr', 'xor_expr', 'arith_expr', 'and_expr', 'and_test',
