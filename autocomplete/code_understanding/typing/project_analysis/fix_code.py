@@ -368,6 +368,6 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('index_file')
   parser.add_argument('target_file')
-  parser.add_argument('force', type=bool, default=False)
+  parser.add_argument('force', type=bool, default=False, required=False)
   args, _ = parser.parse_known_args()
   main(args.index_file, args.target_file, args.force)
