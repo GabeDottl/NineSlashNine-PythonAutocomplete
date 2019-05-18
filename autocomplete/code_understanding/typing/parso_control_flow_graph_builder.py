@@ -881,7 +881,7 @@ def expression_from_node(node):
     return FactorExpression(node.children[0].value,
                             expression_from_node(node.children[1]),
                             parse_node=parse_from_parso(node))
-  if node.type == 'arith_expr' or node.type == 'term':
+  if node.type == 'arith_expr' or node.type == 'term' or node.type == 'expr' or node.type == 'xor_expr' or node.type == 'and_expr'or node.type == 'shift_expr' or node.type == 'power':
     return expression_from_math_expr(node)
   if node.type == 'atom':
     return expression_from_atom(node)
