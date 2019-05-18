@@ -5,7 +5,7 @@ from functools import wraps, partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
-from . import collector, symbol_context
+from . import collector, symbol_context, expressions
 from .errors import (AmbiguousFuzzyValueError, ParsingError, assert_unexpected_parso)
 from .expressions import (Expression, StarredExpression, SubscriptExpression, VariableExpression,
                           _assign_variables_to_results)
@@ -511,7 +511,7 @@ class TryCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(*[
         node.get_non_local_symbols()
-        for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
+        for node in itertools.chain([self.suite, self.else_suite, self.finally_suite], self.except_nodes)
     ])
 
   # @instance_memoize
@@ -519,7 +519,7 @@ class TryCfgNode(CfgNode):
     return set(
         itertools.chain(*[
             node.get_defined_and_exported_symbols()
-            for node in itertools.chain([self.suite, self.finally_suite], self.except_nodes)
+            for node in itertools.chain([self.suite, self.else_suite, self.finally_suite], self.except_nodes)
         ]))
 
   def get_descendents_of_types(self, type_):

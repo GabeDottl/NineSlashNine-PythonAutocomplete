@@ -90,7 +90,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  return refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0
+  return refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
 
 
 def apply_fixes_to_source(source, source_dir, fixes):

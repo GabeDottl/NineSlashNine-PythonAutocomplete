@@ -24,6 +24,7 @@ def apply_import_changes(source: str, changes: List[Change]) -> str:
   new_source_lines = OrderedDict()
   for i, l in enumerate(source.splitlines()):
     new_source_lines[i] = l
+  # TODO: Migrate this to apply_insert_and_removals func & merge with insert_imports.
   for change in changes:
     parso_node = change.cfg_node.parse_node.native_node
     assert not isinstance(parso_node, _ast.AST), "Must create graph w/parso."
@@ -133,7 +134,7 @@ def insert_imports(source, source_dir, fixes):
             first_node.expression, expressions.LiteralExpression) and isinstance(
                 first_node.expression.literal, str):
           # First node is a module comment! Insert imports after it.
-          import_insertion_line = first_node.parse_node.native_node.end_pos[0]
+          from_insertion_line = first_node.parse_node.native_node.end_pos[0]
           inserts.append(Insert((from_insertion_line, 0), '\n'))
 
       # TODO: Relative imports first, new-line, absolute.
@@ -151,11 +152,11 @@ def insert_imports(source, source_dir, fixes):
       from_import_nodes = sorted(from_import_nodes, key=lambda node: node.module_path)
       for module_name, values in reversed(sorted(module_to_value_dict.items())):
         if from_import_nodes[0].module_path > module_name:
-          import_insertion_line = from_import_nodes[0].parse_node.lineno - 1
+          from_insertion_line = from_import_nodes[0].parse_node.lineno - 1
         else:
           for node in from_import_nodes:
             if node.module_path > module_name:
-              import_insertion_line = node.parse_node.lineno - 1
+              from_insertion_line = node.parse_node.lineno - 1
               break
         if len(values) > 1:
           inserts.append(

@@ -16,6 +16,17 @@
       ],
     },
     {
+      "name": "typing_index_clone",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.code_understanding.typing.symbol_index",
+      "console": "integratedTerminal",
+      "args": [
+        "$HOME/code/autocomplete_clone/autocomplete/code_understanding/typing",
+        "$HOME/code/autocomplete_clone/index.msg",
+      ],
+    },
+    {
       "name": "test_fix_code",
       "type": "python",
       "request": "launch",
@@ -23,11 +34,31 @@
       "module": "autocomplete.code_understanding.typing.tests.test_fix_code",
       "console": "integratedTerminal",
     },
+
+    {
+      "name": "fix_code_clone",
+      "type": "python",
+      "request": "launch",
+      // "cwd": "${workspaceFolder}",
+      "module": "autocomplete.code_understanding.typing.project_analysis.fix_code",
+      "console": "integratedTerminal",
+      "args": [
+        "$HOME/code/autocomplete_clone/index.msg",
+        "$HOME/code/autocomplete_clone/autocomplete/code_understanding/typing",
+      ],
+    },
     {
       "name": "test_index",
       "type": "python",
       "request": "launch",
       "module": "autocomplete.code_understanding.typing.tests.test_index",
+      "console": "integratedTerminal",
+    },
+    {
+      "name": "test_refactor",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.code_understanding.typing.tests.test_refactor",
       "console": "integratedTerminal",
     },
     {
