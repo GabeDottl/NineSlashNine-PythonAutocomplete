@@ -40,8 +40,8 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   def get_change(node):
     module_key = node.get_module_key()
     if module_key in changes:
-      return changes[module_key]
-    out = changes[module_key] = refactor.Change(node, [], [])
+      return changes[(module_key, id(node))]
+    out = changes[(module_key, id(node))] = refactor.Change(node, [], [])
     return out
 
   if remove_extra_imports:
@@ -60,7 +60,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
             continue
           if as_name and as_name in missing_symbols:
             continue
-          elif not as_name and from_import_name in missing_symbols:
+          if not as_name and from_import_name in missing_symbols:
             continue
           info(f'from_import_name not used: {from_import_name}')
           get_change(import_node).removals.append(from_import_name)
@@ -93,10 +93,11 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  new_source = refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
-  if sort_imports:
-    return SortImports(file_contents=new_source).output
-  return new_source
+  new_source, changed = refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
+  if sort_imports and changed:
+    out = SortImports(file_contents=new_source).output
+    return out, True
+  return new_source, changed
 
 
 def apply_fixes_to_source(source, source_dir, fixes):

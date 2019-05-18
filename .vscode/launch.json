@@ -44,7 +44,8 @@
       "console": "integratedTerminal",
       "args": [
         "$HOME/code/autocomplete_clone/index.msg",
-        "$HOME/code/autocomplete_clone/autocomplete/code_understanding/typing"
+        "$HOME/code/autocomplete_clone/autocomplete/code_understanding/typing",
+        "-f"
       ],
     },
     {

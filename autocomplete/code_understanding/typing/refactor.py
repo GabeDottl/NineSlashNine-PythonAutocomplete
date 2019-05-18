@@ -217,6 +217,9 @@ def _validate_inserts_removals(lines, inserts, removals):
 
 
 def apply_inserts_and_removals_to_string(string, inserts, removals):
+  if not inserts and not removals:
+    return string
+
   lines = [f'{l}\n' for l in string.splitlines()]
   inserts = sorted(inserts, key=lambda i: i.start_pos)
   removals = sorted(removals, key=lambda r: r.start_pos)
