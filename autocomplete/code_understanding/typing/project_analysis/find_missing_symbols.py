@@ -17,7 +17,7 @@ def scan_missing_symbols_in_file(filename):
   return scan_missing_symbols_in_graph(graph, os.path.dirname(filename))
 
 
-def scan_missing_symbols_in_graph(graph, directory):
+def scan_missing_symbols_in_graph(graph, directory, skip_wild_cards=False):
   missing_symbols = graph.get_non_local_symbols()
   for builtin in chain(utils.get_possible_builtin_symbols(),
                        language_objects.ModuleImpl.get_module_builtin_symbols()):
@@ -27,7 +27,7 @@ def scan_missing_symbols_in_graph(graph, directory):
   # these symbols may not actually be missing during interpretation because either they're imported with
   # a glob import (from a import *) or they're manually set as attributes on the module (setattr(__module__)).
   # TODO: Handle setattr(__module__) case / do full interpretation.
-  if missing_symbols:
+  if missing_symbols and not skip_wild_cards:
     # Check for wild-card/glob imports - i.e. 'from a import *'.
     from_imports = graph.get_descendents_of_types(FromImportCfgNode)
     for from_import in from_imports:

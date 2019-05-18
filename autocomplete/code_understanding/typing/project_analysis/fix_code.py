@@ -31,11 +31,11 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   existing_global_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
   if remove_extra_imports:
     stripped_graph = graph.strip_descendents_of_types((FromImportCfgNode, ImportCfgNode), recursive=False)
-    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph, source_dir)
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph, source_dir, skip_wild_cards=True)
   else:
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
 
-  changes = {}  #defaultdict(list)
+  changes = {}
 
   def get_change(node):
     module_key = node.get_module_key()
@@ -55,20 +55,23 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
           get_change(import_node).removals.append(symbol_name)
       else:  # FromImportCfgNode
         for from_import_name, as_name in import_node.from_import_name_alias_dict.items():
+          if from_import_name == '*':
+            get_change(import_node).removals.append(from_import_name)
+            continue
           if as_name and as_name in missing_symbols:
             continue
           elif not as_name and from_import_name in missing_symbols:
             continue
           info(f'from_import_name not used: {from_import_name}')
           get_change(import_node).removals.append(from_import_name)
-    # Recalculate missing symbols accounting for imports now that we've figured out wahat to remove
-    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
+    # Recalculate missing symbols accounting for imports now that we've figured out what to remove
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir, skip_wild_cards=True)
 
   if missing_symbols:
     info(f'missing_symbols: {list(missing_symbols.keys())}')
   fixes, still_missing = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
   if still_missing:
-    info(f'still_missing: {still_missing}')
+    info(f'still_missing: {still_missing.keys()}')
 
   remaining_fixes = []
   for fix in fixes:
@@ -283,14 +286,14 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
                                   index: symbol_index.SymbolIndex, directory) -> List[Union[Rename, Import]]:
 
   fixes = []
-  still_missing = []
+  still_missing = {}
   for symbol, context in missing_symbols.items():
     # Prefer symbols which are imported already very often.
     entries = sorted(filter(partial(matches_context, context), index.find_symbol(symbol)),
                      key=symbol_entry_preference_key)
     if not entries:
       warning(f'Could not find import for {symbol}')
-      still_missing.append((symbol, context))
+      still_missing[symbol] = context
       continue
     # TODO: Compare symbol_context w/entry.
     if len(entries) > 1 and symbol_entry_preference_key(entries[-1]) == symbol_entry_preference_key(
@@ -301,7 +304,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
         warning(
             f'Ambiguous for {symbol} : {keyed_entries[-1][0].get_module_key()}\n{keyed_entries[-2][0].get_module_key()}'
         )
-        still_missing.append((symbol, context))
+        still_missing[symbol] = context
         continue
       entry = keyed_entries[-1][0]
     else:

@@ -12,9 +12,6 @@ from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionTy
 from .pobjects import (AugmentedObject, LazyObject, UnknownObject)
 from .utils import (assert_returns_type, instance_memoize)
 
-# from .collector import Collector
-
-
 @attr.s
 class ParseNode:
   lineno: int = attr.ib()

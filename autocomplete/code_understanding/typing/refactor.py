@@ -161,6 +161,9 @@ def insert_imports(source, source_dir, fixes):
             if node.module_path > module_name:
               from_insertion_line = node.parse_node.lineno - 1
               break
+          else:
+            # Insert after all other from_imports.
+            from_insertion_line = from_import_nodes[-1].parse_node.native_node.end_pos[0]
         if len(values) > 1:
           inserts.append(
               Insert((
