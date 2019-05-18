@@ -57,9 +57,11 @@ def apply_import_changes(source: str, changes: List[Change]) -> str:
 
       insertion_col = start_pos[1]
       if len(new_from_imports) >= 1:
-        new_from_imports = sorted(new_from_imports, key=lambda from_as_name: from_as_name[0])
-
-        insertion = f'({", ".join(import_format(v,a) for v,a in new_from_imports)})'
+        if len(new_from_imports) > 1:
+          new_from_imports = sorted(new_from_imports, key=lambda from_as_name: from_as_name[0])
+          insertion = f'({", ".join(import_format(v,a) for v,a in new_from_imports)})'
+        else:
+          insertion = f'{", ".join(import_format(v,a) for v,a in new_from_imports)}'
         line = f'{line[:insertion_col]}{insertion}{line[insertion_col:]}'
         new_source_lines[start_pos[0] - 1] = line
   return '\n'.join(new_source_lines.values())

@@ -8,7 +8,7 @@ from collections import defaultdict
 import attr
 from .. import (api, module_loader, symbol_context, symbol_index, refactor)
 from ..control_flow_graph_nodes import (CfgNode, FromImportCfgNode, ImportCfgNode)
-from . import (find_missing_symbols, fix_code)
+from . import (find_missing_symbols)
 from ....nsn_logging import warning, info
 from isort import SortImports
 
@@ -28,7 +28,7 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
 
 def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=True) -> str:
   graph = api.graph_from_source(source, source_dir, parso_default=True)
-  existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
+  existing_global_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
   if remove_extra_imports:
     stripped_graph = graph.strip_descendents_of_types((FromImportCfgNode, ImportCfgNode), recursive=False)
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph, source_dir)
@@ -45,7 +45,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
     return out
 
   if remove_extra_imports:
-    for import_node in existing_imports:
+    for import_node in existing_global_imports:
       if isinstance(import_node, ImportCfgNode):
         symbol_name = import_node.as_name if import_node.as_name else import_node.module_path
         if symbol_name in missing_symbols:
@@ -76,7 +76,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
     if not value:
       remaining_fixes.append(fix)
       continue
-    for node in filter(lambda x: isinstance(x, FromImportCfgNode), existing_imports):
+    for node in filter(lambda x: isinstance(x, FromImportCfgNode), existing_global_imports):
       # We use module_key instead of module_name directly to handle different import styles - e.g.,
       # relative import v. absolute of the same module.
       if node.get_module_key() == fix.module_key:

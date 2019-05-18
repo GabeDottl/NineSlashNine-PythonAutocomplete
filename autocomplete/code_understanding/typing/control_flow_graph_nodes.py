@@ -62,7 +62,7 @@ class CfgNode(ABC):
     this will generally include all of their assignments.
     '''
 
-  def get_descendents_of_types(self, type_):
+  def get_descendents_of_types(self, type_, recursive=True):
     return []
 
   def strip_descendents_of_types(self, type_, recursive=False) -> 'CfgNode':
@@ -111,9 +111,12 @@ class GroupCfgNode(CfgNode):
     chained = set(itertools.chain(*[node.get_defined_and_exported_symbols() for node in self.children]))
     return chained
 
-  def get_descendents_of_types(self, type_):
-    return itertools.chain(filter(lambda x: isinstance(x, type_), self.children),
-                           *[c.get_descendents_of_types(type_) for c in self.children])
+  def get_descendents_of_types(self, type_, recursive=True):
+    if recursive:
+      return itertools.chain(filter(lambda x: isinstance(x, type_), self.children),
+                            *[c.get_descendents_of_types(type_, recursive) for c in self.children])
+    else:
+      return filter(lambda x: isinstance(x, type_), self.children)
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     if recursive:
@@ -384,11 +387,14 @@ class ForCfgNode(CfgNode):
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     loop_symbols = self.loop_variables.get_used_free_symbols()
-    loop_expression_used_symbols = self.loop_expression.get_used_free_symbols()
+    out = symbol_context.merge_symbol_context_dicts(self.suite.get_non_local_symbols(),
+                                                    self.else_suite.get_non_local_symbols())
     for name in loop_symbols.keys():
-      if name in loop_expression_used_symbols:
-        del loop_expression_used_symbols[name]
-    return loop_expression_used_symbols
+      if name in out:
+        del out[name]
+    # Loop symbols not defined in loop_expression, so we add those symbols after.
+    out = symbol_context.merge_symbol_context_dicts(out, self.loop_expression.get_used_free_symbols())
+    return out
 
   # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -396,9 +402,9 @@ class ForCfgNode(CfgNode):
         set(self.suite.get_defined_and_exported_symbols())).union(
             self.else_suite.get_defined_and_exported_symbols())
 
-  def get_descendents_of_types(self, type_):
-    return itertools.chain(self.suite.get_descendents_of_types(type_),
-                           self.else_suite.get_descendents_of_types(type_))
+  def get_descendents_of_types(self, type_, recursive=True):
+    return itertools.chain(self.suite.get_descendents_of_types(type_, recursive),
+                           self.else_suite.get_descendents_of_types(type_, recursive))
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -434,9 +440,9 @@ class WhileCfgNode(CfgNode):
     return set(self.suite.get_defined_and_exported_symbols()).union(
         set(self.else_suite.get_defined_and_exported_symbols()))
 
-  def get_descendents_of_types(self, type_):
-    return itertools.chain(self.suite.get_descendents_of_types(type_),
-                           self.else_suite.get_descendents_of_types(type_))
+  def get_descendents_of_types(self, type_, recursive=True):
+    return itertools.chain(self.suite.get_descendents_of_types(type_, recursive),
+                           self.else_suite.get_descendents_of_types(type_, recursive))
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -481,8 +487,8 @@ class WithCfgNode(CfgNode):
           set(self.suite.get_defined_and_exported_symbols()))
     return set(self.suite.get_defined_and_exported_symbols())
 
-  def get_descendents_of_types(self, type_):
-    return self.suite.get_descendents_of_types(type_)
+  def get_descendents_of_types(self, type_, recursive=True):
+    return self.suite.get_descendents_of_types(type_, recursive)
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -522,10 +528,10 @@ class TryCfgNode(CfgNode):
             for node in itertools.chain([self.suite, self.else_suite, self.finally_suite], self.except_nodes)
         ]))
 
-  def get_descendents_of_types(self, type_):
-    return itertools.chain(self.suite.get_descendents_of_types(type_),
-                           self.else_suite.get_descendents_of_types(type_),
-                           self.finally_suite.get_descendents_of_types(type_))
+  def get_descendents_of_types(self, type_, recursive=True):
+    return itertools.chain(self.suite.get_descendents_of_types(type_, recursive),
+                           self.else_suite.get_descendents_of_types(type_, recursive),
+                           self.finally_suite.get_descendents_of_types(type_, recursive))
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -587,8 +593,8 @@ class ExceptCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return self.suite.get_defined_and_exported_symbols()
 
-  def get_descendents_of_types(self, type_):
-    return self.suite.get_descendents_of_types(type_)
+  def get_descendents_of_types(self, type_, recursive=True):
+    return self.suite.get_descendents_of_types(type_, recursive)
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -634,8 +640,8 @@ class IfCfgNode(CfgNode):
       out = out.union(node.get_defined_and_exported_symbols())
     return out
 
-  def get_descendents_of_types(self, type_):
-    return itertools.chain(*[c.get_descendents_of_types(type_) for e, c in self.expression_node_tuples])
+  def get_descendents_of_types(self, type_, recursive=True):
+    return itertools.chain(*[c.get_descendents_of_types(type_, recursive) for e, c in self.expression_node_tuples])
 
   def pretty_print(self, indent=''):
     out = f'{indent}{type(self)}\n'
@@ -699,8 +705,8 @@ class KlassCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
 
-  def get_descendents_of_types(self, type_):
-    return self.suite.get_descendents_of_types(type_)
+  def get_descendents_of_types(self, type_, recursive=True):
+    return self.suite.get_descendents_of_types(type_, recursive)
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
@@ -708,6 +714,38 @@ class KlassCfgNode(CfgNode):
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'
+
+
+# This is defined here instead of in expressions.py because it is more similarly defined to
+# FuncCfgNode than any expression and has similar dependency requirements which makes it difficult
+# to have with the other expressions.
+@attr.s(slots=True)
+class LambdaExpression(Expression):
+  parameters = attr.ib()
+  expression = attr.ib()
+  parse_node = attr.ib(kw_only=True)
+
+  def evaluate(self, curr_frame) -> 'PObject':
+    # TODO:
+    return UnknownObject('lambda')
+
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    out = self.expression.get_used_free_symbols()
+    # Note that we iterate through parameters twice because a symbol may be nonlocally used
+    # in a parameter default but defined by another parameter. We don't want to exclude the symbol
+    # in this case, thus we add-it back in in the 2nd loop.
+    for parameter in self.parameters:
+      if parameter.name in out:
+        del out[parameter.name]
+
+    for parameter in self.parameters:
+      if parameter.default_expression:
+        out = symbol_context.merge_symbol_context_dicts(out,
+                                                        parameter.default_expression.get_used_free_symbols())
+      assert not parameter.type_hint_expression
+
+    return out
 
 
 @attr.s(slots=True)
@@ -725,7 +763,6 @@ class FuncCfgNode(CfgNode):
     if self._containing_func_node:
       self._containing_func_node._child_functions.append(self)
 
-  # @instance_memoize
   def _get_local_and_ancestor_func_symbol_defs(self) -> Set[str]:
     out = self.suite.get_defined_and_exported_symbols()
     out = out.union([p.name for p in self.parameters])
@@ -733,7 +770,6 @@ class FuncCfgNode(CfgNode):
       return out.union(self._containing_func_node._get_local_and_ancestor_func_symbol_defs())
     return out
 
-  # @instance_memoize
   def closure(self) -> Iterable[str]:
     if not self._containing_func_node:
       return []
@@ -768,7 +804,6 @@ class FuncCfgNode(CfgNode):
 
     curr_frame[VariableExpression(self.name)] = func
 
-  # @instance_memoize
   def _get_new_cell_symbols(self):
     # New symbols are those that are in child closures but not in our own closure because they're
     # defined locally within this function.
@@ -780,7 +815,9 @@ class FuncCfgNode(CfgNode):
   def __str__(self):
     return f'def {self.name}({self.parameters}):\n  {self.suite}\n'
 
-  # @instance_memoize # Result dict may be modified.
+
+# Result dict may be modified.
+
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     out = self.suite.get_non_local_symbols()
@@ -808,8 +845,8 @@ class FuncCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return [self.name]
 
-  def get_descendents_of_types(self, type_):
-    return self.suite.get_descendents_of_types(type_)
+  def get_descendents_of_types(self, type_, recursive=True):
+    return self.suite.get_descendents_of_types(type_, recursive)
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)

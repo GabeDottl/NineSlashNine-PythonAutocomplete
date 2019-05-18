@@ -11,7 +11,7 @@ import parso
 import attr
 from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
                                        ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
-                                       ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode,
+                                       ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
 from .expressions import (AndOrExpression, AnonymousExpression, AttributeExpression, CallExpression,
@@ -155,7 +155,7 @@ class ParsoControlFlowGraphBuilder:
   def _create_cfg_node_for_funcdef(self, node):
     # Children are: def name params : suite
     name = node.children[1].value
-    parameters = parameters_from_parameters(node.children[2])
+    parameters = parameters_from_parameters(node.children[2].children[1:-1])
     return_type_hint_expression = expression_from_node(node.annotation) if node.annotation else None
     old_containing_func = self._containing_func_node
     out = FuncCfgNode(name,
@@ -455,7 +455,20 @@ class ParsoControlFlowGraphBuilder:
   def _create_cfg_node_for_decorated(self, node):
     # TODO: Handle first child decorator or decorators.
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
-    return self._create_cfg_node(node.children[1])
+    children = []
+    # TODO: Actually wrap. This just allow us to get the symbols from the CFG.
+    def add_dec(decorator):
+      wrapper_expression = expression_from_node(decorator.children[1])
+      children.append(ExpressionCfgNode(wrapper_expression, parse_node=parse_from_parso(decorator)))
+    if node.children[0].type == 'decorators':
+      for decorator in node.children[0].children:
+        add_dec(decorator)
+    else:
+      assert_unexpected_parso(node.children[0].type == 'decorator', node_info(node))
+      add_dec(node.children[0])
+    
+    children.append(self._create_cfg_node(node.children[1]))
+    return GroupCfgNode(children, parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_yield_expr(self, node):
@@ -597,10 +610,10 @@ def _param_name_type_from_param_child(param_child):
 
 
 @assert_returns_type(List)
-def parameters_from_parameters(node) -> List[Parameter]:
-  assert_unexpected_parso(node.children[0].type == 'operator', node_info(node))  # paran)
+def parameters_from_parameters(nodes) -> List[Parameter]:
+  # assert_unexpected_parso(node.children[0].type == 'operator', node_info(node))  # paran)
   out = []
-  for param in node.children[1:-1]:  # Skip parens.
+  for param in nodes:  # Skip parens.
     if param.type == 'operator':
       # Either '*' or ',' - if *, is used, both will be given as children here.
       # All subsequent things are positional - don't care right now.
@@ -844,48 +857,33 @@ def kwarg_from_argument(argument):
 
 @assert_returns_type(Tuple)
 def args_and_kwargs_from_arglist(node):
-  try:
-    if node.type != 'arglist' and node.type != 'argument':
-      return [expression_from_node(node)], {}
-    elif node.type == 'argument':
-      name, arg = kwarg_from_argument(node)
-      if name:
-        return [], {name: arg}
-      return [arg], {}
-      # if first_child.type == 'name':
-      #   second_child = node.children[1]
-      #   if second_child.type == 'operator' and second_child.value == '=':  # kwarg
-      #     return [], {first_child.value: expression_from_node(node.children[2])}
-      #   else:  # comp_for
-      #     assert_unexpected_parso(second_child.type == 'comp_for')
-      #     raise NotImplementedError()
-
-      # else:
-      #   # Example: *args or **kwargs
-      #   if first_child.type == 'operator':
-      #     raise NotImplementedError()
-      # assert_unexpected_parso(len(node.children) == 2, node_info(node))
-      # raise NotImplementedError()
-
-    else:  # arglist
-      iterator = iter(node.children)
-      args = []
-      kwargs = {}
-      for child in iterator:
-        if child.type == 'argument':
-          name, arg = kwarg_from_argument(child)
-          if arg == '*':
-            continue
-          if name:
-            kwargs[name] = arg
-          else:
-            args.append(arg)
-        elif child.type != 'operator':  # not ','
-          args.append(expression_from_node(child))
-      return args, kwargs
-  except NotImplementedError as e:
-    debug(f'Failed to handle: {node_info(node)}')
-    return [UnknownExpression(node.get_code())], {}
+  # try:
+  if node.type != 'arglist' and node.type != 'argument':
+    return [expression_from_node(node)], {}
+  elif node.type == 'argument':
+    name, arg = kwarg_from_argument(node)
+    if name:
+      return [], {name: arg}
+    return [arg], {}
+  else:  # arglist
+    iterator = iter(node.children)
+    args = []
+    kwargs = {}
+    for child in iterator:
+      if child.type == 'argument':
+        name, arg = kwarg_from_argument(child)
+        if arg == '*':
+          continue
+        if name:
+          kwargs[name] = arg
+        else:
+          args.append(arg)
+      elif child.type != 'operator':  # not ','
+        args.append(expression_from_node(child))
+    return args, kwargs
+  # except NotImplementedError as e:
+  #   warning(f'Failed to handle: {node_info(node)}')
+  #   return [UnknownExpression(node.get_code())], {}
 
 
 @assert_returns_type(Expression)
@@ -924,8 +922,8 @@ def expression_from_node(node):
   if node.type == 'not_test':
     return NotExpression(expression_from_node(node.children[1]))
   if node.type == 'lambdef' or node.type == 'lambdef_nocond':
-    debug(f'Failed to process lambdef - unknown.')
-    return UnknownExpression(node.get_code())
+    parameters = parameters_from_parameters(node.children[1:-2])
+    return LambdaExpression(parameters, expression_from_node(node.children[-1]), parse_node=parse_from_parso(node))
   if node.type == 'fstring':
     debug(f'Failed to process fstring_expr - string.')
     return LiteralExpression(node.get_code())  # fstring_string type.
@@ -933,10 +931,13 @@ def expression_from_node(node):
     return StarredExpression(node.children[0].value, expression_from_node(node.children[-1]))
   if node.type == 'or_test' or node.type == 'and_test':
     return expression_from_and_test_or_test(node)
+  if node.type == 'dotted_name':
+    return AttributeExpression(VariableExpression(node.children[0].value), node.children[-1].value, parse_node=parse_from_parso(node))
 
     # return UnknownExpression()
   debug(f'Unhanded type!!!!: {node_info(node)}')
   # return UnknownExpression(node.get_code())
+  assert False
   raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))
 
@@ -1036,16 +1037,13 @@ def expression_from_atom(node):
   elif node.children[0].value == '[':
     if len(node.children) == 3:
       return expression_from_node(node.children[1])
-      # if isinstance(inner_expr, ()):
-      #   return inner_expr.expressions)
-      # return ItemListExpression([inner_expr])
     assert len(node.children) == 2
     return ItemListExpression([])
   elif node.children[0].value == '{':
-    # info(f'Doing dumb logic for dict.')
-    # return LiteralExpression({})
-    return expression_from_dictorsetmaker(node.children[1])
-    # raise NotImplementedError('Not yet handling dictorsetmaker')
+    if len(node.children) == 3:
+      return expression_from_dictorsetmaker(node.children[1])
+    assert len(node.children) == 2
+    return DictExpression([])
   else:
     raise ValueError(node_info(node))
 

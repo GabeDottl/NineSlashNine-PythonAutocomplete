@@ -356,7 +356,8 @@ def expression_from_node(ast_node):
     return expression_from_unaryop(ast_node)
   if isinstance(ast_node, _ast.Lambda):
     # (arguments args, expr body)
-    return UnknownExpression(astor.to_source(ast_node))
+    parameters = parameters_from_arguments(ast_node.args)
+    return LambdaExpression(parameters, expression_from_node(ast_node.body), parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.IfExp):
     # (expr test, expr body, expr orelse)
     return IfElseExpression(expression_from_node(ast_node.body), expression_from_node(ast_node.test),
@@ -472,7 +473,8 @@ def expression_from_node(ast_node):
     # (expr* elts, expr_context ctx)
     return TupleExpression(variables_from_targets(ast_node.elts))
   warning(f'Unhandled Expression type {type(ast_node)}')
-  return UnknownExpression(astor.to_source(ast_node))
+  assert False
+  # return UnknownExpression(astor.to_source(ast_node))
 
 
 def string_from_boolop(boolop):
