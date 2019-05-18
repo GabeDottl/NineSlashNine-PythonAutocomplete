@@ -77,7 +77,7 @@ def test_fix_imports_typing_match_actual():
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph,
                                                                          os.path.dirname(filename))
     directory = os.path.abspath(os.path.dirname(filename))
-    fixes = fix_code.generate_missing_symbol_fixes(missing_symbols, index, directory)
+    fixes, still_missing = fix_code.generate_missing_symbol_fixes(missing_symbols, index, directory)
 
     # Validate fixes
     for fix in fixes:
@@ -87,7 +87,7 @@ def test_fix_imports_typing_match_actual():
       else:
         assert False
 
-    assert len(fixes) == len(missing_symbols)
+    assert not still_missing
 
 
 if __name__ == "__main__":

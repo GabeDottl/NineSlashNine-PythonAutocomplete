@@ -65,7 +65,7 @@ class CfgNode(ABC):
   def get_descendents_of_types(self, type_):
     return []
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> 'CfgNode':
+  def strip_descendents_of_types(self, type_, recursive=False) -> 'CfgNode':
     return self
 
   def pretty_print(self, indent=''):
@@ -115,11 +115,12 @@ class GroupCfgNode(CfgNode):
     return itertools.chain(filter(lambda x: isinstance(x, type_), self.children),
                            *[c.get_descendents_of_types(type_) for c in self.children])
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     if recursive:
       return GroupCfgNode(
-          x.strip_descendants_of_types(type_, recursive)
-          for x in filter(lambda n: not isinstance(n, type_), self.children))
+          list(
+              x.strip_descendents_of_types(type_, recursive)
+              for x in filter(lambda n: not isinstance(n, type_), self.children)))
     return GroupCfgNode(list(filter(lambda n: not isinstance(n, type_), self.children)))
 
   def pretty_print(self, indent=''):
@@ -152,6 +153,10 @@ class ImportCfgNode(CfgNode):
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
+
+  @instance_memoize
+  def get_module_key(self):
+    return self.module_loader.get_module_info_from_name(self.module_path, self.source_dir)[0]
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
@@ -353,7 +358,8 @@ class AssignmentStmtCfgNode(CfgNode):
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if self.type_hint_expression:
-      return symbol_context.merge_symbol_context_dicts(self.right_expression.get_used_free_symbols(), self.type_hint_expression.get_used_free_symbols())
+      return symbol_context.merge_symbol_context_dicts(self.right_expression.get_used_free_symbols(),
+                                                       self.type_hint_expression.get_used_free_symbols())
     return self.right_expression.get_used_free_symbols()
 
   # @instance_memoize
@@ -394,7 +400,7 @@ class ForCfgNode(CfgNode):
     return itertools.chain(self.suite.get_descendents_of_types(type_),
                            self.else_suite.get_descendents_of_types(type_))
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
     return ForCfgNode(self.loop_variables, self.loop_expression, suite, self.parse_node, else_suite)
@@ -432,7 +438,7 @@ class WhileCfgNode(CfgNode):
     return itertools.chain(self.suite.get_descendents_of_types(type_),
                            self.else_suite.get_descendents_of_types(type_))
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
     return WhileCfgNode(self.conditional_expression, suite, else_suite, self.parse_node)
@@ -478,7 +484,7 @@ class WithCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     return WithCfgNode(self.with_item_expression, self.as_expression, suite, self.parse_node)
 
@@ -521,11 +527,11 @@ class TryCfgNode(CfgNode):
                            self.else_suite.get_descendents_of_types(type_),
                            self.finally_suite.get_descendents_of_types(type_))
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     else_suite = self.else_suite.strip_descendents_of_types(type_, recursive=recursive)
     finally_suite = self.finally_suite.strip_descendents_of_types(type_, recursive=recursive)
-    except_nodes = [x.strip_descendants_of_types(type_, recursive=True) for x in self.except_nodes]
+    except_nodes = [x.strip_descendents_of_types(type_, recursive=recursive) for x in self.except_nodes]
     return TryCfgNode(suite=suite,
                       except_nodes=except_nodes,
                       else_suite=else_suite,
@@ -584,7 +590,7 @@ class ExceptCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     return ExceptCfgNode(self.exceptions, self.exception_variable, suite)
 
@@ -643,6 +649,7 @@ def _search_for_module(frame):
     return frame.namespace
   return _search_for_module(frame._back)
 
+
 @attr.s(slots=True)
 class KlassCfgNode(CfgNode):
   name = attr.ib()
@@ -695,7 +702,7 @@ class KlassCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     return KlassCfgNode(self.name, self.base_class_expressions, suite, self._module, self.parse_node)
 
@@ -712,7 +719,7 @@ class FuncCfgNode(CfgNode):
   _module = attr.ib(kw_only=True)
   _containing_func_node = attr.ib(kw_only=True)
   parse_node = attr.ib(kw_only=True)
-  _child_functions = attr.ib(init=False, factory=list)
+  _child_functions = attr.ib(kw_only=True, factory=list)
 
   def __attrs_post_init__(self):
     if self._containing_func_node:
@@ -789,10 +796,11 @@ class FuncCfgNode(CfgNode):
         out = symbol_context.merge_symbol_context_dicts(out,
                                                         parameter.default_expression.get_used_free_symbols())
       if parameter.type_hint_expression:
-        out = symbol_context.merge_symbol_context_dicts(out,
-                                                        parameter.type_hint_expression.get_used_free_symbols())
+        out = symbol_context.merge_symbol_context_dicts(
+            out, parameter.type_hint_expression.get_used_free_symbols())
     if self.return_type_hint_expression:
-      out = symbol_context.merge_symbol_context_dicts(out, self.return_type_hint_expression.get_used_free_symbols())
+      out = symbol_context.merge_symbol_context_dicts(
+          out, self.return_type_hint_expression.get_used_free_symbols())
 
     return out
 
@@ -803,7 +811,7 @@ class FuncCfgNode(CfgNode):
   def get_descendents_of_types(self, type_):
     return self.suite.get_descendents_of_types(type_)
 
-  def strip_descendents_of_types(self, type_, recursive=True) -> CfgNode:
+  def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
     return FuncCfgNode(name=self.name,
                        parameters=self.parameters,

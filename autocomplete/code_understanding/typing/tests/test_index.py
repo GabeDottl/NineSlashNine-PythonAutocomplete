@@ -10,8 +10,7 @@ INDEX_PATH = f'/tmp/index.msg'
 
 def test_build_test_index():
   index = symbol_index.SymbolIndex.build_index_from_package(
-      os.path.join(TYPING_DIR, 'examples', 'index_test_package'),
-      INDEX_PATH)
+      os.path.join(TYPING_DIR, 'examples', 'index_test_package'), INDEX_PATH)
   index.save(INDEX_PATH)
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.import_count)
   entry = entries[-1]
@@ -22,8 +21,7 @@ def test_build_test_index():
 
 
 def test_build_typing_index():
-  index = symbol_index.SymbolIndex.build_index_from_package(
-      TYPING_DIR, INDEX_PATH)
+  index = symbol_index.SymbolIndex.build_index_from_package(TYPING_DIR, INDEX_PATH)
   symbol_entries = list(filter(lambda x: not x.imported, index.find_symbol('Function')))
   assert len(symbol_entries) == 1
   assert symbol_entries[0].symbol_type == symbol_index.SymbolType.TYPE
@@ -41,9 +39,8 @@ def test_build_typing_index():
 
 def test_add_file():
   initial_index = symbol_index.SymbolIndex(INDEX_PATH)
-  initial_index.add_file(
-      os.path.join(TYPING_DIR, 'examples', 'index_test_package','boo.py'),
-      track_imported_modules=True)
+  initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'),
+                         track_imported_modules=True)
   # initial_index.add_file(
   #     os.path.join(TYPING_DIR, 'tests', 'test_fix_code.py'),
   #     track_imported_modules=True)

@@ -16,7 +16,10 @@ from isort import SortImports
 def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=True):
   with open(filename) as f:
     source = ''.join(f.readlines())
-  new_code, changed = fix_missing_symbols_in_source(source, os.path.dirname(filename), index, remove_extra_imports=remove_extra_imports)
+  new_code, changed = fix_missing_symbols_in_source(source,
+                                                    os.path.dirname(filename),
+                                                    index,
+                                                    remove_extra_imports=remove_extra_imports)
   if write and changed:
     with open(filename, 'w') as f:
       f.writelines(new_code)
@@ -27,12 +30,46 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   graph = api.graph_from_source(source, source_dir, parso_default=True)
   existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
   if remove_extra_imports:
-    pass
-  missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
+    stripped_graph = graph.strip_descendents_of_types((FromImportCfgNode, ImportCfgNode), recursive=False)
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph, source_dir)
+  else:
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
+
+  changes = {}  #defaultdict(list)
+
+  def get_change(node):
+    module_key = node.get_module_key()
+    if module_key in changes:
+      return changes[module_key]
+    out = changes[module_key] = refactor.Change(node, [], [])
+    return out
+
+  if remove_extra_imports:
+    for import_node in existing_imports:
+      if isinstance(import_node, ImportCfgNode):
+        symbol_name = import_node.as_name if import_node.as_name else import_node.module_path
+        if symbol_name in missing_symbols:
+          continue
+        else:
+          info(f'module not used: {symbol_name}')
+          get_change(import_node).removals.append(symbol_name)
+      else:  # FromImportCfgNode
+        for from_import_name, as_name in import_node.from_import_name_alias_dict.items():
+          if as_name and as_name in missing_symbols:
+            continue
+          elif not as_name and from_import_name in missing_symbols:
+            continue
+          info(f'from_import_name not used: {from_import_name}')
+          get_change(import_node).removals.append(from_import_name)
+    # Recalculate missing symbols accounting for imports now that we've figured out wahat to remove
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
+
   if missing_symbols:
     info(f'missing_symbols: {list(missing_symbols.keys())}')
-  fixes = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
-  changes = defaultdict(list)
+  fixes, still_missing = generate_missing_symbol_fixes(missing_symbols, index, source_dir)
+  if still_missing:
+    info(f'still_missing: {still_missing}')
+
   remaining_fixes = []
   for fix in fixes:
     module_name, value = fix.get_module_name_and_value(source_dir)
@@ -43,7 +80,8 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
       # We use module_key instead of module_name directly to handle different import styles - e.g.,
       # relative import v. absolute of the same module.
       if node.get_module_key() == fix.module_key:
-        changes[fix.module_key].append((value, None, node))
+        _, value = fix.get_module_name_and_value(source_dir)
+        get_change(node).additions.append((value, fix.as_name))
         break
     else:
       remaining_fixes.append(fix)
@@ -157,8 +195,8 @@ class Import:
         i = module_name.rfind('.')
         value = module_name[i + 1:]
         if i > 0:
-          pure_relative = '.'*(i+1)
-          if pure_relative == module_name[:(i+1)]:
+          pure_relative = '.' * (i + 1)
+          if pure_relative == module_name[:(i + 1)]:
             module_name = pure_relative
           else:
             # Don't include final '.'.
@@ -244,13 +282,15 @@ def sort_keyed(l):
 def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.SymbolContext],
                                   index: symbol_index.SymbolIndex, directory) -> List[Union[Rename, Import]]:
 
-  out = []
+  fixes = []
+  still_missing = []
   for symbol, context in missing_symbols.items():
     # Prefer symbols which are imported already very often.
     entries = sorted(filter(partial(matches_context, context), index.find_symbol(symbol)),
                      key=symbol_entry_preference_key)
     if not entries:
       warning(f'Could not find import for {symbol}')
+      still_missing.append((symbol, context))
       continue
     # TODO: Compare symbol_context w/entry.
     if len(entries) > 1 and symbol_entry_preference_key(entries[-1]) == symbol_entry_preference_key(
@@ -261,6 +301,7 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
         warning(
             f'Ambiguous for {symbol} : {keyed_entries[-1][0].get_module_key()}\n{keyed_entries[-2][0].get_module_key()}'
         )
+        still_missing.append((symbol, context))
         continue
       entry = keyed_entries[-1][0]
     else:
@@ -281,9 +322,9 @@ def generate_missing_symbol_fixes(missing_symbols: Dict[str, symbol_context.Symb
     else:
       # From a import b.
       value = symbol
-    out.append(Import(module_key, as_name, value))
+    fixes.append(Import(module_key, as_name, value))
     # TODO: Renames.
-  return out
+  return fixes, still_missing
 
 
 def main(index_file, target_file):

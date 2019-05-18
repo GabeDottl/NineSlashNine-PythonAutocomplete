@@ -80,13 +80,14 @@ class Visitor(ast.NodeVisitor):
     # (identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
     suite = GroupCfgNode()
     old_containing_func = self._containing_func_node
-    out = FuncCfgNode(ast_node.name,
-                      parameters_from_arguments(ast_node.args),
-                      suite,
-                      return_type_hint_expression=expression_from_node(ast_node.returns) if ast_node.returns else None,
-                      module=self._module,
-                      containing_func_node=old_containing_func,
-                      parse_node=parse_from_ast(ast_node))
+    out = FuncCfgNode(
+        ast_node.name,
+        parameters_from_arguments(ast_node.args),
+        suite,
+        return_type_hint_expression=expression_from_node(ast_node.returns) if ast_node.returns else None,
+        module=self._module,
+        containing_func_node=old_containing_func,
+        parse_node=parse_from_ast(ast_node))
     self._containing_func_node = out
     with ListPopper(self._container_stack, suite.children):
       for stmt in ast_node.body:
@@ -106,7 +107,12 @@ class Visitor(ast.NodeVisitor):
       for stmt in ast_node.body:
         self.visit(stmt)
     base_classes = [expression_from_node(base) for base in ast_node.bases]
-    self.push(KlassCfgNode(ast_node.name, base_classes, suite, module=self._module, parse_node=parse_from_ast(ast_node)))
+    self.push(
+        KlassCfgNode(ast_node.name,
+                     base_classes,
+                     suite,
+                     module=self._module,
+                     parse_node=parse_from_ast(ast_node)))
 
   def visit_Return(self, ast_node):
     # (expr? value)
@@ -297,16 +303,27 @@ def parameters_from_arguments(arguments):
   out = []
   arg_iter = iter(arguments.args)
   for default, arg in zip(arguments.defaults, arg_iter):
-    out.append(Parameter(arg.arg, ParameterType.SINGLE, default_expression=expression_from_node(default), type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
+    out.append(
+        Parameter(arg.arg,
+                  ParameterType.SINGLE,
+                  default_expression=expression_from_node(default),
+                  type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   for arg in arg_iter:
     out.append(Parameter(arg.arg, ParameterType.SINGLE))
   if arguments.vararg:
     out.append(Parameter(arguments.vararg.arg, ParameterType.ARGS))
   kwarg_iter = iter(arguments.kwonlyargs)
   for default, arg in zip(arguments.kw_defaults, kwarg_iter):
-    out.append(Parameter(arg.arg, ParameterType.SINGLE, default_expression=expression_from_node(default), type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
+    out.append(
+        Parameter(arg.arg,
+                  ParameterType.SINGLE,
+                  default_expression=expression_from_node(default),
+                  type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   for arg in kwarg_iter:
-    out.append(Parameter(arg.arg, ParameterType.SINGLE, type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
+    out.append(
+        Parameter(arg.arg,
+                  ParameterType.SINGLE,
+                  type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   if arguments.kwarg:
     out.append(Parameter(arguments.kwarg.arg, ParameterType.KWARGS))
   return out

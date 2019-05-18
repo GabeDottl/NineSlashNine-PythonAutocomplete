@@ -671,7 +671,6 @@ class Parameter:
   default_expression: 'Expression' = attr.ib(None, kw_only=True)  # TODO: Rename default_expression
   default_value: 'PObject' = attr.ib(None, kw_only=True)
   type_hint_expression: 'PObject' = attr.ib(None, kw_only=True)
-  
 
   def __attrs_post_init__(self):
     # These cannot both be specified. Once a parameter has been processed (i.e. Function has been
