@@ -1,3 +1,4 @@
 **/.idea
 **/tags
 .pytest_cache
+index.msg
