@@ -3,6 +3,7 @@ import sys
 from functools import partial
 from itertools import chain
 from typing import Dict, List, Union
+from time import time
 
 import attr
 from isort import SortImports
@@ -11,6 +12,7 @@ from ....nsn_logging import info, warning
 from .. import api, module_loader, refactor, symbol_context, symbol_index
 from ..control_flow_graph_nodes import FromImportCfgNode, ImportCfgNode
 from . import find_missing_symbols
+from .update_history_tracker import UpdateHistoryTracker
 
 
 def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_imports=True, sort_imports=True):
@@ -18,7 +20,8 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
     source = ''.join(f.readlines())
   new_code, changed = fix_missing_symbols_in_source(source,
                                                     os.path.dirname(filename),
-                                                    index,
+                                                    filename=filename,
+                                                    index=index,
                                                     remove_extra_imports=remove_extra_imports)
   if write and changed:
     with open(filename, 'w') as f:
@@ -26,7 +29,7 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
   return new_code, changed
 
 
-def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_imports=True, sort_imports=True) -> str:
+def fix_missing_symbols_in_source(source, source_dir, filename, index, remove_extra_imports=True, sort_imports=True) -> str:
   graph = api.graph_from_source(source, source_dir, parso_default=True)
   existing_global_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
   if remove_extra_imports:
@@ -37,6 +40,8 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
 
   changes = {}
 
+  uht = UpdateHistoryTracker.load(os.path.join(os.getenv('HOME'), 'fix_code_updates.csv'))
+  timestamp = time()
   def get_change(node):
     module_key = node.get_module_key()
     if module_key in changes:
@@ -52,6 +57,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
           continue
         else:
           info(f'module not used: {symbol_name}')
+          uht.add_action(timestamp, 'remove', import_node.get_module_key(), filename)
           get_change(import_node).removals.append(symbol_name)
       else:  # FromImportCfgNode
         for from_import_name, as_name in import_node.from_import_name_alias_dict.items():
@@ -64,6 +70,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
             continue
           info(f'from_import_name not used: {from_import_name}')
           get_change(import_node).removals.append(from_import_name)
+          uht.add_action(timestamp, 'remove', (from_import_name, import_node.get_module_key()), filename)
     # Recalculate missing symbols accounting for imports now that we've figured out what to remove
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir, skip_wild_cards=True)
 
@@ -76,6 +83,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
   remaining_fixes = []
   for fix in fixes:
     module_name, value = fix.get_module_name_and_value(source_dir)
+    uht.add_action(timestamp, 'add', (value, fix.module_key) if value else fix.module_key, filename)
     if not value:
       remaining_fixes.append(fix)
       continue
@@ -94,6 +102,7 @@ def fix_missing_symbols_in_source(source, source_dir, index, remove_extra_import
 
   # Apply any remaining fixes.
   new_source, changed = refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
+  uht.save()
   if sort_imports and changed:
     out = SortImports(file_contents=new_source).output
     return out, True

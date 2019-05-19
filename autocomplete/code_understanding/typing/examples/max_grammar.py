@@ -2,8 +2,6 @@ import os
 from functools import wraps
 from typing import List
 
-from g import h
-
 
 @wraps
 class Example(Object):

@@ -32,7 +32,7 @@ c = AClass()'''
   index = symbol_index.SymbolIndex()
   index.add_file(os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package',
                               'exports.py'))
-  new_source, changed = fix_code.fix_missing_symbols_in_source(source, os.path.dirname(__file__), index)
+  new_source, changed = fix_code.fix_missing_symbols_in_source(source, os.path.dirname(__file__), filename=None, index=index)
   graph = api.graph_from_source(new_source, os.path.dirname(__file__))
   print(new_source)
   assert changed
@@ -52,7 +52,7 @@ c = AClass()'''
   # TODO: Windows support for /tmp.
   index = symbol_index.SymbolIndex.build_index_from_package(
       os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package'), '/tmp/tmp.msg')
-  new_source, changed = fix_code.fix_missing_symbols_in_source(source, os.path.dirname(__file__), index)
+  new_source, changed = fix_code.fix_missing_symbols_in_source(source, os.path.dirname(__file__), filename=None, index=index)
   graph = api.graph_from_source(new_source, os.path.dirname(__file__))
   print(new_source)
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1

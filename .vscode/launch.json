@@ -34,7 +34,17 @@
       "module": "autocomplete.code_understanding.typing.tests.test_fix_code",
       "console": "integratedTerminal",
     },
-
+    {
+      "name": "view_updates",
+      "type": "python",
+      "request": "launch",
+      // "cwd": "${workspaceFolder}",
+      "module": "autocomplete.code_understanding.typing.project_analysis.view_updates",
+      "console": "integratedTerminal",
+      "args": [
+        "$HOME/fix_code_updates.msg",
+      ],
+    },
     {
       "name": "fix_code_clone",
       "type": "python",

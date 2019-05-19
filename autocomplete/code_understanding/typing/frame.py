@@ -8,7 +8,7 @@ from typing import Dict, List
 import attr
 
 from . import collector, utils
-from ...nsn_logging import debug, info
+from ...nsn_logging import debug
 from .expressions import (AttributeExpression, Expression, SubscriptExpression,
                           VariableExpression)
 from .pobjects import (NONE_POBJECT, FuzzyObject, NativeObject, PObject,
