@@ -203,16 +203,16 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
   return module
 
 
-def load_module_from_source(source, include_graph=False):
+def load_module_from_source(source, filename, include_graph=False):
   module = create_main_module(sys.modules[__name__])
   if include_graph:
     module._members, graph = _module_exports_from_source(module,
                                                          source,
-                                                         filename='__main__',
+                                                         filename=filename,
                                                          return_graph=True)
     module.graph = graph
   else:
-    module._members = _module_exports_from_source(module, source, filename='__main__')
+    module._members = _module_exports_from_source(module, source, filename=filename)
   return module
 
 

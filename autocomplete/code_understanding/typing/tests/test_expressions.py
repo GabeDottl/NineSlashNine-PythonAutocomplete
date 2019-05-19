@@ -9,7 +9,7 @@ d = {**a, **b}
 b={"b":i for i in range(1)}
 c = {**a, **b, "c":1}
 '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert module['a'].value() == {"a": 1}
   assert module['d'].value() == {"a": 1, "b": 1}
   # TODO
@@ -25,7 +25,7 @@ def test_sets():
   b={"b" for i in range(1)}
   c = {*a, *b, "c"}
   '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   # TODO
   # assert module['a'].value() == {"a"}
   # assert module['d'].value() == {"a", "b"}
@@ -44,7 +44,7 @@ def test_and_or():
   e = foo() and not foo() and foo()
 
   '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert not module['a'].value()
   assert module['b'].value()
   assert not module['c'].value()

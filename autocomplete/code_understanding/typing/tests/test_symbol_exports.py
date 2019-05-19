@@ -99,7 +99,7 @@ def test_closure_values():
   d = d()
 
   '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert module['a'].value() == 3
   assert module['c'].value() == 1
   assert module['d'].value() == 2

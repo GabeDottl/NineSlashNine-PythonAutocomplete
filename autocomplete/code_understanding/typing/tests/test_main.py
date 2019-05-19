@@ -12,7 +12,7 @@ def test_simple_assignments():
 a=1
 b,(c, d) = a,(2,3)
   '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert module['a'].value() == 1
   assert module['b'].value() == 1
   assert module['c'].value() == 2
@@ -27,7 +27,7 @@ import hob.dob as blob
 from functools import wraps
 from importlib.util import find_spec
 from x.y.z import (q, r as s)'''
-  module = module_loader.load_module_from_source(source, include_graph=True)
+  module = module_loader.load_module_from_source(source, __file__, include_graph=True)
   imports = module.graph.get_descendents_of_types(
       (control_flow_graph_nodes.ImportCfgNode, control_flow_graph_nodes.FromImportCfgNode))
   assert len(list(imports)) == 9
@@ -60,7 +60,7 @@ X.b = 2
 z = X()  # 2 at end
 x.b = 0
 '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert 'X' in module
   X = module['X'].value()
   isinstance(X, Klass)
@@ -87,7 +87,7 @@ class X:
 x = X()
 a = x.foo(0, None)
 '''
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert 'X' in module
   x = module['X'].value()
   isinstance(x, Klass)
@@ -114,7 +114,7 @@ a2 = 'test'
 b2 = a2[0]
 '''
   # TODO: a = a[0]
-  module = module_loader.load_module_from_source(source)
+  module = module_loader.load_module_from_source(source, __file__)
   assert 'a' in module and isinstance(module['a'].value(), list)
   assert 'b' in module
   assert module['b'].value() == 0

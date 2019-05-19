@@ -14,6 +14,17 @@
         "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
         "$HOME/code/autocomplete/index.msg",
       ],
+    },,
+    {
+      "name": "typing_index",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.code_understanding.typing.symbol_index",
+      "console": "integratedTerminal",
+      "args": [
+        "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
+        "$HOME/code/autocomplete/index.msg",
+      ],
     },
     {
       "name": "typing_index_clone",
