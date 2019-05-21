@@ -45,7 +45,7 @@ def test_add_imports_with_existing():
 from ..examples.index_test_package.exports import (AClass,
                                                                                         a_int)
 
-c = functools.wraps
+c = attr.ib()
 b = a_int
 a_func()
 c = AClass()'''

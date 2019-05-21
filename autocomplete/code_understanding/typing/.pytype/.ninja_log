@@ -1,0 +1,6 @@
+# ninja log v5
+0	631	1558371835522818473	/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/.pytype/pyi/autocomplete/code_understanding/typing/project_analysis/__init__.pyi	e40a4fcf1ff9b47
+1	691	1558371835582818294	/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/.pytype/pyi/autocomplete/code_understanding/typing/examples/test_main_sample_code.pyi	8d0952cbc224c1ca
+11	737	1558371835622818175	/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/.pytype/pyi/autocomplete/code_understanding/typing/sample.pyi	24b621d8063a1f15
+12	1201	1558371836082816810	/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/.pytype/pyi/autocomplete/nsn_logging.pyi	7b6db6d6e0de8e0b
+737	1513	1558371836398815872	/home/gabe/code/autocomplete/autocomplete/code_understanding/typing/.pytype/pyi/autocomplete/code_understanding/typing/errors.pyi	22a116b048537914

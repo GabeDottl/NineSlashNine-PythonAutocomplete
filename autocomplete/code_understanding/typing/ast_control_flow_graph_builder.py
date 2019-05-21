@@ -308,9 +308,9 @@ def parameters_from_arguments(arguments):
                   default_expression=expression_from_node(default),
                   type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   for arg in arg_iter:
-    out.append(Parameter(arg.arg, ParameterType.SINGLE))
+    out.append(Parameter(arg.arg, ParameterType.SINGLE, type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   if arguments.vararg:
-    out.append(Parameter(arguments.vararg.arg, ParameterType.ARGS))
+    out.append(Parameter(arguments.vararg.arg, ParameterType.ARGS, type_hint_expression=expression_from_node(arguments.vararg.annotation) if arguments.vararg.annotation else None))
   kwarg_iter = iter(arguments.kwonlyargs)
   for default, arg in zip(arguments.kw_defaults, kwarg_iter):
     out.append(
@@ -324,7 +324,7 @@ def parameters_from_arguments(arguments):
                   ParameterType.SINGLE,
                   type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   if arguments.kwarg:
-    out.append(Parameter(arguments.kwarg.arg, ParameterType.KWARGS))
+    out.append(Parameter(arguments.kwarg.arg, ParameterType.KWARGS, type_hint_expression=expression_from_node(arguments.kwarg.annotation) if arguments.kwarg.annotation else None))
   return out
 
 

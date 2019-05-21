@@ -38,6 +38,13 @@ class FuzzyBoolean(Enum):
   def __bool__(self):
     raise ValueError('FuzzyBoolean\'s shouldn\'t be converted to regular bools')
 
+  def truth(self):
+    if self == FuzzyBoolean.TRUE:
+      return True
+    if self == FuzzyBoolean.FALSE:
+      return False
+    raise ValueError()
+
   def and_expr(self, other):
     assert isinstance(other, FuzzyBoolean)
     # if hasattr(other, bool_value):
@@ -113,7 +120,12 @@ class PObject(ABC):
   #   ...
 
   @abstractmethod
+  def instance_of(self, type_) -> FuzzyBoolean: ...
+
+
+  @abstractmethod
   def value_is_a(self, type_) -> FuzzyBoolean:
+    '''type_ is Klass/Function/etc. - language_objects.'''
     ...
 
   @abstractmethod
@@ -215,8 +227,8 @@ class UnknownObject(PObject):
   def apply_to_values(self, func):
     func(self)
 
-  # def value_equals(self, other) -> FuzzyBoolean:
-  #   return FuzzyBoolean.TRUE if self == other else FuzzyBoolean.MAYBE
+  def instance_of(self, type_) -> FuzzyBoolean: 
+    return FuzzyBoolean.MAYBE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.MAYBE
@@ -243,6 +255,90 @@ class UnknownObject(PObject):
 
   def __repr__(self):
     return str(self)
+
+def maybe_wrap_type(type_):
+  # Handle special things - like List[int], etc.
+  if isinstance(type_, typing._GenericAlias):
+    # _name, __args__....
+    # TODO.
+    pass
+  return type_
+
+def is_subtype(super_type, sub_type):
+  if super_type == sub_type:
+    return FuzzyBoolean.TRUE
+  # TODO
+  return FuzzyBoolean.FALSE
+
+@attr.s
+class TypeOnlyObject(PObject):
+  pobject_type = PObjectType.NORMAL
+  underlying_type = attr.ib()
+  _dynamic_container = attr.ib(factory=DynamicContainer, init=False)
+
+  def __attrs_post_init__(self):
+    self.underlying_type = maybe_wrap_type(self.underlying_type)
+    
+
+  def has_attribute(self, name):
+    # TODO: Not a perfect matchup.... How important? some dynamic attributes (e.g. set in __init__)
+    # are going to be quite common...
+    # TODO: dynamic_container
+    return hasattr(self.underlying_type, name)
+
+  def get_attribute(self, name):
+    # TODO: Self?
+    # TODO: dynamic_container
+    return hasattr(self.underlying_type, name)
+
+  def set_attribute(self, name, value):
+    self._dynamic_container[name] = value
+
+  def apply_to_values(self, func):
+    raise ValueError()
+
+  def instance_of(self, type_) -> FuzzyBoolean: 
+    return is_subtype(type_, self.underlying_type)
+
+  def value_is_a(self, type_) -> FuzzyBoolean:
+    raise ValueError()
+
+  def value(self) -> object:
+    raise ValueError()
+
+  def bool_value(self) -> FuzzyBoolean:
+    if self.underlying_type == type(None):
+      return FuzzyBoolean.FALSE
+    return FuzzyBoolean.MAYBE
+
+  def call(self, curr_frame, args, kwargs):
+    # TODO?
+    return self
+
+  def get_item(self, curr_frame, index_pobject):
+    # try:
+    self.underlying_type.__getitem__(index_pobject)
+    # except IndexError as e:
+
+
+  def set_item(self, curr_frame, index_pobject, value_pobject):
+    self.underlying_type.__setitem__(index_pobject. value_pobject)
+
+  def iterator(self):
+    return iter(self.underlying_type)
+
+  def hash_value(self):
+    return hash(self.value())
+
+  def to_dict(self):
+    '''Stand-in for __dict__.'''
+    raise NoDictImplementationError()
+
+  def update_dict(self, pobject):
+    raise NotImplementedError()
+
+  def __bool__(self):
+    raise ValueError('Dangerous use of PObject - just use is None or bool_value() to avoid ambiguity.')
 
 
 NATIVE_TYPES = (int, float, str, list, dict, type(None))
@@ -290,6 +386,9 @@ class NativeObject(PObject):
   #   except AmbiguousFuzzyValueError:
   #     return FuzzyBoolean.MAYBE  # TODO
   #   return FuzzyBoolean.FALSE
+
+  def instance_of(self, type_) -> FuzzyBoolean: 
+    return FuzzyBoolean.TRUE if isinstance(self._native_object, type_) else FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.TRUE if isinstance(self._native_object, type_) else FuzzyBoolean.FALSE
@@ -533,6 +632,9 @@ class LazyObject(PObject):
   #   else:
 
   @loop_checker
+  def instance_of(self, type_) -> FuzzyBoolean: 
+    self.value_is_a(type_)
+
   def value_is_a(self, type_) -> FuzzyBoolean:
     self._load()
     return self._loaded_object.value_is_a(type_)
@@ -654,6 +756,9 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   #   if isinstance(other, PObject):
   #     return other.value_equals(self._object)
   #   return FuzzyBoolean.TRUE if self._object == other else FuzzyBoolean.FALSE
+
+  def instance_of(self, type_) -> FuzzyBoolean: 
+    return is_subtype(type_, type(self._object))
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.TRUE if isinstance(self._object, type_) else FuzzyBoolean.FALSE
@@ -796,6 +901,14 @@ class FuzzyObject(PObject):
   #            for truth in truths):
   #     return FuzzyBoolean.MAYBE
   #   return FuzzyBoolean.FALSE
+
+  def instance_of(self, type_) -> FuzzyBoolean: 
+    truths = [value.instance_of(type_) for value in self._values]
+    if all(truth == FuzzyBoolean.TRUE for truth in truths):
+      return FuzzyBoolean.TRUE
+    elif any(truth == FuzzyBoolean.TRUE or truth == FuzzyBoolean.MAYBE for truth in truths):
+      return FuzzyBoolean.MAYBE
+    return FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
     truths = [value.value_is_a(type_) for value in self._values]

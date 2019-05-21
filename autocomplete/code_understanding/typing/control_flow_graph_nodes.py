@@ -776,7 +776,7 @@ class FuncCfgNode(CfgNode):
         processed_params.append(param)
       else:  # Process parameter defaults at the time of definition.
         default = param.default_expression.evaluate(curr_frame)
-        processed_params.append(Parameter(param.name, param.parameter_type, default_value=default))
+        processed_params.append(Parameter(param.name, param.parameter_type, default_value=default, type_hint_expression=param.type_hint_expression))
     # Include full name.
     func_name = '.'.join([curr_frame.namespace.name, self.name]) if curr_frame.namespace else self.name
     func = FunctionImpl(name=func_name,

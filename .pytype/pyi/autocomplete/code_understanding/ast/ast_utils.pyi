@@ -1,0 +1,6 @@
+# (generated with --quick)
+
+from typing import Any
+
+def _complete_name(node, node_to_parent_dict, base_name = ..., descendents = ...) -> Any: ...
+def _name_id_or_arg(node) -> Any: ...

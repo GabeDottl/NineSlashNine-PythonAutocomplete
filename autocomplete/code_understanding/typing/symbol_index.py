@@ -287,6 +287,7 @@ class SymbolIndex:
         self.add_path(os.path.join(path, directory), track_imported_modules=track_imported_modules)
     if track_imported_modules:
       module_loader.keep_graphs_default = False
+    
 
   def _track_modules(self, graph, directory):
     import_nodes = graph.get_descendents_of_types(

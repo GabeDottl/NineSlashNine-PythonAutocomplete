@@ -87,11 +87,11 @@ def insert_imports(source, source_dir, fixes):
       module_to_value_dict[module_name].append((value, fix.as_name))
 
   inserts = []
+  first_node = graph.children[0]
   if module_imports:
     import_nodes = list(graph.get_descendents_of_types(control_flow_graph_nodes.ImportCfgNode))
 
     if not import_nodes:
-      first_node = graph.children[0]
       if isinstance(first_node, control_flow_graph_nodes.ExpressionCfgNode) and isinstance(
           first_node.expression, expressions.LiteralExpression) and isinstance(
               first_node.expression.literal, str):
