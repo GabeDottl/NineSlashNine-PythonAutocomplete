@@ -29,7 +29,7 @@ def test_cfg_symbol_visibility():
       def foo2():
         k = 8
   '''
-  graph = graph_from_source(source, os.path.dirname(__file__))
+  graph = graph_from_source(source, __file__)
   graph = control_flow_graph.condense_graph(graph)
   assert_expected_iterable(graph.get_defined_and_exported_symbols(), ['a', 'X'])
   klass_node = graph[1]
@@ -60,7 +60,7 @@ def test_closure_scope():
 
   a = 1
   '''
-  graph = graph_from_source(source, os.path.dirname(__file__))
+  graph = graph_from_source(source, __file__)
   graph = control_flow_graph.condense_graph(graph)
   foo_func_node = graph[0]
   assert isinstance(foo_func_node, FuncCfgNode)
@@ -131,7 +131,7 @@ def test_module_exports():
   HOME = os.getenv('HOME')
   with open(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/control_flow_graph.py') as f:
     source = ''.join(f.readlines())
-  graph = graph_from_source(source, os.path.dirname(__file__))
+  graph = graph_from_source(source, __file__)
   exports = graph.get_defined_and_exported_symbols()
   assert len(exports) >= 40
 

@@ -1,12 +1,14 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import (Dict, List, Union)
+from typing import Dict, List, Union
 
 import attr
+
 from . import symbol_context
-from .pobjects import (FuzzyObject, LazyObject, NativeObject, PObject, PObjectType, UnknownObject, pobject_from_object)
-from .utils import assert_returns_type
 from ...nsn_logging import debug
+from .pobjects import (FuzzyObject, NativeObject, PObject, PObjectType,
+                       UnknownObject, pobject_from_object)
+from .utils import assert_returns_type
 
 
 class Expression(ABC):
@@ -320,13 +322,13 @@ class DictExpression(Expression):
   values: List[Union[StarredExpression, KeyValueAssignment, KeyValueForComp]] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
-    out = LazyObject('{}', lambda: NativeObject({}))
+    out = NativeObject({})  #LazyObject('{}', lambda: NativeObject({}))
     for value in self.values:
       if isinstance(value, KeyValueAssignment):
         k = value.key.evaluate(curr_frame)
         v = value.value.evaluate(curr_frame)
         # try:
-        out.set_item(curr_frame, k, v, deferred_value=False)
+        out.set_item(curr_frame, k, v)
         # except (AmbiguousFuzzyValueError) as e:
         #   # Unhashable.
         #   warning(e)

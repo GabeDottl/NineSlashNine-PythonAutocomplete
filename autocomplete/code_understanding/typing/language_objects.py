@@ -49,7 +49,11 @@ class Namespace:
   _members: Dict[str, PObject] = attr.ib(factory=dict)
 
   def __contains__(self, name):
-    return name in self._members
+    try:
+      self[name]
+      return True
+    except SourceAttributeError:
+      return False
 
   # TODO: This is broken - Namespaces use the same thing for attributes and subscripts.
   def __getitem__(self, name):
@@ -64,6 +68,9 @@ class Namespace:
 
   def items(self):
     return self._members.items()
+
+  def keys(self):
+    return self._members.keys()
 
   # TODO: delete these?
   def has_attribute(self, name):
@@ -89,7 +96,7 @@ class ModuleType(Enum):
   UNKNOWN_OR_UNREADABLE = 6
 
   def should_be_readable(self):
-    return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE
+    return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE and self != ModuleType.COMPILED
 
   def serialize(self, **kwargs):
     return ModuleType.__qualname__, self.value
@@ -143,6 +150,9 @@ class NativeModule(Module):
   def items(self):
     return self.get_members().items()
 
+  def keys(self):
+    return self.get_members().keys()
+
   # TODO: delete these?
   def has_attribute(self, name):
     return self._native_module.has_attribute(name)
@@ -191,7 +201,7 @@ class ModuleImpl(Module):
   def __getitem__(self, name):
     try:
       return super().__getitem__(name)
-    except SourceAttributeError:
+    except SourceAttributeError as sae:
       if not self.module_type.should_be_readable():
         return UnknownObject(f'{self.name}.{name}')
       if self._is_package:
@@ -202,9 +212,11 @@ class ModuleImpl(Module):
                                             unknown_fallback=False))
         except errors.InvalidModuleError as e:
           pass
-      if self.module_type.should_be_readable():
-        warning(f'Failed to get {name} from {self.name}')
-      return UnknownObject(f'{self.name}.{name}')
+      # Commented out because getitem is used by __contains__.
+      # if self.module_type.should_be_readable():
+      #   warning(f'Failed to get {name} from {self.filename}')
+      raise sae
+      
 
   def serialize(self, **kwargs):
     # Note, this is being done s.t. it works with subclasses - namely LazyModule.
@@ -266,7 +278,7 @@ def _passthrough_to_super_if_loaded(func):
   return wrapper
 
 
-@attr.s
+@attr.s(str=False, repr=False)
 class LazyModule(ModuleImpl):
   '''A Module which is lazily loaded with members.
 
@@ -320,8 +332,8 @@ class LazyModule(ModuleImpl):
 
   # @_passthrough_to_super_if_loaded
   def __getitem__(self, name):
-    if self.lazy:
-      return LazyObject(f'{self.name}.{name}', lambda: self._get_item_loaded(name))
+    if self.lazy and not self._loaded:
+      return LazyObject(f'{self.name}.{name}', lambda: self._get_item_loaded(name), self.filename)
     return self._get_item_loaded(name)
     # return super().__getitem__(name)
 
@@ -336,12 +348,22 @@ class LazyModule(ModuleImpl):
   def items(self):
     return super().items()
 
+  @_lazy_load
+  def keys(self):
+    return super().items()
+
   def serialize(self, **kwargs):
     assert not self._loading
     if not self._loaded or self._loading_failed:
       self.load()
     # Loaded or loading failed.
     return super().serialize(**kwargs)
+  
+  def __str__(self):
+    return f'LazyMod {self.filename}: {list(self._members.keys())}'
+
+  def __repr__(self):
+    return str(self)
 
 
 @attr.s(str=False, repr=False, slots=True)
@@ -349,6 +371,10 @@ class Klass(Namespace, LanguageObject):
   name: str = attr.ib()
   module_name: 'str' = attr.ib()
   _members: Dict[str, PObject] = attr.ib(factory=dict)
+
+  def __attrs_post_init__(self):
+    # https://www.python.org/dev/peps/pep-3155/#discussion
+    self._members['__name__'] = self._members['__qualname__'] = NativeObject(self.name)
 
   def call(self, curr_frame, args, kwargs):
     return AugmentedObject(self.new(curr_frame, args, kwargs))

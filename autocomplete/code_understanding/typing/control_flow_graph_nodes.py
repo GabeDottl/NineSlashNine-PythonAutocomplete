@@ -1,16 +1,23 @@
 import itertools
+import os
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
-from . import (collector, symbol_context)
+
+from . import collector, symbol_context, language_objects
+from ...nsn_logging import info, warning
 from .errors import AmbiguousFuzzyValueError
-from .expressions import (Expression, VariableExpression, _assign_variables_to_results)
+from .expressions import (Expression, VariableExpression,
+                          _assign_variables_to_results)
 from .frame import FrameType
-from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, Parameter, SimplePackageModule)
-from .pobjects import (AugmentedObject, LazyObject, UnknownObject)
-from .utils import (assert_returns_type, instance_memoize)
+from .language_objects import (BoundFunction, Function, FunctionImpl,
+                               FunctionType, Klass, Module, Parameter,
+                               SimplePackageModule)
+from .pobjects import AugmentedObject, LazyObject, UnknownObject
+from .utils import assert_returns_type, instance_memoize
+
 
 @attr.s
 class ParseNode:
@@ -145,10 +152,13 @@ class ExpressionCfgNode(CfgNode):
 @attr.s(slots=True)
 class ImportCfgNode(CfgNode):
   module_path = attr.ib()  # TODO: Rename to name
-  source_dir: str = attr.ib()
+  source_filename: str = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
+
+  def __attrs_post_init__(self):
+    self.source_dir = os.path.dirname(self.source_filename)
 
   @instance_memoize
   def get_module_key(self):
@@ -242,10 +252,13 @@ class ImportCfgNode(CfgNode):
 class FromImportCfgNode(CfgNode):
   module_path = attr.ib()
   from_import_name_alias_dict: Dict[str, str] = attr.ib()
-  source_dir: str = attr.ib()
+  source_filename: str = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
   as_name = attr.ib(None)
   module_loader = attr.ib(kw_only=True)
+
+  def __attrs_post_init__(self):
+    self.source_dir = os.path.dirname(self.source_filename)
 
   @instance_memoize
   def get_module_key(self):
@@ -260,15 +273,22 @@ class FromImportCfgNode(CfgNode):
         # This sort of import should be rather uncommon, so perhaps not super-worthwhile...
 
         # Python's kind of funny. If |module| is a package, this will only bring in the modules in
-        # that package which have already been explcitly imported. So, given a.b and a.c modules,
+        # that package which have already been explcitly imported. Sof, given a.b and a.c modules,
         # if we have from a import *, b and c will only be brought in to the namespace if they were
         # already imported. Such subtleties..
         module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
+        if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
+          warning(f'Unknown module: {module.name}')
+          continue
+        def load_all():
+          for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
+            curr_frame[name] = AugmentedObject(pobject, imported=True)
+          info(f'Using module.keys() instead of __all__: {list(filter(lambda k: k[0]!= "_", module.keys()))}')
         if '__all__' in module:
           try:
             all_iter = iter(module['__all__'].value())
           except TypeError:
-            pass
+            load_all()
           else:
             for val in all_iter:
               val_str = val.value()
@@ -276,9 +296,11 @@ class FromImportCfgNode(CfgNode):
                 curr_frame[val_str] = module[val_str]
         else:
           # Python does not include private members when importing with star.
-          for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
-            curr_frame[name] = AugmentedObject(pobject, imported=True)
-        break
+          load_all()
+          # for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
+          #   curr_frame[name] = AugmentedObject(pobject, imported=True)
+          # info(f'Using module.keys() instead of __all__: {list(filter(lambda k: k[0]!= "_", module.keys()))}')
+        continue
 
       # Normal case.
       name = as_name if as_name else from_import_name
@@ -291,6 +313,7 @@ class FromImportCfgNode(CfgNode):
       pobject = LazyObject(lo_name,
                            partial(self.module_loader.get_pobject_from_module, self.module_path,
                                    from_import_name, curr_dir),
+                           self.source_filename,
                            imported=True)
       curr_frame[name] = pobject
 
@@ -666,7 +689,7 @@ class KlassCfgNode(CfgNode):
     new_frame = curr_frame.make_child(frame_type=FrameType.KLASS, namespace=klass)
     # Locals defined in this frame are actually members of our class.
     self.suite.process(new_frame)
-    klass._members = new_frame._locals
+    klass._members.update(new_frame._locals)
     for name, member in klass.items():
 
       def instance_member(f):

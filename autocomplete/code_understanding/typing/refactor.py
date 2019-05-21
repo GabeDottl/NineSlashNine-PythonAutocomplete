@@ -1,8 +1,8 @@
 import attr
 from itertools import chain
+import os
 
 import _ast
-from os import remove
 from typing import List
 from collections import defaultdict, OrderedDict
 from ...nsn_logging import info
@@ -74,13 +74,13 @@ def import_format(value, as_name):
   return value
 
 
-def insert_imports(source, source_dir, fixes):
-  graph = api.graph_from_source(source, source_dir, parso_default=True)
+def insert_imports(source, source_filename, fixes):
+  graph = api.graph_from_source(source, source_filename, parso_default=True)
   module_to_value_dict = defaultdict(list)
 
   module_imports = []
   for fix in fixes:
-    module_name, value = fix.get_module_name_and_value(source_dir)
+    module_name, value = fix.get_module_name_and_value(os.path.dirname(source_filename))
     if not value:
       module_imports.append((module_name, fix.as_name))
     else:
@@ -246,8 +246,8 @@ def apply_inserts_and_removals_to_string(string, inserts, removals):
 
   for change in combined:
     if isinstance(change, Remove):
-      start_pos = remove.end_pos if remove.end_pos[1] >= 0 else remove.end_pos[0], len(
-          lines[remove.end_pos[0]]) + remove.end_pos[1]
+      start_pos = change.end_pos if change.end_pos[1] >= 0 else change.end_pos[0], len(
+          lines[change.end_pos[0]]) + change.end_pos[1]
     else:
       if change.start_pos[1] == 0:
         start_pos = change.start_pos[0] - 1, len(lines[change.start_pos[0] - 1]) - 1

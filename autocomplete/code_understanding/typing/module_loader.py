@@ -74,10 +74,7 @@ class ModuleKey:
   def get_module_basename(self):
     if self.module_source_type == ModuleSourceType.BUILTIN:
       return self.path
-    filename = os.path.basename(self.path)
-    if filename == '__init__.py' or filename == '__init__.pyi':
-      return os.path.basename(os.path.dirname(self.path))
-    return os.path.splitext(os.path.basename(self.path))[0]
+    return module_name_from_filename(self.path, basename_only=True)
 
   def is_path_file(self):
     return self.module_source_type == ModuleSourceType.NORMAL or self.module_source_type == ModuleSourceType.COMPILED
@@ -91,6 +88,27 @@ class ModuleKey:
   @staticmethod
   def deserialize(args):
     return ModuleKey(ModuleSourceType(args[0]), args[1])
+
+
+def module_name_from_filename(filename, basename_only=False):
+  basename = os.path.basename(filename)
+  if basename == '__init__.py' or basename == '__init__.pyi':
+    return os.path.basename(os.path.dirname(filename))
+  # Note: we manually remove the extension here rather than using os.splitext. This is to remove
+  # all '.' parts from the name - which aren't allowable within the context of an individual
+  # module name.
+  # This mostly matters for native modules - e.g.:
+  # '/usr/lib/python3.7/lib-dynload/_hashlib.cpython-37m-x86_64-linux-gnu.so'
+  # The name we want is _hashlib - not _hashlib.cpython-37m-x86_64-linux-gnu.
+  module_basename = basename[:basename.index('.')]
+  assert module_basename
+  if basename_only:
+    return module_basename
+
+  dirname = os.path.dirname(filename)
+  if not dirname:
+    return module_basename
+  return f'{dirname.replace(os.sep, ".")}.{module_basename}'
 
 
 def join_module_attribute(module_name, attribute_name):
@@ -206,10 +224,7 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
 def load_module_from_source(source, filename, include_graph=False):
   module = create_main_module(sys.modules[__name__])
   if include_graph:
-    module._members, graph = _module_exports_from_source(module,
-                                                         source,
-                                                         filename=filename,
-                                                         return_graph=True)
+    module._members, graph = _module_exports_from_source(module, source, filename=filename, return_graph=True)
     module.graph = graph
   else:
     module._members = _module_exports_from_source(module, source, filename=filename)
@@ -239,7 +254,7 @@ def _load_module_from_module_info(module_key,
     if unknown_fallback:
       return _create_empty_module(module_key.path, module_type)
     else:
-      raise InvalidModuleError(module_key.get_module_basename())
+      raise InvalidModuleError(module_key.path)
 
   name = module_key.get_module_basename()
   if module_key.module_source_type.should_be_natively_loaded() or name in NATIVE_MODULE_WHITELIST:

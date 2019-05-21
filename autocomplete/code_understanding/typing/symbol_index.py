@@ -91,7 +91,7 @@ class InternalSymbolEntry:
     return self.module_type == language_objects.ModuleType.BUILTIN
 
 
-@attr.s
+@attr.s(str=False, repr=False)
 class CompleteSymbolEntry:
   '''This class represents a complete symbol entry including all APIs necessary for importing the
   symbol and getting info about it without needing to know internal details like whether or not it's
@@ -99,6 +99,7 @@ class CompleteSymbolEntry:
   '''
   _index = attr.ib()
   _internal_symbol_entry = attr.ib()
+  symbol_name = attr.ib()
   _symbol_alias = attr.ib(None)
 
   def get_symbol_type(self):
@@ -119,12 +120,20 @@ class CompleteSymbolEntry:
     return self._internal_symbol_entry.import_count
 
   def get_real_name(self):
-    assert self._symbol_alias is not None
-    return self._symbol_alias.real_name
+    return self._symbol_alias.real_name if self._symbol_alias else self.symbol_name
 
   def is_alias(self):
     return self._symbol_alias is not None
 
+  def __str__(self):
+    return f'({self.get_module_key()}, {self.get_real_name() if not self.is_module_itself() else None}, {self.symbol_name})'
+
+  def __repr__(self):
+    return f'({self.get_module_key()}, {self.get_real_name() if not self.is_module_itself() else None}, {self.symbol_name})'
+
+def pretty_print_symbol_entries(symbol_entries):
+  for symbol_entry in symbol_entries:
+    print(symbol_entry)
 
 @attr.s
 class SymbolIndex:
@@ -161,9 +170,9 @@ class SymbolIndex:
   def find_symbol(self, symbol):
     for alias in self.symbol_alias_dict[symbol].values():
       symbol_entry = self.symbol_dict[alias.real_name][(alias.module_index, alias.is_module_itself)]
-      yield CompleteSymbolEntry(self, symbol_entry, alias)
+      yield CompleteSymbolEntry(self, symbol_entry, symbol, alias)
     for symbol_entry in self.symbol_dict[symbol].values():
-      yield CompleteSymbolEntry(self, symbol_entry, None)
+      yield CompleteSymbolEntry(self, symbol_entry, symbol, None)
 
   def get_modules_for_symbol_entries(self, symbol_entries):
     for symbol_entry in symbol_entries:

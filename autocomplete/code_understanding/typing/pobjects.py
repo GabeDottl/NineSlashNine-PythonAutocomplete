@@ -4,6 +4,7 @@ from enum import Enum
 from functools import partial, wraps
 from typing import List
 
+import typing
 import attr
 
 from . import collector, serialization
@@ -461,7 +462,9 @@ class NativeObject(PObject):
         self._native_object, dict):
       self._native_object.update(pobject._native_object)
       return
-    raise NotImplementedError()
+    warning(f'Cant update NativeObject dict w/{type(pobject)}')
+    return
+    # raise NotImplementedError()
 
   def iterator(self):
     if hasattr(self._native_object, '__iter__'):
@@ -555,8 +558,9 @@ def loop_checker(func):
 class LazyObject(PObject):
   name = attr.ib()
   _loader = attr.ib()
+  _loader_filecontext = attr.ib(validator=attr.validators.instance_of(str))
   imported = attr.ib(False)
-  _loader_filecontext = attr.ib(None, init=False)
+  
   _loaded_object = attr.ib(init=False, default=None)
   # _loaded = attr.ib(init=False, default=False)
   _loading = attr.ib(init=False, default=False)
@@ -565,8 +569,8 @@ class LazyObject(PObject):
   _deferred_operations = attr.ib(init=False, factory=list)
   _deferred_funcs = attr.ib(init=False, factory=list)
 
-  def __attrs_post_init__(self):
-    self._loader_filecontext = collector._filename_context[-1]
+  # def __attrs_post_init__(self):
+  #   self._loader_filecontext = collector._filename_context[-1]
 
   # @loop_checker
   def _load(self):
@@ -615,8 +619,12 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def get_attribute(self, name):
-    self._load()
-    return LazyObject(f'{self.name}.{name}', lambda: self._loaded_object.get_attribute(name))
+    try:
+      self._load()
+      return LazyObject(f'{self.name}.{name}', lambda: self._loaded_object.get_attribute(name), self._loader_filecontext)
+    except SourceAttributeError as e:
+      return UnknownObject(name)
+
 
   @_passthrough_if_loaded
   def set_attribute(self, name, value):
@@ -651,19 +659,19 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def invert(self):
-    return LazyObject(f'not {self.name}', lambda: self.bool_value().invert().to_pobject())
+    return LazyObject(f'not {self.name}', lambda: self.bool_value().invert().to_pobject(), self._loader_filecontext)
 
   @_passthrough_if_loaded
   def and_expr(self, other):
     # Don't care about shortcircuiting.
     return LazyObject(
-        f'{self.name} and {other}', lambda: self.bool_value().and_expr(other.bool_value()).to_pobject())
+        f'{self.name} and {other}', lambda: self.bool_value().and_expr(other.bool_value()).to_pobject(), self._loader_filecontext)
 
   @_passthrough_if_loaded
   def or_expr(self, other):
     # Don't care about shortcircuiting.
     return LazyObject(
-        f'{self.name} and {other}', lambda: self.bool_value().or_expr(other.bool_value()).to_pobject())
+        f'{self.name} and {other}', lambda: self.bool_value().or_expr(other.bool_value()).to_pobject(), self._loader_filecontext)
 
   @_passthrough_if_loaded
   def call(self, curr_frame, args, kwargs):
@@ -672,7 +680,7 @@ class LazyObject(PObject):
     # TODO: Consider somehow snapshotting PObjects too.
     frame = curr_frame.snapshot()
     return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})',
-                      partial(lambda a, b, c, : self._load_and_ret().call(a, b, c), frame, args, kwargs))
+                      partial(lambda a, b, c, : self._load_and_ret().call(a, b, c), frame, args, kwargs), self._loader_filecontext)
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):
@@ -683,7 +691,7 @@ class LazyObject(PObject):
     return LazyObject(
         f'{self.name}[{index_pobject}]', lambda: self._load_and_ret().get_item(
             frame,
-            index_pobject.value() if deferred_value else index_pobject))
+            index_pobject.value() if deferred_value else index_pobject), self._loader_filecontext)
 
   @_passthrough_if_loaded
   def set_item(self, curr_frame, index_pobject, value_pobject, deferred_value=False):
@@ -738,8 +746,6 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
     except (SourceAttributeError, LoadingModuleAttributeError):
       # TODO: Log
       debug(f'Failed to access {name} from {self._object}')
-    except AttributeError:
-      raise
     return self._dynamic_container.get_attribute(name)
 
   def set_attribute(self, name, value):

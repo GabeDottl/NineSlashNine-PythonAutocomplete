@@ -15,12 +15,12 @@ class AstControlFlowGraphBuilder:
   _module: 'Module' = attr.ib()
   root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
 
-  def graph_from_source(self, source, source_dir):
+  def graph_from_source(self, source, source_filename):
     try:
       ast_node = ast.parse(source)
     except SyntaxError as e:
       raise errors.AstUnableToParse(e)
-    visitor = Visitor(self.module_loader, module=self._module, source_dir=source_dir, container_stack=[])
+    visitor = Visitor(self.module_loader, module=self._module, source_filename=source_filename, container_stack=[])
     visitor.visit(ast_node)
     return visitor.root
 
@@ -43,7 +43,7 @@ class ListPopper:
 class Visitor(ast.NodeVisitor):
   module_loader = attr.ib()
   _module = attr.ib()
-  source_dir: str = attr.ib()
+  source_filename: str = attr.ib()
   _container_stack = attr.ib(factory=list)
   root = attr.ib(None, init=False)
   _containing_func_node = None
@@ -255,7 +255,7 @@ class Visitor(ast.NodeVisitor):
       self.push(
           ImportCfgNode(alias.name,
                         as_name=alias.asname,
-                        source_dir=self.source_dir,
+                        source_filename=self.source_filename,
                         module_loader=self.module_loader,
                         parse_node=parse_from_ast(ast_node)))
 
@@ -266,7 +266,7 @@ class Visitor(ast.NodeVisitor):
         FromImportCfgNode(f'{"."*ast_node.level}{ast_node.module}' if ast_node.module else '.' *
                           ast_node.level, {alias.name: alias.asname
                                            for alias in ast_node.names},
-                          source_dir=self.source_dir,
+                          source_filename=self.source_filename,
                           module_loader=self.module_loader,
                           parse_node=parse_from_ast(ast_node)))
 

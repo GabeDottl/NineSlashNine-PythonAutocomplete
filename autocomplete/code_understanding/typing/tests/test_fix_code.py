@@ -7,6 +7,10 @@ from ..project_analysis import (find_missing_symbols, fix_code)
 from ....nsn_logging import info
 
 CODE = os.getenv('CODE')
+# Note: We use the clone dir instead of the real autocomplete dir to avoid unnecessary headaches
+# where there's ambiguity between whether or code isn't working (not finding a fix) or our code is
+# actually broken (fix is right - our code is wrong).
+AUTCOMPLETE_CLONE_DIR = os.path.join(CODE, 'autocomplete_clone', 'autocomplete')
 
 
 def test_strip_imports():
@@ -17,7 +21,7 @@ from functools import wraps
 a = wraps  # TODO: decorator.
 foo.bar()
 '''
-  graph = api.graph_from_source(source, os.path.dirname(__file__))
+  graph = api.graph_from_source(source, __file__)
   assert len(list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))) == 2
   assert len(graph.get_non_local_symbols()) == 0
   stripped_graph = graph.strip_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False)
@@ -32,8 +36,8 @@ c = AClass()'''
   index = symbol_index.SymbolIndex()
   index.add_file(os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package',
                               'exports.py'))
-  new_source, changed = fix_code.fix_missing_symbols_in_source(source, os.path.dirname(__file__), filename=None, index=index)
-  graph = api.graph_from_source(new_source, os.path.dirname(__file__))
+  new_source, changed = fix_code.fix_missing_symbols_in_source(source, filename=__file__, index=index)
+  graph = api.graph_from_source(new_source, __file__)
   print(new_source)
   assert changed
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
@@ -52,8 +56,8 @@ c = AClass()'''
   # TODO: Windows support for /tmp.
   index = symbol_index.SymbolIndex.build_index_from_package(
       os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package'), '/tmp/tmp.msg')
-  new_source, changed = fix_code.fix_missing_symbols_in_source(source, os.path.dirname(__file__), filename=None, index=index)
-  graph = api.graph_from_source(new_source, os.path.dirname(__file__))
+  new_source, changed = fix_code.fix_missing_symbols_in_source(source, filename=__file__, index=index)
+  graph = api.graph_from_source(new_source, __file__)
   print(new_source)
   assert len(list(graph.get_descendents_of_types(FromImportCfgNode))) == 1
   assert len(graph.get_non_local_symbols()) == 0
@@ -61,6 +65,7 @@ c = AClass()'''
 
 def test_fix_imports_typing_match_actual():
   from .... import code_understanding
+  # TODO: replace w/ clone.
   autocomplete_dir = os.path.join(os.path.dirname(code_understanding.__file__), '..', '..')
   index = symbol_index.SymbolIndex.load(os.path.join(autocomplete_dir, 'index.msg'))
   typing_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -69,9 +74,9 @@ def test_fix_imports_typing_match_actual():
     info(f'filename: {filename}')
     with open(filename) as f:
       source = ''.join(f.readlines())
-    graph = api.graph_from_source(source, os.path.dirname(filename))
+    graph = api.graph_from_source(source, filename)
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, os.path.dirname(filename))
-    assert not missing_symbols
+    assert not missing_symbols, f'{filename} is already missing imports.'
     existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
     stripped_graph = graph.strip_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False)
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph,

@@ -39,7 +39,7 @@ def scan_missing_symbols_in_graph(graph, directory, skip_wild_cards=False):
           module_key, _, _ = module_loader.get_module_info_from_name(from_import.module_path, directory)
           # TODO: Cache graph.
           with open(module_key.path) as f:
-            imported_graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module_key.path))
+            imported_graph = api.graph_from_source(''.join(f.readlines()), module_key.path)
             defined_symbols = set(imported_graph.get_defined_and_exported_symbols())
             missing_symbols = {
                 s: c

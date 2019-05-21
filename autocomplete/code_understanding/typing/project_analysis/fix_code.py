@@ -9,7 +9,7 @@ import attr
 from isort import SortImports
 
 from ....nsn_logging import info, warning
-from .. import api, module_loader, refactor, symbol_context, symbol_index
+from .. import api, module_loader, refactor, symbol_context, symbol_index, pobjects, errors
 from ..control_flow_graph_nodes import FromImportCfgNode, ImportCfgNode
 from . import find_missing_symbols
 from .update_history_tracker import UpdateHistoryTracker
@@ -19,7 +19,6 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
   with open(filename) as f:
     source = ''.join(f.readlines())
   new_code, changed = fix_missing_symbols_in_source(source,
-                                                    os.path.dirname(filename),
                                                     filename=filename,
                                                     index=index,
                                                     remove_extra_imports=remove_extra_imports)
@@ -29,8 +28,9 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
   return new_code, changed
 
 
-def fix_missing_symbols_in_source(source, source_dir, filename, index, remove_extra_imports=True, sort_imports=True) -> str:
-  graph = api.graph_from_source(source, source_dir, parso_default=True)
+def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=True, sort_imports=True) -> str:
+  source_dir = os.path.dirname(filename)
+  graph = api.graph_from_source(source, filename, parso_default=True)
   existing_global_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
   if remove_extra_imports:
     stripped_graph = graph.strip_descendents_of_types((FromImportCfgNode, ImportCfgNode), recursive=False)
@@ -101,7 +101,7 @@ def fix_missing_symbols_in_source(source, source_dir, filename, index, remove_ex
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  new_source, changed = refactor.insert_imports(new_source, source_dir, remaining_fixes), len(fixes) > 0 or len(changes) > 0
+  new_source, changed = refactor.insert_imports(new_source, filename, remaining_fixes), len(fixes) > 0 or len(changes) > 0
   uht.save()
   if sort_imports and changed:
     out = SortImports(file_contents=new_source).output
@@ -119,22 +119,26 @@ def apply_fixes_to_source(source, source_dir, fixes):
 def _relative_from_path(filename, directory, relative_prefix: bool):
   filename = os.path.relpath(os.path.abspath(filename), directory)
   # Guaranteed all relative-pathing will be at the beginning, if any.
-  if filename[0] != '.' and relative_prefix:
-    # filename is contained in directory - make it explicity.
-    filename = f'.{filename}'
-  else:
+  prefix = ''
+  if filename[0] == '.':
     # filename is downward from directory - need to convert ../ to dots.
     down_count = filename.count(f'..{os.sep}')
     if down_count:
-      filename = f'{"."*(down_count+1)}{filename[3*down_count:]}'
+      filename = filename[3*down_count:]
+      prefix = "."*(down_count+1)
+  elif relative_prefix:
+    # filename is contained in directory - make it explicit with '.' prefix.
+    prefix = '.'
 
-  if filename[-(len('__init__.py')):] == '__init__.py':
-    filename = filename[:-len('__init__.py') - 1]
-    return filename.replace(os.sep, '.')
-  elif filename[-(len('__init__.pyi')):] == '__init__.pyi':
-    filename = filename[:-len('__init__.pyi') - 1]
-    return filename.replace(os.sep, '.')
-  return os.path.splitext(filename)[0].replace(os.sep, '.')
+  return f'{prefix}{module_loader.module_name_from_filename(filename)}'
+  # basename
+  # if filename[-(len('__init__.py')):] == '__init__.py':
+  #   # filename = filename[:-len('__init__.py') - 1]
+  #   return filename.replace(os.sep, '.')
+  # elif filename[-(len('__init__.pyi')):] == '__init__.pyi':
+  #   # filename = filename[:-len('__init__.pyi') - 1]
+  #   return filename.replace(os.sep, '.')
+  # return os.path.splitext(filename)[0].replace(os.sep, '.')
 
 
 def module_name_from_filename(filename, source_dir):
@@ -143,6 +147,7 @@ def module_name_from_filename(filename, source_dir):
   relative_distance = file_distance(filename, source_dir)
 
   for path in sorted(sys.path, key=lambda p: -len(p)):
+    # TODO: Broader relative path support.
     if path == '.':
       path = source_dir
     if path == filename[:len(path)]:
@@ -180,7 +185,8 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
 
     imported_symbol = as_name if as_name else from_import_name
     if not value:
-      name = module_name_from_filename(import_.module_filename, directory)
+      assert module_key.is_path_file()
+      name = module_name_from_filename(import_.module_key.path, directory)
       return imported_symbol == name[name.rfind('.') + 1:]
 
     if value == imported_symbol:
@@ -229,6 +235,17 @@ class Import:
       return f'from {module_name} import {value}\n'
     return f'import {module_name}\n'
 
+def pobject_from_symbol_entry(symbol_entry):
+  module = module_loader.get_module_from_key(symbol_entry.get_module_key())
+  if symbol_entry.is_module_itself():
+    return module
+  try:
+    return module[symbol_entry.get_real_name()]
+  except errors.SourceAttributeError as e:
+    warning(f'Could not get {symbol_entry.get_real_name()} from module {symbol_entry.get_module_key()}. Code likely changed since index was created.')
+    return pobjects.UnknownObject(symbol_entry.get_real_name())
+  
+  
 
 def matches_context(context, symbol_entry):
   # TODO: Refine all of this.
@@ -249,7 +266,11 @@ def matches_context(context, symbol_entry):
     return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
 
   if isinstance(context, symbol_context.AttributeSymbolContext):
-    return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
+    pobject = pobject_from_symbol_entry(symbol_entry)
+    if isinstance(pobject, pobjects.UnknownObject):
+      return False
+    return pobject.has_attribute(context.attribute)
+    # return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
 
   return True
 
