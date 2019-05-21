@@ -19,11 +19,11 @@ c = {**a, **b, "c":1}
 
 def test_sets():
   source = '''
-  a={"a"}
-  b={"b"}
-  d = {*a, *b}
-  b={"b" for i in range(1)}
-  c = {*a, *b, "c"}
+a={"a"}
+b={"b"}
+d = {*a, *b}
+b={"b" for i in range(1)}
+c = {*a, *b, "c"}
   '''
   module = module_loader.load_module_from_source(source, __file__)
   # TODO
@@ -35,13 +35,13 @@ def test_sets():
 
 def test_and_or():
   source = '''
-  a = False
-  b = 1 < 2 < 3 < 4
-  def foo(): return True
-  b = a or foo()
-  c = a and foo()
-  d = not a or not foo() and b
-  e = foo() and not foo() and foo()
+a = False
+b = 1 < 2 < 3 < 4
+def foo(): return True
+b = a or foo()
+c = a and foo()
+d = not a or not foo() and b
+e = foo() and not foo() and foo()
 
   '''
   module = module_loader.load_module_from_source(source, __file__)
