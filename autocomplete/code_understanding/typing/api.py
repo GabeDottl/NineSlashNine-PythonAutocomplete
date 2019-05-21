@@ -1,10 +1,8 @@
-import argparse
 
-from . import collector, control_flow_graph, frame, module_loader
-from ...nsn_logging import debug
+from . import collector, control_flow_graph, module_loader
 from .control_flow_graph_nodes import CfgNode
-from .language_objects import Function, Klass, create_main_module
-from .pobjects import AugmentedObject, FuzzyBoolean, UnknownObject
+from .language_objects import Function, create_main_module
+from .pobjects import AugmentedObject, FuzzyBoolean
 
 
 def graph_from_source(source: str, source_dir: str, module=None, parso_default=False) -> CfgNode:

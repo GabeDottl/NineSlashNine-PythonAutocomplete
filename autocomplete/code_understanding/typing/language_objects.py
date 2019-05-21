@@ -11,20 +11,24 @@ operation on the abstraction itself (e.g. Function, Klass, FuzzyObject).
 In general, we work around this by using non-dunder methods that match the dunder equivalents.
 So __getitem__, __getattribute__, __call__, etc. translate into get_item, get_attribute, call.
 '''
-import os
 import itertools
+import os
 from abc import ABC
 from enum import Enum
 from functools import wraps
 from typing import Dict, Iterable
 
 import attr
-from . import (collector, serialization,errors)
-from .errors import (NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
+
+from . import collector, serialization, errors
+from ...nsn_logging import debug, error, warning
+from .errors import (NoDictImplementationError, SourceAttributeError,
+                     UnableToReadModuleFileError)
 from .frame import FrameType
-from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject, PObjectType, UnknownObject, pobject_from_object)
+from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject,
+                       LazyObject, NativeObject, PObject, PObjectType,
+                       UnknownObject, pobject_from_object)
 from .utils import attrs_names_from_class
-from ...nsn_logging import (debug, error, warning)
 
 
 @attr.s(slots=True)
