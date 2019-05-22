@@ -7,4 +7,5 @@ import attr as at
 @attr.s
 class Boo:
   from .storage_example import Klazz
+  a = at.ib()
   a = 1
