@@ -151,7 +151,8 @@ def test_processing_all_typing_dir():
       debug(f'Skipping {filename}')
       continue
     # name = os.path.splitext(os.path.basename(filename))[0]
-    module_loader.get_module_from_filename(filename)
+    module_key = module_loader.ModuleKey.from_filename(filename)
+    module = module_loader.get_module_from_key(module_key)
 
 
 if __name__ == '__main__':

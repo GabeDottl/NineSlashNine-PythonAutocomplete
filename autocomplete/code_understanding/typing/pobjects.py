@@ -581,7 +581,16 @@ class LazyObject(PObject):
     self._loading = True
     try:
       with collector.FileContext(self._loader_filecontext):
-        self._loaded_object = self._loader()
+        try:
+          self._loaded_object = self._loader()
+        except SourceAttributeError as sae:
+          # This is a pretty common case simply because we're creating LazyObjects without checking
+          # that they exist first - which is fine so long as the objects do exists but there are
+          # natural cases where they won't:
+          # 1) Source programmer errors.
+          # 2) When loading a stubbed version of an object when the real-version is expected and
+          #    the stub version is missing parts of the real-versions API.
+          self._loaded_object = UnknownObject(self.name)
         assert self._loaded_object != self
     except OSError as e:  # Exception
       error(f'Unable to lazily load {self.name}')

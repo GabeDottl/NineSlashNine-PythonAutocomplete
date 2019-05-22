@@ -28,13 +28,17 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
   return new_code, changed
 
 
-def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=True, sort_imports=True) -> str:
+def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=True,
+                                  sort_imports=True) -> str:
   source_dir = os.path.dirname(filename)
   graph = api.graph_from_source(source, filename, parso_default=True)
-  existing_global_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
+  existing_global_imports = list(
+      graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False))
   if remove_extra_imports:
     stripped_graph = graph.strip_descendents_of_types((FromImportCfgNode, ImportCfgNode), recursive=False)
-    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph, source_dir, skip_wild_cards=True)
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph,
+                                                                         source_dir,
+                                                                         skip_wild_cards=True)
   else:
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir)
 
@@ -42,6 +46,7 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
 
   uht = UpdateHistoryTracker.load(os.path.join(os.getenv('HOME'), 'fix_code_updates.csv'))
   timestamp = time()
+
   def get_change(node):
     module_key = node.get_module_key()
     if module_key in changes:
@@ -72,7 +77,9 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
           get_change(import_node).removals.append(from_import_name)
           uht.add_action(timestamp, 'remove', (from_import_name, import_node.get_module_key()), filename)
     # Recalculate missing symbols accounting for imports now that we've figured out what to remove
-    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, source_dir, skip_wild_cards=True)
+    missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph,
+                                                                         source_dir,
+                                                                         skip_wild_cards=True)
 
   if missing_symbols:
     info(f'missing_symbols: {list(missing_symbols.keys())}')
@@ -101,7 +108,8 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  new_source, changed = refactor.insert_imports(new_source, filename, remaining_fixes), len(fixes) > 0 or len(changes) > 0
+  new_source, changed = refactor.insert_imports(new_source, filename,
+                                                remaining_fixes), len(fixes) > 0 or len(changes) > 0
   uht.save()
   if sort_imports and changed:
     out = SortImports(file_contents=new_source).output
@@ -124,8 +132,8 @@ def _relative_from_path(filename, directory, relative_prefix: bool):
     # filename is downward from directory - need to convert ../ to dots.
     down_count = filename.count(f'..{os.sep}')
     if down_count:
-      filename = filename[3*down_count:]
-      prefix = "."*(down_count+1)
+      filename = filename[3 * down_count:]
+      prefix = "." * (down_count + 1)
   elif relative_prefix:
     # filename is contained in directory - make it explicit with '.' prefix.
     prefix = '.'
@@ -141,7 +149,7 @@ def _relative_from_path(filename, directory, relative_prefix: bool):
   # return os.path.splitext(filename)[0].replace(os.sep, '.')
 
 
-def module_name_from_filename(filename, source_dir):
+def module_name_from_filename_relative_to_dir(filename, source_dir):
   # We prefer relative names to avoid path issues, however, we don't want to go all the way out of
   # the current project to create a relative path.
   relative_distance = file_distance(filename, source_dir)
@@ -185,8 +193,8 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
 
     imported_symbol = as_name if as_name else from_import_name
     if not value:
-      assert module_key.is_path_file()
-      name = module_name_from_filename(import_.module_key.path, directory)
+      assert module_key.is_loadable_by_file()
+      name = module_name_from_filename_relative_to_dir(import_.module_key.get_filename(), directory)
       return imported_symbol == name[name.rfind('.') + 1:]
 
     if value == imported_symbol:
@@ -206,10 +214,10 @@ class Import:
 
   # TODO @instance_memoize
   def get_module_name_and_value(self, source_dir):
-    if self.module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN:
-      module_name = module_name_from_filename(self.module_key.path, source_dir)
+    if self.module_key.is_loadable_by_file():
+      module_name = module_name_from_filename_relative_to_dir(self.module_key.get_filename(prefer_stub=False), source_dir)
     else:
-      module_name = self.module_key.path
+      module_name = self.module_key.get_module_basename()
 
     value = self._value
     if not self._value:
@@ -235,17 +243,21 @@ class Import:
       return f'from {module_name} import {value}\n'
     return f'import {module_name}\n'
 
+
 def pobject_from_symbol_entry(symbol_entry):
-  module = module_loader.get_module_from_key(symbol_entry.get_module_key())
+  # We force the *real* module to be retrieved here instead of potentially a type-stub to ensure the
+  # entire API is available.
+  module = module_loader.get_module_from_key(symbol_entry.get_module_key(), force_real=True)
   if symbol_entry.is_module_itself():
     return module
   try:
     return module[symbol_entry.get_real_name()]
   except errors.SourceAttributeError as e:
-    warning(f'Could not get {symbol_entry.get_real_name()} from module {symbol_entry.get_module_key()}. Code likely changed since index was created.')
+    warning(
+        f'Could not get {symbol_entry.get_real_name()} from module {symbol_entry.get_module_key()}. Code likely changed since index was created.'
+    )
     return pobjects.UnknownObject(symbol_entry.get_real_name())
-  
-  
+
 
 def matches_context(context, symbol_entry):
   # TODO: Refine all of this.
@@ -281,9 +293,9 @@ def symbol_entry_preference_key(symbol_entry):
 
 def symbol_entry_file_distance(symbol_entry, directory):
   module_key = symbol_entry.get_module_key()
-  if not module_key.is_path_file():
+  if not module_key.is_loadable_by_file():
     return 4  # No filename is probably a builtin - fallback to some reasonable default score.
-  return file_distance(module_key.path, directory)
+  return file_distance(module_key.get_filename(), directory)
 
 
 def file_distance(filename1, filename2):

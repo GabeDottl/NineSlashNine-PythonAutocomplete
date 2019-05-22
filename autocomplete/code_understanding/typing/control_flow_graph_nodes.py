@@ -166,7 +166,7 @@ class ImportCfgNode(CfgNode):
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
-    module = self.module_loader.get_module(self.module_path, self.source_dir)
+    module = self.module_loader.get_module_from_key(self.get_module_key())
 
     if self.as_name:
       curr_frame[name] = AugmentedObject(module, imported=True)
@@ -204,7 +204,7 @@ class ImportCfgNode(CfgNode):
           # assert is_package
           ancestor_module = SimplePackageModule(current_name,
                                                 module_type,
-                                                filename=module_key.path,
+                                                filename=module_key.get_filename(),
                                                 is_package=True,
                                                 members={},
                                                 module_loader=self.module_loader)
@@ -276,7 +276,7 @@ class FromImportCfgNode(CfgNode):
         # that package which have already been explcitly imported. Sof, given a.b and a.c modules,
         # if we have from a import *, b and c will only be brought in to the namespace if they were
         # already imported. Such subtleties..
-        module = self.module_loader.get_module(self.module_path, collector.get_current_context_dir())
+        module = self.module_loader.get_module_from_key(self.get_module_key())
         if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
           warning(f'Unknown module: {module.name}')
           continue

@@ -31,8 +31,6 @@ from ...nsn_logging import (debug, info, warning)
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
 
-__module_key_module_dict: Dict['ModuleKey', Module] = {}
-
 # This is primarily to ensure we never read in a file twice - which should be essentially impossible
 # given the public API.
 __loaded_paths: Set[str] = set()
@@ -50,15 +48,19 @@ class ModuleSourceType(Enum):
     return self != ModuleSourceType.NORMAL
 
 
-@attr.s(frozen=True)
+@attr.s(hash=False, cmp=False)
 class ModuleKey:
   '''A key for uniquely identifying and retrieving any module - builtin, compiled, or normal.'''
   module_source_type = attr.ib()
-  path = attr.ib()  # filepath or name for builtins.
+  # A unique identifier for the module. For builtins, this can just be the name of the module. For
+  # modules with associated filenames, this will be the filepath to the module.
+  id = attr.ib()
+  # This only applies to non-builtins and is the path from which this module should be loaded.
+  # _loader_path = attr.ib(None, init=False) #
 
-  def __attrs_post_init__(self):
-    if self.module_source_type == ModuleSourceType.BUILTIN:
-      assert self.path[0] != '.'
+  # def __attrs_post_init__(self):
+  #   if self.module_source_type == ModuleSourceType.BUILTIN:
+  #     assert self.path[0] != '.'
 
   @staticmethod
   def from_filename(filename):
@@ -72,22 +74,64 @@ class ModuleKey:
     return ModuleKey(type_, os.path.abspath(filename))
 
   def get_module_basename(self):
-    if self.module_source_type == ModuleSourceType.BUILTIN:
-      return self.path
-    return module_name_from_filename(self.path, basename_only=True)
+    if not self.is_loadable_by_file():
+      return self.id
+    return module_name_from_filename(self.get_filename(), basename_only=True)
 
-  def is_path_file(self):
+  def get_filename(self, prefer_stub=True):
+    assert self.is_loadable_by_file()
+    # Can't cache because 2 versions - stub and not stub.
+    return loader_path_from_file_module_id(self.id, prefer_stub=prefer_stub)
+
+  def is_loadable_by_file(self):
     return self.module_source_type == ModuleSourceType.NORMAL or self.module_source_type == ModuleSourceType.COMPILED
-
-  def serialize(self):
-    return self.module_source_type.value, self.path
 
   def is_bad(self):
     return self.module_source_type == ModuleSourceType.BAD
 
+  def serialize(self):
+    return self.module_source_type.value, self.id
+
   @staticmethod
   def deserialize(args):
     return ModuleKey(ModuleSourceType(args[0]), args[1])
+
+  def __hash__(self):
+    return hash((self.module_source_type, self.id))
+
+  def __eq__(self, other):
+    return hash(self) == hash(other)
+
+
+def module_id_from_filename(filename):
+  # TODO: Generalize more. E.g.:
+  # third_party:<pypi_id>/<path_relative_to_module>
+  # local:abs_path_to_module
+  # sys:<path_from_sys>
+  # Perhaps making tuples w/ ModuleType instead of strings..
+  # Maybe deal with versioning?
+  # How to handle messiness w/multiple versions across sys.path?
+  return filename
+
+
+def loader_path_from_file_module_id(module_id, prefer_stub):
+  assert os.path.exists(module_id)
+  if not prefer_stub:
+    return module_id
+
+  if f'lib{os.sep}python' in module_id:
+    # Likely third-party or sys-module. Try to find a typeshed match.
+    for path in sorted(filter(lambda f: f'lib{os.sep}python' in f, sys.path), key=lambda p: -len(p)):
+      assert not path[0] == '.'
+      # TODO: Broader relative path support.
+      if path == module_id[:len(path)]:
+        rel_path = os.path.relpath(module_id, path)
+        module_name = module_name_from_filename(rel_path)
+        try:
+          return _stub_filename_from_module_name(module_name)
+        except ValueError:
+          return module_id
+  return module_id
 
 
 def module_name_from_filename(filename, basename_only=False):
@@ -123,12 +167,14 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
   # case, we don't want to mess things up by adding an additional period at the
   # end of the module name.
   full_pobject_name = join_module_attribute(module_name, pobject_name)
-  try:
-    return AugmentedObject(get_module(full_pobject_name, directory, unknown_fallback=False), imported=True)
-  except InvalidModuleError:
-    pass
-
-  module = get_module(module_name, directory)
+  module_key = get_module_info_from_name(full_pobject_name, directory)[0]
+  if not module_key.is_bad():
+    try:
+      return AugmentedObject(get_module_from_key(module_key, unknown_fallback=False), imported=True)
+    except InvalidModuleError:
+      pass
+  module_key = get_module_info_from_name(module_name, directory)[0]
+  module = get_module_from_key(module_key)
   # Try to get pobject_name as a member of module if module is a package.
   # If the module is already loading, then we don't want to check if pobject_name is in module
   # because it will cause headaches. So try getting full_object_name as a package instead.
@@ -137,46 +183,16 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
 
   return UnknownObject(full_pobject_name, imported=True)
 
+__module_key_module_dict: Dict[Tuple[ModuleKey, str], Module] = {}
 
-def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_graph=False):
+def module_key_index(module_key, force_real):
+  return (module_key, module_key.get_filename(prefer_stub=not force_real) if module_key.is_loadable_by_file() else None)
+
+def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_graph=False, force_real=False):
   module_key, is_package, module_type = get_module_info_from_module_key(module_key)
-  return _get_module_internal(module_key,
-                              is_package,
-                              module_type=module_type,
-                              unknown_fallback=unknown_fallback,
-                              lazy=lazy,
-                              include_graph=include_graph)
-
-
-def get_module(name: str, directory: str, unknown_fallback=True, lazy=True, include_graph=False) -> Module:
-  module_key, is_package, module_type = get_module_info_from_name(name, directory)
-
-  return _get_module_internal(module_key=module_key,
-                              is_package=is_package,
-                              module_type=module_type,
-                              unknown_fallback=unknown_fallback,
-                              lazy=lazy,
-                              include_graph=include_graph)
-
-
-def get_module_from_filename(filename,
-                             is_package=False,
-                             unknown_fallback=True,
-                             lazy=True,
-                             include_graph=False) -> Module:
-  module_key = ModuleKey.from_filename(filename)
-  return _get_module_internal(module_key=module_key,
-                              is_package=_is_init(filename),
-                              module_type=module_type_from_filename(filename),
-                              unknown_fallback=unknown_fallback,
-                              lazy=lazy,
-                              include_graph=include_graph)
-
-
-def _get_module_internal(module_key, is_package, module_type, unknown_fallback, lazy, include_graph):
   global __module_key_module_dict
-  if module_key in __module_key_module_dict:
-    module = __module_key_module_dict[module_key]
+  if module_key_index(module_key, force_real) in __module_key_module_dict:
+    module = __module_key_module_dict[module_key_index(module_key, force_real)]
     if isinstance(module, LazyModule):
       if include_graph:
         if module.graph and module.has_loaded_or_loading():
@@ -192,7 +208,7 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
     elif include_graph and not module.graph:
       if not module_key.module_source_type.should_be_natively_loaded():
         # Damn, alreadly loaded but did not keep the graph the first time...
-        with open(module_key.path) as f:
+        with open(module_key.get_filename()) as f:
           module.graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module.filename))
       else:
         warning(f'Cannot include graph on module that is natively loaded.')
@@ -200,20 +216,21 @@ def _get_module_internal(module_key, is_package, module_type, unknown_fallback, 
 
   # We set this to None to start as a form of dependency-cycle-checking. This is the only way that
   # an object is this dict is None and we check if a value retrieved from it is None above.
-  __module_key_module_dict[module_key] = None
+  __module_key_module_dict[module_key_index(module_key, force_real)] = None
   try:
     module = _load_module_from_module_info(module_key,
                                            is_package,
                                            module_type,
                                            unknown_fallback=unknown_fallback,
                                            lazy=lazy,
-                                           include_graph=include_graph)
+                                           include_graph=include_graph,
+                                           force_real=force_real)
   except InvalidModuleError:
-    del __module_key_module_dict[module_key]
+    del __module_key_module_dict[module_key_index(module_key, force_real)]
     raise
   assert module is not None
   debug(f'Adding {module_key} to module dict.')
-  __module_key_module_dict[module_key] = module
+  __module_key_module_dict[module_key_index(module_key, force_real)] = module
   # # Note: This will essentially stop us from storing modules which are unreadable because they are
   # # sourced from invalid files. That's fine.
   # if filename is not None and os.path.exists(filename):
@@ -236,7 +253,14 @@ def _load_module_exports_from_filename(module, filename, return_graph=False):
     with open(filename) as f:
       source = ''.join(f.readlines())
     info(f'Loading {filename}')
-    assert filename not in __loaded_paths
+    # We allow typeshed files to be loaded twice as a peculiar special case.
+    # A real module may be loaded using a typeshed stub, and subsequently the typeshed stub may be
+    # loaded as itself with it's own different ModuleKey - these two thing are different
+    # abstractions that happens to have the same underlying filename and thus are allowable to be
+    # loaded twice. Alternatively, we could try to make these use the same ModuleKey, but it seems
+    # that would get misleading - if something explicitly wants the typeshed version, it should
+    # get the typeshed version.
+    assert filename not in __loaded_paths or 'typeshed' in filename
     __loaded_paths.add(filename)
     return _module_exports_from_source(module, source, filename, return_graph=return_graph)
   except UnicodeDecodeError as e:
@@ -249,19 +273,19 @@ def _load_module_from_module_info(module_key,
                                   module_type,
                                   unknown_fallback=True,
                                   lazy=True,
-                                  include_graph=False) -> Module:
+                                  include_graph=False, force_real=False) -> Module:
   if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
     if unknown_fallback:
-      return _create_empty_module(module_key.path, module_type)
+      return _create_empty_module(module_key.id, module_type)
     else:
-      raise InvalidModuleError(module_key.path)
+      raise InvalidModuleError(module_key.id)
 
   name = module_key.get_module_basename()
   if module_key.module_source_type.should_be_natively_loaded() or name in NATIVE_MODULE_WHITELIST:
     try:
       package = None
       if module_key.module_source_type == ModuleSourceType.COMPILED:
-        package = package_from_directory(os.path.dirname(module_key.path))
+        package = package_from_directory(os.path.dirname(module_key.get_filename()))
       else:
         assert name[0] != '.'
       python_module = importlib.import_module(name, package)
@@ -271,14 +295,15 @@ def _load_module_from_module_info(module_key,
     else:
       return NativeModule(name,
                           module_type,
-                          filename=module_key.path,
+                          filename=module_key.id,
                           native_module=NativeObject(python_module, read_only=True))
   return _load_normal_module(module_key,
                              is_package=is_package,
                              module_type=module_type,
                              unknown_fallback=unknown_fallback,
                              lazy=lazy,
-                             include_graph=include_graph)
+                             include_graph=include_graph,
+                             force_real=force_real)
 
 
 def _load_normal_module(module_key,
@@ -287,10 +312,11 @@ def _load_normal_module(module_key,
                         module_type=ModuleType.SYSTEM,
                         unknown_fallback=False,
                         lazy=True,
-                        include_graph=False) -> Module:
+                        include_graph=False,
+                        force_real=False) -> Module:
   assert module_key.module_source_type == ModuleSourceType.NORMAL
   name = module_key.get_module_basename()
-  filename = module_key.path
+  filename = module_key.get_filename(prefer_stub=not force_real)
   if not os.path.exists(filename):
     if not unknown_fallback:
       raise InvalidModuleError(filename)
@@ -346,7 +372,7 @@ def _module_exports_from_source(module, source, filename, return_graph=False) ->
   with FileContext(filename):
     debug(f'len(__loaded_paths): {len(__loaded_paths)}')
     a_frame = frame.Frame(module=module, namespace=module, locals=module._members)
-    graph = api.graph_from_source(source, os.path.dirname(filename), module)
+    graph = api.graph_from_source(source, filename, module)
     graph.process(a_frame)
   # Normally, exports wouldn't unclude protected members - but, internal members may rely on them
   # when running, so we through them in anyway for the heck of it.
@@ -356,6 +382,8 @@ def _module_exports_from_source(module, source, filename, return_graph=False) ->
 
 
 def get_module_info_from_module_key(module_key):
+  if module_key.is_bad():
+    return module_key, False, ModuleType.UNKNOWN_OR_UNREADABLE
   if module_key.module_source_type == ModuleSourceType.BUILTIN:
     module_type = ModuleType.BUILTIN
     is_package = False
@@ -363,8 +391,8 @@ def get_module_info_from_module_key(module_key):
     module_type = ModuleType.COMPILED
     is_package = False
   else:
-    module_type = module_type_from_filename(module_key.path)
-    is_package = _is_init(module_key.path)
+    module_type = module_type_from_filename(module_key.get_filename())
+    is_package = _is_init(module_key.get_filename())
   return module_key, is_package, module_type
 
 
@@ -386,13 +414,6 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[ModuleKey, bool
       filename = f'{absolute_path}{file_extension}'
       if os.path.exists(filename):
         return ModuleKey.from_filename(filename), False, module_type_from_filename(filename)
-  else:
-    try:
-      stub_filename, is_package = _get_module_stub_source_filename(name)
-      module_type = ModuleType.PUBLIC if 'third_party' in stub_filename else ModuleType.SYSTEM
-      return ModuleKey.from_filename(stub_filename), is_package, module_type
-    except ValueError:
-      pass
   package = None
   if name[0] == '.':
     package = package_from_directory(curr_dir)
@@ -413,7 +434,7 @@ def get_module_info_from_name(name: str, curr_dir=None) -> Tuple[ModuleKey, bool
   return ModuleKey(ModuleSourceType.BAD, name), False, ModuleType.UNKNOWN_OR_UNREADABLE
 
 
-def _get_module_stub_source_filename(name) -> str:
+def _stub_filename_from_module_name(name) -> str:
   '''Retrieves the stub version of a module, if it exists.
   
   This currently only relies on typeshed, but in the future should also pull from some local repo.'''
@@ -430,7 +451,7 @@ def _get_module_stub_source_filename(name) -> str:
       for module_path in (os.path.join(module_path_base, "__init__.pyi"), f'{module_path_base}.pyi'):
         abs_module_path = os.path.join(typeshed_dir, top_level, version, module_path)
         if os.path.exists(abs_module_path):
-          return abs_module_path, os.path.basename(module_path) == '__init__.pyi'
+          return abs_module_path
   raise ValueError(f'Did not find typeshed for {name}')
 
 
@@ -490,10 +511,10 @@ def package_from_directory(directory):
 
 def deserialize_hook_fn(type_str, obj):
   if type_str == NativeModule.__qualname__:
-    return True, get_module(obj, '')
+    return True, get_module_from_key(obj, '')
   if type_str == 'import_module':
     name, filename = obj
-    return get_module_from_filename(filename, is_package=_is_init(filename))
+    return get_module_from_key(ModuleKey.from_filename(filename), is_package=_is_init(filename))
     #module_type=module_type_from_filename(filename))
   if type_str == 'from_import':
     filename = obj

@@ -1,4 +1,3 @@
-
 import msgpack
 
 from .. import module_loader, serialization
@@ -20,7 +19,9 @@ from ..utils import assert_expected_iterable
 def test_serialization_deserialization():
   module_name = 'autocomplete.code_understanding.typing.examples.index_test_package.storage_example'
   # module_name = 'autocomplete.code_understanding.typing.control_flow_graph'
-  module = module_loader.get_module(module_name, '', lazy=False)
+  module_key = module_loader.get_module_info_from_name(module_name, '.')[0]
+  assert not module_key.is_bad()
+  module = module_loader.get_module_from_key(module_key, lazy=False)
 
   with open('/tmp/tmp.msg', 'wb') as f:
     msgpack.pack(module, f, default=serialization.serialize, use_bin_type=True)
@@ -31,4 +32,3 @@ def test_serialization_deserialization():
 
 if __name__ == "__main__":
   test_serialization_deserialization()
-  # test_store_retrieve()

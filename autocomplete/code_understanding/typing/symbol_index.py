@@ -142,8 +142,12 @@ class SymbolIndex:
   symbol_alias_dict = attr.ib(factory=partial(defaultdict, dict))
 
   # Bi-directional dict.
+  # TODO: Re-evaluate this. Don't want to store module path hundreds of times on file, so this makes
+  # sense for serialization, but perhaps not so much during runtime... A 100x references to a single
+  # string shouldn't just be pointers and not cost more than an int generally.
   module_list: List[module_loader.ModuleKey] = attr.ib(factory=list)
   module_dict: Dict[module_loader.ModuleKey, int] = attr.ib(factory=dict)
+  # module_to_symbols_dict: Dict[module_loader.ModuleKey, List[InternalSymbolEntry]] = attr.ib(factory=partial(defaultdict, list))
 
   failed_module_keys = attr.ib(factory=set)
   num_files_added = attr.ib(0, init=False)
@@ -267,6 +271,7 @@ class SymbolIndex:
       module_index = self.module_dict[module_key]
 
       key = (module_index, is_module_itself)
+      # TODO: Dynamically add if this fails.
       assert key in module_index_symbol_entry_dict
       entry = module_index_symbol_entry_dict[key]
       entry.import_count += count
@@ -353,7 +358,7 @@ class SymbolIndex:
     if module_key in self.module_dict or module_key in self.failed_module_keys:
       warning(f'Skipping {module_key} - already processed.')
       return
-    # filename = module_key.path if module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN else None
+    # filename = module_key.get_filename() if module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN else None
     info(f'Adding to index: {module_key}')
     module_index = len(self.module_list)
     try:
@@ -375,17 +380,17 @@ class SymbolIndex:
         self.save()
 
   def add_module(self, module, module_index):
-    # filename = module.filename
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
       try:
-        self.symbol_dict[name][(module_index,
+        entry = self.symbol_dict[name][(module_index,
                                 False)] = InternalSymbolEntry(SymbolType.from_pobject_value(member.value()),
                                                               module_index,
                                                               imported=member.imported)
       except errors.AmbiguousFuzzyValueError:
-        self.symbol_dict[name][(module_index, False)] = InternalSymbolEntry(SymbolType.AMBIGUOUS,
+        entry = self.symbol_dict[name][(module_index, False)] = InternalSymbolEntry(SymbolType.AMBIGUOUS,
                                                                             module_index,
                                                                             imported=member.imported)
+      # self.module_to_symbols_dict[module_index].append(entry)
 
 
 def _should_scan_file(filename, include_private_files):

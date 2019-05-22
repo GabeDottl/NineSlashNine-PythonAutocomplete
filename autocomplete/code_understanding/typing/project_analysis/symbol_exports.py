@@ -12,7 +12,8 @@ from ....nsn_logging import info, pop_context, push_context, set_verbosity
 
 
 def extract_exports(source, filename):
-  module = module_loader.get_module_from_filename(filename)
+  module_key = module_loader.ModuleKey.from_filename(filename)
+  module = module_loader.get_module_from_key(module_key)
   # frame_ = api.frame_from_source(source)
   exports = dict(filter(lambda k, v: '_' != k[0], module.items()))
   return exports
@@ -26,7 +27,8 @@ def create_symbol_index(sys_path):
       info(f'Processing {filename}')
       name = os.path.splitext(os.path.basename(filename))[0]
       push_context(name)
-      module = module_loader.get_module_from_filename(filename)
+      module_key = module_loader.ModuleKey.from_filename(filename)
+      module = module_loader.get_module_from_key(module_key)
       pop_context()
       for symbol, value in module.items():
         if symbol not in symbol_index:

@@ -22,12 +22,10 @@ import attr
 
 from . import collector, serialization, errors
 from ...nsn_logging import debug, error, warning
-from .errors import (NoDictImplementationError, SourceAttributeError,
-                     UnableToReadModuleFileError)
+from .errors import (NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
 from .frame import FrameType
-from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject,
-                       LazyObject, NativeObject, PObject, PObjectType,
-                       UnknownObject, pobject_from_object)
+from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject,
+                       PObjectType, UnknownObject, pobject_from_object)
 from .utils import attrs_names_from_class
 
 
@@ -208,18 +206,18 @@ class ModuleImpl(Module):
       if not self.module_type.should_be_readable():
         return UnknownObject(f'{self.name}.{name}')
       if self._is_package:
-        try:
-          return AugmentedObject(
-              self.module_loader.get_module(f'.{name}',
-                                            os.path.dirname(self.filename),
-                                            unknown_fallback=False))
-        except errors.InvalidModuleError as e:
-          pass
+        module_key = self.module_loader.get_module_info_from_name(f'.{name}',
+                                                                    os.path.dirname(self.filename))[0]
+
+        if not module_key.is_bad():
+          try:
+              return AugmentedObject(self.module_loader.get_module_from_key(module_key, unknown_fallback=False))
+          except errors.InvalidModuleError as e:
+            pass
       # Commented out because getitem is used by __contains__.
       # if self.module_type.should_be_readable():
       #   warning(f'Failed to get {name} from {self.filename}')
       raise sae
-      
 
   def serialize(self, **kwargs):
     # Note, this is being done s.t. it works with subclasses - namely LazyModule.
@@ -363,7 +361,7 @@ class LazyModule(ModuleImpl):
       self.load()
     # Loaded or loading failed.
     return super().serialize(**kwargs)
-  
+
   def __str__(self):
     return f'LazyMod {self.filename}: {list(self._members.keys())}'
 
@@ -701,7 +699,6 @@ class Parameter:
   type_hint_expression: 'PObject' = attr.ib(kw_only=True)
   default_expression: 'Expression' = attr.ib(None, kw_only=True)  # TODO: Rename default_expression
   default_value: 'PObject' = attr.ib(None, kw_only=True)
-
 
   def __attrs_post_init__(self):
     # These cannot both be specified. Once a parameter has been processed (i.e. Function has been
