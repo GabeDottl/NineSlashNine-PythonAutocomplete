@@ -7,7 +7,7 @@ import parso
 
 import attr
 from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
-                                       ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode,
+                                       ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, RaiseCfgNode,
                                        ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
@@ -493,7 +493,9 @@ class ParsoControlFlowGraphBuilder:
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_raise_stmt(self, node):
     debug(f'Skipping {node.type}')
-    raise NotImplementedError(type(node))
+    exception = expression_from_node(node.children[1]) if len(node.children) > 1 else None
+    cause = expression_from_node(node.children[-1]) if len(node.children) > 3 else None
+    return RaiseCfgNode(exception, cause, parse_node=parse_from_parso(node))
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_global_stmt(self, node):

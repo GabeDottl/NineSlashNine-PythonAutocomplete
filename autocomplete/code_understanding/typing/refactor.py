@@ -65,7 +65,8 @@ def apply_import_changes(source: str, changes: List[Change]) -> str:
           insertion = f'{", ".join(import_format(v,a) for v,a in new_from_imports)}'
         line = f'{line[:insertion_col]}{insertion}{line[insertion_col:]}'
         new_source_lines[start_pos[0] - 1] = line
-  return '\n'.join(new_source_lines.values())
+  # The above approach strips the new-line at the end with splitlines - readd.
+  return '\n'.join(new_source_lines.values()) + '\n'
 
 
 def import_format(value, as_name):
@@ -75,6 +76,9 @@ def import_format(value, as_name):
 
 
 def insert_imports(source, source_filename, fixes):
+  if not fixes:
+    return source
+
   graph = api.graph_from_source(source, source_filename, parso_default=True)
   module_to_value_dict = defaultdict(list)
 
@@ -259,4 +263,5 @@ def apply_inserts_and_removals_to_string(string, inserts, removals):
       out.append(change.string)
   add_range((0, 0), last_start_pos, start_inclusive=True)
 
-  return ''.join(reversed(out))
+  # The above approach strips the new-line at the end with splitlines - readd.
+  return f'{"".join(reversed(out))}\n'

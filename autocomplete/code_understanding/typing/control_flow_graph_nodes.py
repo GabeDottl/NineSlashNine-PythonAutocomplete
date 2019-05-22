@@ -447,9 +447,9 @@ class WhileCfgNode(CfgNode):
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    out = symbol_context.merge_symbol_context_dicts(self.suite.get_non_local_symbols(),
-                                                    self.else_suite.get_non_local_symbols())
-    return symbol_context.merge_symbol_context_dicts(out, self.conditional_expression.get_used_free_symbols())
+    return symbol_context.merge_symbol_context_dicts(self.suite.get_non_local_symbols(),
+                                                    self.else_suite.get_non_local_symbols(),
+                                                    self.conditional_expression.get_used_free_symbols())
 
   # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -599,7 +599,7 @@ class ExceptCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     out = self.suite.get_non_local_symbols()
     if self.exceptions:
-      out = symbol_context.merge_symbol_context_dicts(self.exceptions.get_used_free_symbols())
+      out = symbol_context.merge_symbol_context_dicts(out, self.exceptions.get_used_free_symbols())
     if self.exception_variable:
       if self.exception_variable.name in out:
         del out[self.exception_variable.name]
@@ -892,5 +892,27 @@ class ReturnCfgNode(CfgNode):
     return self.expression.get_used_free_symbols()
 
   # @instance_memoize
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return []
+
+@attr.s(slots=True)
+class RaiseCfgNode(CfgNode):
+  exception: Expression = attr.ib()
+  cause: Expression = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
+
+  def _process_impl(self, curr_frame):
+    pass
+
+  @assert_returns_type(dict)
+  def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    if self.exception and self.cause:
+      return symbol_context.merge_symbol_context_dicts(self.exception.get_used_free_symbols(),
+                                                      self.cause.get_used_free_symbols())
+    elif self.exception:
+      return self.exception.get_used_free_symbols()
+    elif self.cause:
+      return self.cause.get_used_free_symbols()
+
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []

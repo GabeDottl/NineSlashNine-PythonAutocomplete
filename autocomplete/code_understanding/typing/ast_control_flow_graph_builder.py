@@ -4,7 +4,7 @@ import _ast
 import astor
 import attr
 from . import errors
-from .control_flow_graph_nodes import (AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode)  # Temporary.
+from .control_flow_graph_nodes import (AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode, RaiseCfgNode)  # Temporary.
 from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, StarredExpression, SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)  # Temporary.
 from .language_objects import (Parameter, ParameterType)  # Temporary.
 from ...nsn_logging import warning
@@ -225,8 +225,10 @@ class Visitor(ast.NodeVisitor):
 
   def visit_Raise(self, ast_node):
     # (expr? exc, expr? cause)
-    # TODO
-    self.generic_visit(ast_node)
+    self.push(RaiseCfgNode(
+      exception=expression_from_node(ast_node.exc) if ast_node.exc else None,
+      cause=expression_from_node(ast_node.cause) if ast_node.cause else None,
+      parse_node=parse_from_ast(ast_node)))
 
   def visit_Try(self, ast_node):
     # (stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)

@@ -187,6 +187,7 @@ class CallExpression(Expression):
       }
     else:
       out = self.function_expression.get_used_free_symbols()
+  
     out = symbol_context.merge_symbol_context_dicts(out,
                                                     *[expr.get_used_free_symbols() for expr in self.args])
     out = symbol_context.merge_symbol_context_dicts(

@@ -104,16 +104,23 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
     else:
       remaining_fixes.append(fix)
 
+  uht.save()
+  changed = len(fixes) > 0 or len(changes) > 0
+  if not changed:
+    return source, False
+
   # Update existing imports.
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  new_source, changed = refactor.insert_imports(new_source, filename,
-                                                remaining_fixes), len(fixes) > 0 or len(changes) > 0
-  uht.save()
-  if sort_imports and changed:
-    out = SortImports(file_contents=new_source).output
-    return out, True
+  new_source = refactor.insert_imports(new_source, filename,
+                                                remaining_fixes)
+  
+  # SortImports seems to have some odd edge-cases in which it's completely broken right now....
+  # Disabled.
+  # if sort_imports and changed:
+  #   out = SortImports(file_contents=new_source).output
+  #   return out, True
   return new_source, changed
 
 

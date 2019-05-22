@@ -59,6 +59,7 @@ class MultipleSymbolContext(SymbolContext):
 
 
 def merge_symbol_context_dicts(*args):
+  # assert len(args) > 1
   if not args:
     return {}
 
