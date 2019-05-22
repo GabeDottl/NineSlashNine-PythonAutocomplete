@@ -457,7 +457,7 @@ class NativeObject(PObject):
       return
 
     if isinstance(pobject, LazyObject):
-      pobject = pobject._load_and_ret()
+      pobject = pobject.load_and_ret()
     if isinstance(pobject, NativeObject) and isinstance(pobject._native_object, dict) and isinstance(
         self._native_object, dict):
       self._native_object.update(pobject._native_object)
@@ -569,7 +569,8 @@ class LazyObject(PObject):
   _deferred_operations = attr.ib(init=False, factory=list)
   _deferred_funcs = attr.ib(init=False, factory=list)
 
-  # def __attrs_post_init__(self):
+  def __attrs_post_init__(self):
+    pass
   #   self._loader_filecontext = collector._filename_context[-1]
 
   # @loop_checker
@@ -581,6 +582,7 @@ class LazyObject(PObject):
     try:
       with collector.FileContext(self._loader_filecontext):
         self._loaded_object = self._loader()
+        assert self._loaded_object != self
     except OSError as e:  # Exception
       error(f'Unable to lazily load {self.name}')
       import traceback
@@ -611,12 +613,13 @@ class LazyObject(PObject):
       self._loaded_object.apply_to_values(func)
 
   def has_attribute(self, name) -> bool:
-    return self._load_and_ret().has_attribute(name)
+    return self.load_and_ret().has_attribute(name)
 
-  def _load_and_ret(self) -> PObject:
+  def load_and_ret(self) -> PObject:
     self._load()
     return self._loaded_object
 
+  @loop_checker
   @_passthrough_if_loaded
   def get_attribute(self, name):
     try:
@@ -655,7 +658,7 @@ class LazyObject(PObject):
 
   @loop_checker
   def bool_value(self) -> FuzzyBoolean:
-    return self._load_and_ret().bool_value()
+    return self.load_and_ret().bool_value()
 
   @_passthrough_if_loaded
   def invert(self):
@@ -680,7 +683,7 @@ class LazyObject(PObject):
     # TODO: Consider somehow snapshotting PObjects too.
     frame = curr_frame.snapshot()
     return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})',
-                      partial(lambda a, b, c, : self._load_and_ret().call(a, b, c), frame, args, kwargs), self._loader_filecontext)
+                      partial(lambda a, b, c, : self.load_and_ret().call(a, b, c), frame, args, kwargs), self._loader_filecontext)
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):
@@ -689,7 +692,7 @@ class LazyObject(PObject):
     frame = curr_frame.snapshot()
     # TODO: Drop this deferred_value nonsense?
     return LazyObject(
-        f'{self.name}[{index_pobject}]', lambda: self._load_and_ret().get_item(
+        f'{self.name}[{index_pobject}]', lambda: self.load_and_ret().get_item(
             frame,
             index_pobject.value() if deferred_value else index_pobject), self._loader_filecontext)
 
@@ -700,7 +703,7 @@ class LazyObject(PObject):
     frame = curr_frame.snapshot()
 
     def _set_item():
-      self._load_and_ret().set_item(frame,
+      self.load_and_ret().set_item(frame,
                                     index_pobject.value() if deferred_value else index_pobject,
                                     value_pobject.value() if deferred_value else value_pobject)
 
@@ -709,7 +712,7 @@ class LazyObject(PObject):
   @_passthrough_if_loaded
   def update_dict(self, pobject):
     if isinstance(pobject, (NativeObject, LazyObject)):
-      self._deferred_operations.append(lambda: self._load_and_ret().update_dict(pobject))
+      self._deferred_operations.append(lambda: self.load_and_ret().update_dict(pobject))
       # self._loaded = True
       # self._apply_deferred_to_loaded()
     warning(f'Cannot do update_dict w/{pobject}.')

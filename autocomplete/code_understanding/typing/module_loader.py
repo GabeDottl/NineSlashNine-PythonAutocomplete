@@ -420,7 +420,7 @@ def _get_module_stub_source_filename(name) -> str:
   # TODO: local install + TYPESHED_HOME env variable like pytype:
   # https://github.com/google/pytype/blob/309a87fab8a861241823592157208e65c970f7b6/pytype/pytd/typeshed.py#L24
   typeshed_dir = os.path.dirname(typeshed.__file__)
-  if name != '.' or name[0] != '.':
+  if name == '.' or name[0] == '.':
     raise ValueError()
   module_path_base = name.replace('.', os.sep)
   for top_level in ('stdlib', 'third_party'):

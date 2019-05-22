@@ -269,7 +269,7 @@ class SymbolIndex:
       key = (module_index, is_module_itself)
       assert key in module_index_symbol_entry_dict
       entry = module_index_symbol_entry_dict[key]
-      entry.import_count += 1
+      entry.import_count += count
 
       if as_name:
         symbol_alias_count_dict = self.symbol_alias_dict[as_name]
@@ -304,6 +304,8 @@ class SymbolIndex:
     imported_symbols_and_modules = []
     for node in import_nodes:
       if isinstance(node, control_flow_graph_nodes.ImportCfgNode):
+        if 'attr' in node.module_path:
+          info(f'import attr')
         value_and_as_names = [(None, node.as_name)]
       else:
         value_and_as_names = node.from_import_name_alias_dict.items()
@@ -325,17 +327,29 @@ class SymbolIndex:
           module_key = module_loader.get_module_info_from_name(node.module_path, directory)[0]
 
         imported_symbols_and_modules.append((module_key, value, as_name))
-    for value_as_name_module_name_filename in imported_symbols_and_modules:
-      self.value_module_reference_map[value_as_name_module_name_filename] += 1
+    for module_key_value_as_name in imported_symbols_and_modules:
+      self.value_module_reference_map[module_key_value_as_name] += 1
 
   def add_file(self, filename, track_imported_modules=False):
     try:
       module_key = module_loader.ModuleKey.from_filename(filename)
     except ValueError:
       return
-    return self.add_module_by_key(module_key, track_imported_modules)
 
-  def add_module_by_key(self, module_key, track_imported_modules=False):
+    # Note that we explicity do this here instead of in add_module_by_key as the latter may have
+    # already been done without tracking the module's contents and would thus return early.
+    if track_imported_modules:
+      module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
+      if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
+        info(f'Failed on {module_key} - unreadable')
+        self.failed_module_keys.add(module_key)
+        return
+      directory = os.path.dirname(module.filename)
+      self._track_modules(module.graph, directory)
+    
+    return self.add_module_by_key(module_key)
+
+  def add_module_by_key(self, module_key):
     if module_key in self.module_dict or module_key in self.failed_module_keys:
       warning(f'Skipping {module_key} - already processed.')
       return
@@ -343,14 +357,7 @@ class SymbolIndex:
     info(f'Adding to index: {module_key}')
     module_index = len(self.module_list)
     try:
-      module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=track_imported_modules)
-      if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
-        info(f'Failed on {module_key} - unreadable')
-        self.failed_module_keys.add(module_key)
-        return
-      if track_imported_modules and not module_key.module_source_type.should_be_natively_loaded():
-        directory = os.path.dirname(module.filename)
-        self._track_modules(module.graph, directory)
+      module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=False)
       self.add_module(module, module_index)
     except OSError as e:  # Exception
       info(f'Failed on {module_key}: {e}')

@@ -30,7 +30,7 @@ from x.y.z import (q, r as s)'''
   module = module_loader.load_module_from_source(source, __file__, include_graph=True)
   imports = module.graph.get_descendents_of_types(
       (control_flow_graph_nodes.ImportCfgNode, control_flow_graph_nodes.FromImportCfgNode))
-  assert len(list(imports)) == 9
+  assert len(list(imports)) == 8
   assert 'numpy' in module and isinstance(module['numpy'].value(), Module)
   assert 'tensorflow' in module and isinstance(module['tensorflow'].value(), Module)
   assert 'pytorch' in module and isinstance(module['pytorch'].value(), Module)
@@ -42,7 +42,7 @@ from x.y.z import (q, r as s)'''
   assert 'wraps' in module
   assert module['wraps'].value().name == 'functools.wraps'
   assert 'find_spec' in module
-  assert module['find_spec'].value().name == 'importlib.util.find_spec'
+  assert module['find_spec'].value().name == 'util.find_spec'
   assert 'q' in module
   assert module['q'].name == 'x.y.z.q'
   assert 's' in module

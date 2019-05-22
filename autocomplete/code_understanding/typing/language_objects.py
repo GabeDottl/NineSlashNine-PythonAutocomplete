@@ -64,6 +64,9 @@ class Namespace:
 
   def __setitem__(self, name, value):
     assert isinstance(value, PObject)
+    # Avoid circularities - don't store a LazyObject ever.
+    if isinstance(value, LazyObject):
+      value = value.load_and_ret()
     self._members[name] = value
 
   def items(self):
@@ -334,6 +337,8 @@ class LazyModule(ModuleImpl):
   def __getitem__(self, name):
     if self.lazy and not self._loaded:
       return LazyObject(f'{self.name}.{name}', lambda: self._get_item_loaded(name), self.filename)
+    if self._loaded:
+      return super().__getitem__(name)
     return self._get_item_loaded(name)
     # return super().__getitem__(name)
 
