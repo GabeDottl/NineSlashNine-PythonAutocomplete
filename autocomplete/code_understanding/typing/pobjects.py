@@ -9,8 +9,7 @@ import attr
 
 from . import collector, serialization
 from ...nsn_logging import debug, error, info, warning
-from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError,
-                     SourceAttributeError)
+from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError)
 from .utils import to_dict_iter
 
 _OPERATORS = [

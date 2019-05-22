@@ -1,4 +1,4 @@
-from .. import language_objects, module_loader
+from .. import module_loader
 
 
 def test_simple_assignment():

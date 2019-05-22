@@ -2,7 +2,6 @@
 from . import control_flow_graph, module_loader
 from .control_flow_graph_nodes import CfgNode
 from .language_objects import create_main_module
-from .pobjects import AugmentedObject
 
 
 def graph_from_source(source: str, source_filename: str, module=None, parso_default=False) -> CfgNode:

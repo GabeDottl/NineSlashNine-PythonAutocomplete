@@ -5,7 +5,7 @@ from typing import Dict, List, Union
 import attr
 
 from . import symbol_context
-from ...nsn_logging import debug
+from ...nsn_logging import (debug, info)
 from .pobjects import (FuzzyObject, NativeObject, PObject, PObjectType,
                        UnknownObject, pobject_from_object)
 from .utils import assert_returns_type
