@@ -913,6 +913,7 @@ class RaiseCfgNode(CfgNode):
       return self.exception.get_used_free_symbols()
     elif self.cause:
       return self.cause.get_used_free_symbols()
+    return {}
 
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
