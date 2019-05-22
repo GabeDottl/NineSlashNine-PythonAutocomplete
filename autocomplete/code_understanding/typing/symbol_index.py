@@ -349,6 +349,7 @@ class SymbolIndex:
         info(f'Failed on {module_key} - unreadable')
         self.failed_module_keys.add(module_key)
         return
+      assert module.graph
       directory = os.path.dirname(module.filename)
       self._track_modules(module.graph, directory)
     

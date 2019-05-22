@@ -195,7 +195,7 @@ def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_gr
     module = __module_key_module_dict[module_key_index(module_key, force_real)]
     if isinstance(module, LazyModule):
       if include_graph:
-        if module.graph and module.has_loaded_or_loading():
+        if not module.graph and module.has_loaded_or_loading():
           # Damn, alreadly loaded but did not keep the graph the first time...
           with open(module.filename) as f:
             module.graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module.filename))

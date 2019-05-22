@@ -13,7 +13,7 @@ def scan_missing_symbols_in_file(filename):
   # TODO: Add some platform configuration.
   with open(filename) as f:
     source = ''.join(f.readlines())
-  graph = api.graph_from_source(source)
+  graph = api.graph_from_source(source, filename)
   return scan_missing_symbols_in_graph(graph, os.path.dirname(filename))
 
 

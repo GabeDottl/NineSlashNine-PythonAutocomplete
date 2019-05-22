@@ -10,7 +10,8 @@ line2
   target_source = '''
 aa1
 ltestine2
-bucket'''
+bucket
+'''
   inserts = [
       refactor.Insert((0, 0), 'a'),
       refactor.Insert((0, 0), 'a'),
