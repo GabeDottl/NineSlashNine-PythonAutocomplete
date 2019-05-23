@@ -38,6 +38,9 @@ class ParseNode:
 class CfgNode(ABC):
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
+  def to_ast(self):
+    raise NotImplementedError()
+
   def process(self, curr_frame):
     with collector.ParseNodeContext(self.parse_node):
       self._process_impl(curr_frame)
@@ -135,6 +138,9 @@ class GroupCfgNode(CfgNode):
 class ExpressionCfgNode(CfgNode):
   expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
+
+  def to_ast(self):
+    return self.expression.to_ast()
 
   def _process_impl(self, curr_frame):
     self.expression.evaluate(curr_frame)

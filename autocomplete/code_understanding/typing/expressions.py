@@ -1,6 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
+import _ast
 
 import attr
 
@@ -12,6 +13,12 @@ from .utils import assert_returns_type
 
 
 class Expression(ABC):
+  def to_ast(self):
+    return _ast.Expression(self._to_ast())
+
+  def _to_ast(self):
+    raise NotImplementedError()
+
   @abstractmethod
   def evaluate(self, curr_frame) -> PObject:
     raise NotImplementedError()  # abstract
@@ -37,6 +44,20 @@ class AnonymousExpression(Expression):
 @attr.s(slots=True)
 class LiteralExpression(Expression):
   literal = attr.ib()
+
+  def _to_ast(self):
+    if isinstance(self.literal, bool) or self.literal == None:
+      return _ast.NameConstant(self.literal)
+    if isinstance(self.literal, (int, float, complex)):
+      return _ast.Num(self.literal)
+    if isinstance(self.literal, str):
+      return _ast.Str(self.literal)
+    if isinstance(self.literal, bytes):
+      return _ast.Bytes(self.literal)
+    if self.literal == Ellipsis:
+      return _ast.Ellipsis()
+    # TODO: Figure out wtf _ast
+    raise NotImplementedError()
 
   def evaluate(self, curr_frame) -> PObject:
     return NativeObject(self.literal)

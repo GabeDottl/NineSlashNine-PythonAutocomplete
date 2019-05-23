@@ -5,6 +5,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_cfg_to_ast",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.code_understanding.typing.tests.test_cfg_to_ast",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_typing_inference",
       "type": "python",
       "request": "launch",
