@@ -11,14 +11,13 @@ from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfg
                                        ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
-from .expressions import (AndOrExpression, AnonymousExpression, AttributeExpression, CallExpression,
+from .expressions import (AndOrExpression, AttributeExpression, CallExpression,
                           ComparisonExpression, DictExpression, Expression, FactorExpression,
                           ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression,
                           KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
                           MathExpression, NotExpression, SetExpression, StarredExpression,
                           SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)
 from .language_objects import (Parameter, ParameterType)
-from .pobjects import NONE_POBJECT
 from .utils import assert_returns_type
 from ...nsn_logging import (debug, error, info)
 
@@ -329,7 +328,7 @@ class ParsoControlFlowGraphBuilder:
         if keyword.value == 'finally' or keyword.value == 'else':
           break
         assert keyword.value == 'except'
-        except_nodes.append(ExceptCfgNode(AnonymousExpression(NONE_POBJECT), None, suite_node))
+        except_nodes.append(ExceptCfgNode(None, None, suite_node))
       else:
         assert keyword.type == 'except_clause'
         except_clause = keyword
@@ -782,29 +781,28 @@ def _unimplmented_expression(func):
   return wrapper
 
 
-@_unimplmented_expression
 def expressions_from_subscriptlist(node) -> Expression:
-  try:
-    # subscriptlist: subscript (',' subscript)* [',']
-    # subscript: test | [test] ':' [test] [sliceop]
-    # sliceop: ':' [test]
-    if node.type != 'subscriptlist' and node.type != 'subscript':
-      expression = expression_from_node(node)
-      assert isinstance(expression, Expression)
-      return expression
-    elif node.type == 'subscriptlist':
-      values = ItemListExpression(
-          list(
-              itertools.chain(
-                  expressions_from_subscriptlist(node)
-                  for node in filter(lambda x: x.type != 'operator' or x.value != ',', node.children))))
-      assert all(isinstance(value, Expression) for value in values)
-      return values
-    else:  # subscript
-      # num op num [sliceop]
-      raise NotImplementedError()  # TODO
-  except:
-    return UnknownExpression(node.get_code())
+  # subscriptlist: subscript (',' subscript)* [',']
+  # subscript: test | [test] ':' [test] [sliceop]
+  # sliceop: ':' [test]
+  if node.type != 'subscriptlist' and node.type != 'subscript':
+    expression = expression_from_node(node)
+    assert isinstance(expression, Expression)
+    return expression
+  elif node.type == 'subscriptlist':
+    values = ItemListExpression(
+        list(
+            itertools.chain(
+                expressions_from_subscriptlist(node)
+                for node in filter(lambda x: x.type != 'operator' or x.value != ',', node.children))))
+    assert all(isinstance(value, Expression) for value in values)
+    return values
+  else:  # subscript
+    assert False
+    # num op num [sliceop]
+    if len(node.children) == 1:
+      return Slice(expression_from_node(node))
+    raise NotImplementedError()  # TODO
 
 def kwarg_from_argument(argument):
   # argument: ( test [comp_for] |

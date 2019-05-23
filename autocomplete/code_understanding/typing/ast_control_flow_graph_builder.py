@@ -1,11 +1,10 @@
 import ast
 
 import _ast
-import astor
 import attr
 from . import errors
 from .control_flow_graph_nodes import (AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode, RaiseCfgNode)  # Temporary.
-from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, StarredExpression, SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)  # Temporary.
+from .expressions import (InvertExpression, AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, ExtSlice, IndexSlice, StarredExpression, SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)  # Temporary.
 from .language_objects import (Parameter, ParameterType)  # Temporary.
 from ...nsn_logging import warning
 
@@ -405,8 +404,8 @@ def expression_from_node(ast_node):
   if isinstance(ast_node, _ast.Yield):
     # (expr? value)
     if ast_node.value:  # hasattr(ast_node, 'value'):
-      return expression_from_node(ast_node.value)
-    return UnknownExpression(astor.to_source(ast_node))
+      return YieldExpression(expression_from_node(ast_node.value))
+    return YieldExpression()
   if isinstance(ast_node, _ast.YieldFrom):
     # (expr value)
     # TODO: Generator
@@ -476,7 +475,6 @@ def expression_from_node(ast_node):
     return TupleExpression(variables_from_targets(ast_node.elts))
   warning(f'Unhandled Expression type {type(ast_node)}')
   assert False
-  # return UnknownExpression(astor.to_source(ast_node))
 
 
 def string_from_boolop(boolop):
@@ -530,6 +528,7 @@ def expression_from_binop(ast_node):
 
 
 def expression_from_unaryop(ast_node):
+  # expr operand
   if isinstance(ast_node.op, _ast.Not):
     return NotExpression(expression_from_node(ast_node.operand))
   if isinstance(ast_node.op, _ast.UAdd):
@@ -541,7 +540,7 @@ def expression_from_unaryop(ast_node):
                           parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node.op, _ast.Invert):
     # TODO: ~a.
-    return UnknownExpression(astor.to_source(ast_node))
+    return InvertExpression(expression_from_node(ast_node.operand))
 
 
 def operator_from_cmpop(cmpop):
@@ -616,13 +615,13 @@ def expression_from_slice(ast_node):
   #         | ExtSlice(slice* dims)
   #         | Index(expr value)
   if hasattr(ast_node, 'dims'):
-    return ItemListExpression([expression_from_slice(s) for s in ast_node.dims])
+    return ExtSlice([expression_from_slice(s) for s in ast_node.dims])
   if hasattr(ast_node, 'value'):
-    return expression_from_node(ast_node.value)
+    return IndexSlice(expression_from_node(ast_node.value))
   lower = expression_from_node(ast_node.lower) if ast_node.lower else None
   upper = expression_from_node(ast_node.upper) if ast_node.upper else None
   step = expression_from_node(ast_node.step) if ast_node.step else None
-  return LiteralExpression(Slice(lower=lower, upper=upper, step=step))
+  return Slice(lower=lower, upper=upper, step=step)
 
 
 def parse_from_ast(ast_node):

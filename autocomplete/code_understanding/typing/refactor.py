@@ -118,6 +118,9 @@ def insert_imports(source, source_filename, fixes):
             if node.module_path > module_name:
               import_insertion_line = node.parse_node.lineno - 1
               break
+          else:
+            import_insertion_line = import_nodes[-1].parse_node.parso_node.end_pos[0]
+
         inserts.append(Insert((import_insertion_line, 0), f'import {import_format(module_name, as_name)}\n'))
 
   if module_to_value_dict:

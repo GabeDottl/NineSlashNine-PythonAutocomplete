@@ -1,19 +1,19 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import Dict, List, Union
+from typing import (Dict, Iterable, List, Union)
 import _ast
 
 import attr
 
 from . import symbol_context
 from ...nsn_logging import (debug, info)
-from .pobjects import (FuzzyObject, NativeObject, PObject, PObjectType,
+from .pobjects import (FuzzyObject, NativeObject, PObject, PObjectType,NONE_POBJECT,
                        UnknownObject, pobject_from_object)
 from .utils import assert_returns_type
 
 
 class Expression(ABC):
-  def to_ast(self):
+  def to_ast(self) -> _ast.Expression:
     return _ast.Expression(self._to_ast())
 
   def _to_ast(self):
@@ -29,17 +29,27 @@ class Expression(ABC):
     ''' Gets symbols used in a free context - i.e. not as attributes.'''
 
 
-@attr.s(slots=True)
-class AnonymousExpression(Expression):
-  pobject: PObject = attr.ib()
+# @attr.s(slots=True)
+# class AnonymousExpression(Expression):
+#   pobject: PObject = attr.ib()
 
-  def evaluate(self, curr_frame) -> PObject:
-    return self.pobject
+#   def evaluate(self, curr_frame) -> PObject:
+#     return self.pobject
+
+#   @assert_returns_type(dict)
+#   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+#     return {}
+
+@attr.s(slots=True)
+class UnknownExpression(Expression):
+  string = attr.ib()
+
+  def evaluate(self, curr_frame):
+    return UnknownObject(self.string)
 
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return {}
-
 
 @attr.s(slots=True)
 class LiteralExpression(Expression):
@@ -66,22 +76,31 @@ class LiteralExpression(Expression):
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return {}
 
-
 @attr.s(slots=True)
-class UnknownExpression(Expression):
-  string = attr.ib()
+class YieldExpression(Expression):
+  expression: Union[Expression, None] = attr.ib(None)
 
-  def evaluate(self, curr_frame):
-    return UnknownObject(self.string)
+  def _to_ast(self):
+    if self.expression:
+      return _ast.Yield(self.expression._to_ast())
+    return _ast.Yield()
+
+  def evaluate(self, curr_frame) -> PObject:
+    if self.expression:
+      return self.expression.evaluate(curr_frame)
+    return NONE_POBJECT
 
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return {}
+    return self.expression.get_used_free_symbols()
 
 
 @attr.s(slots=True)
 class NotExpression(Expression):
   expression: Expression = attr.ib()
+
+  def _to_ast(self):
+    return _ast.Not(self.expression._to_ast())
 
   def evaluate(self, curr_frame) -> PObject:
     pobject = self.expression.evaluate(curr_frame)
@@ -90,6 +109,11 @@ class NotExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
+
+@attr.s(slots=True)
+class InvertExpression(NotExpression):
+  def _to_ast(self):
+    return _ast.Invert(self.expression._to_ast())
 
 
 @attr.s(slots=True)
@@ -395,29 +419,71 @@ class AttributeExpression(Expression):
     return self.base_expression.get_used_free_symbols()
 
 
-@attr.s
+@attr.s(slots=True)
 class Slice:
-  lower = attr.ib(None, kw_only=True)
-  upper = attr.ib(None, kw_only=True)
-  step = attr.ib(None, kw_only=True)
+  lower: Expression = attr.ib(None, kw_only=True)
+  upper: Expression = attr.ib(None, kw_only=True)
+  step: Expression = attr.ib(None, kw_only=True)
+
+  def _to_ast(self):
+    return _ast.Slice(self.lower._to_ast() if self.lower else None,
+                      self.upper._to_ast() if self.upper else None,
+                      self.step._to_ast() if self.step else None)
+
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    out = self.lower.get_used_free_symbols() if self.lower else {}
+    out = symbol_context.merge_symbol_context_dicts(out, self.upper.get_used_free_symbols()) if self.upper else out
+    return symbol_context.merge_symbol_context_dicts(out, self.step.get_used_free_symbols()) if self.step else out
+
+
+@attr.s(slots=True)
+class ExtSlice:
+  slices: List = attr.ib(validator=attr.validators.instance_of(Iterable))
+
+  def _to_ast(self):
+    return _ast.ExtSlice([s._to_ast() for s in self.slices])
+  
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(*[s.get_used_free_symbols() for s in self.slices])
+
+
+@attr.s(slots=True)
+class IndexSlice:
+  expression: Expression = attr.ib()
+
+  def _to_ast(self):
+    return _ast.Index(self.expression._to_ast())
+
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return self.expression.get_used_free_symbols()
+
 
 
 @attr.s(slots=True)
 class SubscriptExpression(Expression):
   base_expression: Expression = attr.ib()
-  subscript_list_expression: Expression = attr.ib()
+  _slice: Union[Slice, ExtSlice, IndexSlice] = attr.ib()
+  # subscript_list_expression: Expression = attr.ib()
   parse_node = attr.ib(kw_only=True)
+
+  def _to_ast(self):
+    return _ast.Subscript(self.base_expression._to_ast(), self._slice._to_ast())
 
   def evaluate(self, curr_frame) -> PObject:
     return self.get(curr_frame)
 
   def get(self, curr_frame):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.get_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame))
+    # TODO: Delete this method or change NativeObject.
+    return pobject.get_item(curr_frame, NativeObject(0))
 
   def set(self, curr_frame, value):
     pobject = self.base_expression.evaluate(curr_frame)
-    return pobject.set_item(curr_frame, self.subscript_list_expression.evaluate(curr_frame), value)
+    # TODO: Delete this method or change NativeObject.
+    return pobject.set_item(curr_frame, NativeObject(0), value)
 
   # @instance_memoize
   @assert_returns_type(dict)
@@ -425,12 +491,12 @@ class SubscriptExpression(Expression):
     if isinstance(self.base_expression, VariableExpression):
       out = {
           self.base_expression.name:
-          symbol_context.SubscriptSymbolContext(self.subscript_list_expression, self.parse_node)
+          symbol_context.SubscriptSymbolContext(self._slice, self.parse_node)
       }
     else:
       out = self.base_expression.get_used_free_symbols()
     return symbol_context.merge_symbol_context_dicts(out,
-                                                     self.subscript_list_expression.get_used_free_symbols())
+                                                     self._slice.get_used_free_symbols())
 
 
 @attr.s(slots=True)
