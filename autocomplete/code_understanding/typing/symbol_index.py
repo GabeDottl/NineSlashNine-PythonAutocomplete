@@ -256,8 +256,7 @@ class _LocationIndex:
     with open(filename, 'rb') as f:
       # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
       # cannot be appended to and thus make the SymbolIndex essentially readonly.
-      out = _LocationIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly), directory)
-    return out
+      return _LocationIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly), directory)
 
   def add_module_by_key(self, module_key):
     if module_key in self.module_keys:

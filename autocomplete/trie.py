@@ -15,6 +15,7 @@ valuable when the trie would otherwise be sparse at many nodes - for example, wi
 import msgpack
 import attr
 
+
 # We set cmp=False so that attrs doesn't add an __eq__ - we want comparisons to be id-based
 # when checking for recursion loops.
 @attr.s(slots=True, cmp=False)
@@ -24,6 +25,25 @@ class Trie:
   highest_child_value_at_or_beneath = attr.ib(0)
   highest_child_char = attr.ib('')
   remainder = attr.ib('')
+
+  def _serialize(self):
+    args = list(attr.astuple(self, recurse=False))
+    args[0] = {k: t._serialize() for k, t in args[0].items()}
+    return args
+
+  @staticmethod
+  def _deserialize(args):
+    args[0] = {k: Trie._deserialize(t) for k, t in args[0].items()}
+    return Trie(*args)
+
+  def save(self, filename):
+    with open(filename, 'wb') as f:
+      msgpack.pack(self._serialize(), f, use_bin_type=True)
+
+  @staticmethod
+  def load(filename):
+    with open(filename, 'rb') as f:
+      return Trie._deserialize(msgpack.unpack(f, raw=False, use_list=True))
 
   def handle_child_increase(self, char):
     if self.highest_child_char == char:
@@ -72,8 +92,9 @@ class Trie:
     nodes.remove(self)
 
   def to_str(self, indent=''):
-    return ''.join(f'{indent}{c}{node.remainder} ({str(node.value)})\n{node.to_str(indent + " "*(1+len(node.remainder)+ 2 + len(str(self.value))))}'
-                   for c, node in self.children.items())
+    return ''.join(
+        f'{indent}{c}{node.remainder} ({str(node.value)})\n{node.to_str(indent + " "*(1+len(node.remainder)+ 2 + len(str(self.value))))}'
+        for c, node in self.children.items())
 
   def __str__(self):
     return self.to_str()
@@ -165,7 +186,7 @@ class Trie:
       node.remainder = node.remainder[split_point + 1:]
       if len(additional_remainder) > 0:
         new_child = Trie()
-        new_child.remainder = additional_remainder[1:] # First char used for indexing below.
+        new_child.remainder = additional_remainder[1:]  # First char used for indexing below.
         new_child.value = additional_remainder_value
         new_node.add_child(additional_remainder[0], new_child)
         if additional_remainder_value > node._get_max_value_at_or_beneath():
@@ -175,7 +196,7 @@ class Trie:
       if not new_node.highest_child_char:  # No remainder or remainder value's smaller.
         new_node.highest_child_value_at_or_beneath = node._get_max_value_at_or_beneath()
         new_node.highest_child_char = c
-      
+
       return new_node
 
     class RemainderSplitException(Exception):

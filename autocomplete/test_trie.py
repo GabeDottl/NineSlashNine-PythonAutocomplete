@@ -2,7 +2,7 @@ from collections import Counter
 import os
 import glob
 
-from . import trie
+from .trie import Trie
 
 
 def test_trie():
@@ -10,7 +10,7 @@ def test_trie():
   counter = Counter(examples)
   counts = dict(zip(counter.keys(), counter.values()))
 
-  t = trie.Trie()
+  t = Trie()
   for example in examples:
     t.add(example, 1, add_value=True)
 
@@ -34,20 +34,25 @@ def test_trie_with_file_tree():
   assert os.path.exists(base_dir)
   paths = glob.glob(os.path.join(base_dir, '**','*.py'), recursive=True)
   directories = set()
-  t = trie.Trie()
+  trie = Trie()
   for path in paths:
     full_path = os.path.join(base_dir, path)
     directories.add(os.path.dirname(full_path))
-    t.add(full_path, value=os.path.getmtime(full_path))
+    trie.add(full_path, value=os.path.getmtime(full_path))
 
   # OS should be essentially doing similar behaviour with getmtime for directories - check.
-  # print(t)
-  for directory in directories:
-    # Cannot guarantee this because we recurse down the tree whereas getmtime doesn't.
-    # assert t.get_max_value_at_or_beneath_prefix(directory) <= os.path.getmtime(directory)
-    max_file = t.get_max(directory)
-    assert max_file
-    assert t.get_max_value_at_or_beneath_prefix(directory) == os.path.getmtime(max_file)
+  TMP_PATH = '/tmp/tmp_trie.msg'
+  trie.save(TMP_PATH)
+  trie_loaded = Trie.load(TMP_PATH)
+  # Check things work for both the original trie and the loaded one.
+  # TODO: Perhaps just replace this with some equals check....
+  for t in (trie, trie_loaded):
+    for directory in directories:
+      # Cannot guarantee this because we recurse down the tree whereas getmtime doesn't.
+      # assert t.get_max_value_at_or_beneath_prefix(directory) <= os.path.getmtime(directory)
+      max_file = t.get_max(directory)
+      assert max_file
+      assert t.get_max_value_at_or_beneath_prefix(directory) == os.path.getmtime(max_file)
 
 
 
