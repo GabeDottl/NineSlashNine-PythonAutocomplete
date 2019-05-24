@@ -67,7 +67,7 @@ class ModuleKey:
     elif ext == '.py' or '.pyi':
       type_ = ModuleSourceType.NORMAL
     else:
-      raise ValueError(f'Not a Module: {filename}')
+      return ModuleKey(ModuleSourceType.BAD, os.path.abspath(filename))
     return ModuleKey(type_, os.path.abspath(filename))
 
   def get_module_basename(self):

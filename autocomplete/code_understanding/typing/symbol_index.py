@@ -168,8 +168,6 @@ class _LocationIndex:
   symbol_dict = attr.ib(factory=partial(defaultdict, dict))
   symbol_alias_dict = attr.ib(factory=partial(defaultdict, dict))
   module_keys = attr.ib(factory=set)
-  # TODO: Perhaps make failed_module_keys owned by symbol_index since these keys are poorly defined..
-  failed_module_keys = attr.ib(factory=set)
   is_file_location: bool = attr.ib(True, kw_only=True)
   _modified_since_save = attr.ib(False, init=False)
 
@@ -208,15 +206,15 @@ class _LocationIndex:
     serialized_module_key_list = [
         key.serialize() for key, _ in sorted(module_key_to_index_dict.items(), key=lambda kv: kv[1])
     ]
-    serialized_failed_module_key_list = [key.serialize() for key in self.failed_module_keys]
+
     return [
-        self.location, d, alias_dict, serialized_module_key_list, serialized_failed_module_key_list,
+        self.location, d, alias_dict, serialized_module_key_list,
         self.is_file_location
     ]
 
   @staticmethod
   def _deserialize(unpacked, save_dir):
-    location, d, alias_dict, serialized_module_key_list, failed_module_keys_list, is_file_location = unpacked
+    location, d, alias_dict, serialized_module_key_list, is_file_location = unpacked
     module_key_list = [
         module_loader.ModuleKey(module_loader.ModuleSourceType(type_), path)
         for type_, path in serialized_module_key_list
@@ -241,7 +239,6 @@ class _LocationIndex:
                           symbol_dict=symbol_dict,
                           symbol_alias_dict=symbol_alias_dict,
                           module_keys=set(module_key_list),
-                          failed_module_keys=set(*failed_module_keys_list),
                           is_file_location=is_file_location)
 
   def save(self):
@@ -262,7 +259,7 @@ class _LocationIndex:
     return out
 
   def add_module_by_key(self, module_key):
-    if module_key in self.module_keys or module_key in self.failed_module_keys:
+    if module_key in self.module_keys:
       warning(f'Skipping {module_key} - already processed.')
       return
     info(f'Adding to index: {module_key}')
@@ -270,7 +267,7 @@ class _LocationIndex:
     module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=False)
     self.add_module(module, module_key)
     self.module_keys.add(module_key)
-      self.symbol_dict[module_key.get_module_basename()][(module_key,
+    self.symbol_dict[module_key.get_module_basename()][(module_key,
                                                           True)] = _InternalSymbolEntry(SymbolType.MODULE,
                                                                                         module_key,
                                                                                         is_module_itself=True)
@@ -292,6 +289,7 @@ class SymbolIndex:
   _builtins_location_index = attr.ib()
   _location_indicies = attr.ib(factory=list)
   _module_key_to_location_index_dict = attr.ib(factory=dict)
+  _failed_module_keys = attr.ib(factory=set)
 
   # Key is: (module_key,from_import_value, as_name)
   _value_module_reference_map: Dict[Tuple[module_loader.ModuleKey, str, str], int] = attr.ib(factory=partial(
@@ -301,8 +299,24 @@ class SymbolIndex:
   def find_symbol(self, symbol):
     yield from itertools.chain(*[index.find_symbol(symbol) for index in self._location_indicies])
 
+
+  def _serialize(self):
+    return [module_key.serialize() for module_key in self._failed_module_keys]
+
+  @staticmethod
+  def _deserialize(unpacked):
+    return [ModuleKey.deserialize(serialized_mk) for serialized_mk in unpacked]
+
+  def save(self):
+    for index in self._location_indicies:
+      index.save()
+    with open(os.path.join(self.save_dir, 'failed.msg'), 'wb') as f:
+      msgpack.pack(self._serialize(), f, use_bin_type=True)
+
   @staticmethod
   def load(directory, readonly=False):
+    if not os.path.exists(directory):
+      raise ValueError(directory)
     indicies = []
     module_key_to_location_index_dict = {}
     for filename in os.listdir(directory):
@@ -315,14 +329,18 @@ class SymbolIndex:
         for mk in location_index.module_keys:
           module_key_to_location_index_dict[mk] = location_index
 
+    with open(os.path.join(directory, 'failed.msg'), 'rb') as f:
+      # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
+      # cannot be appended to and thus make the SymbolIndex essentially readonly.
+      failed_module_keys = SymbolIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly))
+
     return SymbolIndex(directory,
                        builtins_location_index,
                        indicies,
-                       module_key_to_location_index_dict=module_key_to_location_index_dict)
+                       module_key_to_location_index_dict=module_key_to_location_index_dict,
+                       failed_module_keys=failed_module_keys)
 
-  def save(self):
-    for index in self._location_indicies:
-      index.save()
+
 
   # TODO:
   # @staticmethod
@@ -487,22 +505,13 @@ class SymbolIndex:
       self._value_module_reference_map[module_key_value_as_name] += 1
 
   def add_file(self, filename, track_imported_modules=False):
-    try:
-      module_key = module_loader.ModuleKey.from_filename(filename)
-    except ValueError:
-      return
+    module_key = module_loader.ModuleKey.from_filename(filename)
 
     # Note that we explicity do this here instead of in add_module_by_key as the latter may have
     # already been done without tracking the module's contents and would thus return early.
-    if track_imported_modules:
+    if track_imported_modules and not module_key.is_bad():
       module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
-      if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
-        info(f'Failed on {module_key} - unreadable')
-        location_index = self._get_location_index_for_module_key(module_key)
-        if not location_index:
-          location_index = self._builtins_location_index
-        location_index.failed_module_keys.add(module_key)
-        return
+      assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
       assert module.graph
       directory = os.path.dirname(module.filename)
       self._track_modules(module.graph, directory)
@@ -513,6 +522,7 @@ class SymbolIndex:
 
   def add_module_by_key(self, module_key):
     if module_key.is_bad():
+      self._failed_module_keys.append(module_key)
       return
     location_index = self._get_location_index_for_module_key(module_key)
     assert location_index
