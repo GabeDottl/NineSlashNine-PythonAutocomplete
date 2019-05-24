@@ -55,6 +55,7 @@ class ModuleKey:
   # A unique identifier for the module. For builtins, this can just be the name of the module. For
   # modules with associated filenames, this will be the filepath to the module.
   id = attr.ib()
+  _hash = attr.ib(None, init=False)
   # This only applies to non-builtins and is the path from which this module should be loaded.
   # _loader_path = attr.ib(None, init=False) #
 
@@ -97,7 +98,9 @@ class ModuleKey:
     return ModuleKey(ModuleSourceType(args[0]), args[1])
 
   def __hash__(self):
-    return hash((self.module_source_type, self.id))
+    if not self._hash:
+      self._hash = hash((self.module_source_type, self.id))
+    return self._hash
 
   def __eq__(self, other):
     return hash(self) == hash(other)
