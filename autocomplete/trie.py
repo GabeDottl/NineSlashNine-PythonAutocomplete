@@ -91,15 +91,15 @@ class Trie:
       raise e
     nodes.remove(self)
 
-  def to_str(self, indent=''):
+  def _to_str(self, indent=''):
     return ''.join(
-        f'{indent}{c}{node.remainder} ({str(node.value)})\n{node.to_str(indent + " "*(1+len(node.remainder)+ 2 + len(str(self.value))))}'
+        f'{indent}{c}{node.remainder} ({str(node.value)})\n{node._to_str(indent + " "*(1+len(node.remainder)+ 2 + len(str(self.value))))}'
         for c, node in self.children.items())
 
   def __str__(self):
-    return self.to_str()
+    return self._to_str()
 
-  def add_child(self, char, child):
+  def _add_child(self, char, child):
     assert child != self, char
     child_max_value = child._get_max_value_at_or_beneath()
     if self.highest_child_value_at_or_beneath < child_max_value:
@@ -127,20 +127,12 @@ class Trie:
         break
     return None
 
-  def get_max_path(self):
+  def _get_max_path(self):
     curr_node = self
     chars = []
     while curr_node.value < curr_node.highest_child_value_at_or_beneath:
       chars.append(curr_node.highest_child_char)
     return ''.join(chars)
-
-  def assert_valid(self):
-    if self in self.children:
-      return False
-    for child in self.children.values():
-      return child.assert_valid()
-    return True
-
 
 # first:
 #   curr node has no remainder matching or matching child
@@ -164,6 +156,19 @@ class Trie:
 #
 # Insert partially into
 
+  def __setitem__(self, name, value):
+    self.add(name, value)
+
+  def __getitem__(self, name):
+    return self.get_max_value_at_or_beneath_prefix(name)
+
+  def __contains__(self, name):
+    nodes = self.get_path_to(name)
+    if not nodes:
+      return False
+    else:
+      return True
+
   def add(self, string, value, add_value=False):
     def split_node(node, split_point, additional_remainder, additional_remainder_value):
       '''Takes an existing node with some string and splits it in its remainder string.
@@ -182,13 +187,13 @@ class Trie:
       new_node.remainder = node.remainder[:split_point]
       c = node.remainder[split_point]
       # new_node.value = self.default_value - TODO
-      new_node.add_child(c, node)
+      new_node._add_child(c, node)
       node.remainder = node.remainder[split_point + 1:]
       if len(additional_remainder) > 0:
         new_child = Trie()
         new_child.remainder = additional_remainder[1:]  # First char used for indexing below.
         new_child.value = additional_remainder_value
-        new_node.add_child(additional_remainder[0], new_child)
+        new_node._add_child(additional_remainder[0], new_child)
         if additional_remainder_value > node._get_max_value_at_or_beneath():
           new_node.highest_child_value_at_or_beneath = additional_remainder_value
           new_node.highest_child_char = additional_remainder[0]
@@ -265,7 +270,7 @@ class Trie:
       new_node.remainder = remaining_chars
       new_node.value = value
       old_max = curr_node._get_max_value_at_or_beneath()
-      curr_node.add_child(c, new_node)
+      curr_node._add_child(c, new_node)
       if old_max < value:
         # Need to update hierarchy.
         for c, node in path[::-1][1:]:
@@ -285,7 +290,7 @@ class Trie:
     path = self.get_path_to(prefix)
     if not path:
       return default
-    return path[-1][1].highest_child_value_at_or_beneath
+    return path[-1][1]._get_max_value_at_or_beneath()
 
   def get_max(self, prefix):
     path = self.get_path_to(prefix)

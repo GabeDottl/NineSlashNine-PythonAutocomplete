@@ -54,8 +54,6 @@ def test_trie_with_file_tree():
       assert max_file
       assert t.get_max_value_at_or_beneath_prefix(directory) == os.path.getmtime(max_file)
 
-
-
 if __name__ == '__main__':
   test_trie()
   test_trie_with_file_tree()

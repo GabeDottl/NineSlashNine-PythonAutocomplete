@@ -19,6 +19,13 @@
       "console": "integratedTerminal",
     },
     {
+      "name": "test_file_history_tracker",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.code_understanding.typing.tests.test_file_history_tracker",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_typing_inference",
       "type": "python",
       "request": "launch",
