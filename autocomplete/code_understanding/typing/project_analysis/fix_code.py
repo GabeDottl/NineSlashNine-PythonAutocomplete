@@ -402,7 +402,7 @@ def main(index_file, target_file, force):
         new_code, changed = fix_missing_symbols_in_file(path, index)
         if changed:
           info(f'Made updates to {path}')
-        fht.update_timestamp_for_file(path)
+        fht.update_timestamp_for_path(path)
         updated_a_file = True
     if updated_a_file:
       fht.save()
