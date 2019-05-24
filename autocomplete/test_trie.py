@@ -44,10 +44,10 @@ def test_trie_with_file_tree():
   # print(t)
   for directory in directories:
     # Cannot guarantee this because we recurse down the tree whereas getmtime doesn't.
-    # assert t.get_max_value_at_or_beneath(directory) <= os.path.getmtime(directory)
+    # assert t.get_max_value_at_or_beneath_prefix(directory) <= os.path.getmtime(directory)
     max_file = t.get_max(directory)
     assert max_file
-    assert t.get_max_value_at_or_beneath(directory) == os.path.getmtime(max_file)
+    assert t.get_max_value_at_or_beneath_prefix(directory) == os.path.getmtime(max_file)
 
 
 

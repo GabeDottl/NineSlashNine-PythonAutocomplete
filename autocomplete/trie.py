@@ -13,34 +13,37 @@ by allowing nodes to contain whole strings where it is useful to do so. This is 
 valuable when the trie would otherwise be sparse at many nodes - for example, with file-trees.
 '''
 import msgpack
+import attr
 
-class Node:
-  def __init__(self):
-    self.children = {}
-    self.value = 0
-    self.highest_child_value_at_or_beneath = 0
-    self.highest_child_char = ''
-    self.remainder = ''
+# We set cmp=False so that attrs doesn't add an __eq__ - we want comparisons to be id-based
+# when checking for recursion loops.
+@attr.s(slots=True, cmp=False)
+class Trie:
+  children = attr.ib(factory=dict)
+  value = attr.ib(0)
+  highest_child_value_at_or_beneath = attr.ib(0)
+  highest_child_char = attr.ib('')
+  remainder = attr.ib('')
 
   def handle_child_increase(self, char):
     if self.highest_child_char == char:
       return
     child = self.children[char]
-    child_max_value = child.get_max_value_at_or_beneath()
+    child_max_value = child._get_max_value_at_or_beneath()
     if child_max_value > self.highest_child_value_at_or_beneath:
       self.highest_child_char = char
       self.highest_child_value_at_or_beneath = child_max_value
 
-  def get_max_value_at_or_beneath(self):
+  def _get_max_value_at_or_beneath(self):
     return max(self.value, self.highest_child_value_at_or_beneath)
 
-  def copy_with_lower_values_pruned(self, min_value) -> 'Node':
-    out = Node()
+  def copy_with_lower_values_pruned(self, min_value) -> 'Trie':
+    out = Trie()
     if self.highest_child_value_at_or_beneath >= min_value:
       out.highest_child_value_at_or_beneath = self.highest_child_value_at_or_beneath
       out.highest_child_char = self.highest_child_char
     for char, child in self.children.items():
-      if child.get_max_value_at_or_beneath() >= min_value:
+      if child._get_max_value_at_or_beneath() >= min_value:
         out.children[char] = child.copy_with_lower_values_pruned(min_value)
     return out
 
@@ -77,7 +80,7 @@ class Node:
 
   def add_child(self, char, child):
     assert child != self, char
-    child_max_value = child.get_max_value_at_or_beneath()
+    child_max_value = child._get_max_value_at_or_beneath()
     if self.highest_child_value_at_or_beneath < child_max_value:
       self.highest_child_value_at_or_beneath = child_max_value
       self.highest_child_char = char
@@ -118,19 +121,6 @@ class Node:
     return True
 
 
-class Trie:
-  def __init__(self):
-    self.root = Node()
-
-  def __str__(self):
-    return str(self.root)
-
-  def copy_with_lower_values_pruned(self, min_value):
-    out = Trie()
-    out.root = self.root.copy_with_lower_values_pruned(min_value)
-    return out
-
-
 # first:
 #   curr node has no remainder matching or matching child
 #     create child with first letter + remainder
@@ -167,23 +157,23 @@ class Trie:
       Alternatively, additional_remainder may be '' in which case instead of 3 nodes, there
       are now 2 with 'Go' as a new possible end-point.
       '''
-      new_node = Node()
+      new_node = Trie()
       new_node.remainder = node.remainder[:split_point]
       c = node.remainder[split_point]
       # new_node.value = self.default_value - TODO
       new_node.add_child(c, node)
       node.remainder = node.remainder[split_point + 1:]
       if len(additional_remainder) > 0:
-        new_child = Node()
+        new_child = Trie()
         new_child.remainder = additional_remainder[1:] # First char used for indexing below.
         new_child.value = additional_remainder_value
         new_node.add_child(additional_remainder[0], new_child)
-        if additional_remainder_value > node.get_max_value_at_or_beneath():
+        if additional_remainder_value > node._get_max_value_at_or_beneath():
           new_node.highest_child_value_at_or_beneath = additional_remainder_value
           new_node.highest_child_char = additional_remainder[0]
 
       if not new_node.highest_child_char:  # No remainder or remainder value's smaller.
-        new_node.highest_child_value_at_or_beneath = node.get_max_value_at_or_beneath()
+        new_node.highest_child_value_at_or_beneath = node._get_max_value_at_or_beneath()
         new_node.highest_child_char = c
       
       return new_node
@@ -193,7 +183,7 @@ class Trie:
         super(RemainderSplitException, self).__init__()
         self.split_point = split_point
 
-    curr_node = self.root
+    curr_node = self
     path = []
 
     string_iter = iter(string)
@@ -223,7 +213,7 @@ class Trie:
         x.append(curr_node.remainder)
         x = ''.join(x)
         for c, node in path[::-1]:
-          last_node_max_value = last_node.get_max_value_at_or_beneath()
+          last_node_max_value = last_node._get_max_value_at_or_beneath()
           if node.highest_child_value_at_or_beneath < last_node_max_value:
             node.highest_child_value_at_or_beneath = last_node_max_value
             node.highest_child_char = c
@@ -239,7 +229,7 @@ class Trie:
       remainder = ''.join([b] + list(string_iter))
       c, parent = path[-1]
       new_node = parent.children[c] = split_node(curr_node, e.split_point, remainder, value)
-      if value > curr_node.get_max_value_at_or_beneath():
+      if value > curr_node._get_max_value_at_or_beneath():
         # Need to update hierarchy.
         for c, node in path[::-1]:
           if node.highest_child_value_at_or_beneath < value:
@@ -250,10 +240,10 @@ class Trie:
     except KeyError:
       # Matches current node's remainder if any - need to add as new child.
       remaining_chars = ''.join(list(string_iter))
-      new_node = Node()
+      new_node = Trie()
       new_node.remainder = remaining_chars
       new_node.value = value
-      old_max = curr_node.get_max_value_at_or_beneath()
+      old_max = curr_node._get_max_value_at_or_beneath()
       curr_node.add_child(c, new_node)
       if old_max < value:
         # Need to update hierarchy.
@@ -265,19 +255,19 @@ class Trie:
             break  # Everything above is greater.
 
   def get_value_for_string(self, string):
-    nodes = self.root.get_path_to(string)
+    nodes = self.get_path_to(string)
     if not nodes:
       return 0
     return nodes[-1][1].value
 
-  def get_max_value_at_or_beneath(self, prefix, default=0):
-    path = self.root.get_path_to(prefix)
+  def get_max_value_at_or_beneath_prefix(self, prefix, default=0):
+    path = self.get_path_to(prefix)
     if not path:
       return default
     return path[-1][1].highest_child_value_at_or_beneath
 
   def get_max(self, prefix):
-    path = self.root.get_path_to(prefix)
+    path = self.get_path_to(prefix)
     if not path:
       return None
 
