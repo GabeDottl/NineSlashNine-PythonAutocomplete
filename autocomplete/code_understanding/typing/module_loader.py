@@ -59,10 +59,6 @@ class ModuleKey:
   # This only applies to non-builtins and is the path from which this module should be loaded.
   # _loader_path = attr.ib(None, init=False) #
 
-  # def __attrs_post_init__(self):
-  #   if self.module_source_type == ModuleSourceType.BUILTIN:
-  #     assert self.path[0] != '.'
-
   @staticmethod
   def from_filename(filename):
     ext = os.path.splitext(filename)[1]

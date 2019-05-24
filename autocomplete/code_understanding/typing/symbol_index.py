@@ -1,7 +1,9 @@
 import builtins
+import itertools
 import os
 import sys
 import types
+import shutil
 from collections import defaultdict
 from enum import Enum
 from functools import partial
@@ -48,7 +50,7 @@ class SymbolType(Enum):
 
 
 @attr.s(slots=True, hash=False, cmp=False)
-class SymbolAlias:
+class _SymbolAlias:
   real_name = attr.ib()
   module_key = attr.ib()
   is_module_itself: bool = attr.ib()
@@ -63,11 +65,11 @@ class SymbolAlias:
   def deserialize(tuple_, module_key_list):
     args = list(tuple_)
     args[1] = module_key_list[args[1]]
-    return SymbolAlias(*args)
+    return _SymbolAlias(*args)
 
 
 @attr.s(slots=True, hash=False, cmp=False)
-class InternalSymbolEntry:
+class _InternalSymbolEntry:
   '''This class stores information about module symbols in a format convenient for serialization.
 
   It generally should not be exposed through any public APIs outside of this file.
@@ -90,7 +92,7 @@ class InternalSymbolEntry:
     args = list(tuple_)
     args[0] = SymbolType(args[0])
     args[1] = module_key_list[args[1]]
-    return InternalSymbolEntry(*args)
+    return _InternalSymbolEntry(*args)
 
   def is_from_native_module(self):
     return self.module_type == language_objects.ModuleType.BUILTIN
@@ -142,31 +144,47 @@ def pretty_print_symbol_entries(symbol_entries):
 
 
 @attr.s
-class SymbolIndex:
-  save_path = attr.ib(None)
+class _LocationIndex:
+  '''A data container for a SymbolIndex for a given location, e.g. directory & subdirs.
+
+  Location generally refers to location as defined for modules in here:
+  https://www.python.org/dev/peps/pep-0451/
+
+  With the addition of a single 'Builtins' _LocationIndex.
+
+  A subdir may take-over another _LocationIndex. For example:
+  Give a set of paths: /a/{b,c,d}
+
+  There may be a _LocationIndex for /a and /a/b. The former will handle all subdirs under /a
+  except /a/b.
+
+  This allows subpackages to have there own _LocationIndex when it's convenient (e.g. frequently
+  updated packages contained on sys.path).
+  
+  TODO: Clean up this docstring.'''
+
+  save_dir: str = attr.ib()
+  location: str = attr.ib(validator=attr.validators.instance_of(str))
   symbol_dict = attr.ib(factory=partial(defaultdict, dict))
   symbol_alias_dict = attr.ib(factory=partial(defaultdict, dict))
-
   module_keys = attr.ib(factory=set)
-
+  # TODO: Perhaps make failed_module_keys owned by symbol_index since these keys are poorly defined..
   failed_module_keys = attr.ib(factory=set)
-  num_files_added = attr.ib(0, init=False)
+  is_file_location: bool = attr.ib(True, kw_only=True)
+  _modified_since_save = attr.ib(False, init=False)
 
-  # Key is: (module_key,from_import_value, as_name)
-  value_module_reference_map: Dict[Tuple[module_loader.ModuleKey, str, str], int] = attr.ib(factory=partial(
-      defaultdict, int),
-                                                                                            init=False)
-
-  def __attrs_post_init__(self):
-    if not len(self.symbol_dict):
-      # Add builtins to symbol_dict by default if it's not been initialized with some set.
-      builtins_module_key = module_loader.ModuleKey(module_loader.ModuleSourceType.BAD, 'fake_builtins_module')
-      self.module_keys.add(builtins_module_key)
-      for symbol, value in builtins.__dict__.items():
-        self.symbol_dict[symbol][(builtins_module_key, False)] = InternalSymbolEntry(SymbolType.from_real_obj(value), builtins_module_key)
-      for symbol in utils.get_possible_builtin_symbols():
-        if symbol not in self.symbol_dict:
-          self.symbol_dict[symbol][(builtins_module_key, False)] = InternalSymbolEntry(SymbolType.UNKNOWN, builtins_module_key)
+  @staticmethod
+  def create_builtins_index(save_dir):
+    index = _LocationIndex(save_dir, 'builtins', is_file_location=False)
+    # Add builtins to symbol_dict by default to account for all builtin symbols since most modules
+    # aren't going to do a "from builtins import *" explicitly.
+    builtins_module_key = module_loader.ModuleKey(module_loader.ModuleSourceType.BUILTIN, 'builtins')
+    index.add_module_by_key(builtins_module_key)
+    for symbol in utils.get_possible_builtin_symbols():
+      if symbol not in index.symbol_dict:
+        index.symbol_dict[symbol][(builtins_module_key,
+                                   False)] = _InternalSymbolEntry(SymbolType.UNKNOWN, builtins_module_key)
+    return index
 
   def find_symbol(self, symbol):
     for alias in self.symbol_alias_dict[symbol].values():
@@ -174,10 +192,6 @@ class SymbolIndex:
       yield CompleteSymbolEntry(symbol_entry, symbol, alias)
     for symbol_entry in self.symbol_dict[symbol].values():
       yield CompleteSymbolEntry(symbol_entry, symbol, None)
-
-  def get_modules_for_symbol_entries(self, symbol_entries):
-    for symbol_entry in symbol_entries:
-      yield symbol_entry, self.module_key_list[symbol_entry.module_key]
 
   def _serialize(self):
     d = {}
@@ -191,13 +205,18 @@ class SymbolIndex:
       l = alias_dict[symbol] = []
       for alias in aliases:
         l.append(alias.serialize(module_key_to_index_dict))
-    serialized_module_key_list = [key.serialize() for key, _ in sorted(module_key_to_index_dict.items(), key=lambda kv: kv[1])]
+    serialized_module_key_list = [
+        key.serialize() for key, _ in sorted(module_key_to_index_dict.items(), key=lambda kv: kv[1])
+    ]
     serialized_failed_module_key_list = [key.serialize() for key in self.failed_module_keys]
-    return [d, alias_dict, serialized_module_key_list, serialized_failed_module_key_list]
+    return [
+        self.location, d, alias_dict, serialized_module_key_list, serialized_failed_module_key_list,
+        self.is_file_location
+    ]
 
   @staticmethod
-  def _deserialize(unpacked):
-    d, alias_dict, serialized_module_key_list, failed_module_keys_list = unpacked
+  def _deserialize(unpacked, save_dir):
+    location, d, alias_dict, serialized_module_key_list, failed_module_keys_list, is_file_location = unpacked
     module_key_list = [
         module_loader.ModuleKey(module_loader.ModuleSourceType(type_), path)
         for type_, path in serialized_module_key_list
@@ -206,83 +225,177 @@ class SymbolIndex:
     for s, serialized_symbol_entries in d.items():
       module_key_symbol_entry_dict = {}
       for serialized_entry in serialized_symbol_entries:
-        # TODO: Need to match this!!!!!!
-        symbol_entry = InternalSymbolEntry.deserialize(serialized_entry, module_key_list)
-        module_key_symbol_entry_dict[(symbol_entry.module_key,
-                                        symbol_entry.is_module_itself)] = symbol_entry
+        symbol_entry = _InternalSymbolEntry.deserialize(serialized_entry, module_key_list)
+        module_key_symbol_entry_dict[(symbol_entry.module_key, symbol_entry.is_module_itself)] = symbol_entry
       symbol_dict[s] = module_key_symbol_entry_dict
 
     symbol_alias_dict = defaultdict(dict)
     for symbol, args_lists in alias_dict.items():
       alias_params_to_alias_dict = {}
       for args in args_lists:
-        alias_params_to_alias_dict[tuple(args)] = SymbolAlias.deserialize(args, module_key_list)
+        alias_params_to_alias_dict[tuple(args)] = _SymbolAlias.deserialize(args, module_key_list)
       symbol_alias_dict[symbol] = alias_params_to_alias_dict
 
-    return SymbolIndex(symbol_dict=symbol_dict,
-                       symbol_alias_dict=symbol_alias_dict,
-                       module_keys=set(module_key_list),
-                       failed_module_keys=set(*failed_module_keys_list))
-
-  @staticmethod
-  def load(filename, readonly=False):
-    with open(filename, 'rb') as f:
-      # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
-      # cannot be appended to and thus make the SymbolIndex essentially readonly.
-      out = SymbolIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly))
-    out.save_path = filename
-    return out
+    return _LocationIndex(location,
+                          save_dir,
+                          symbol_dict=symbol_dict,
+                          symbol_alias_dict=symbol_alias_dict,
+                          module_keys=set(module_key_list),
+                          failed_module_keys=set(*failed_module_keys_list),
+                          is_file_location=is_file_location)
 
   def save(self):
-    with open(self.save_path, 'wb') as f:
+    # if not self._modified_since_save:
+    #   raise NotImplementedError()
+    if not os.path.exists(self.save_dir):
+      os.makedirs(self.save_dir)
+    with open(os.path.join(self.save_dir, 'index.msg'), 'wb') as f:
       msgpack.pack(self._serialize(), f, use_bin_type=True)
 
   @staticmethod
-  def build_index(target_index_filename):
-    index = SymbolIndex(target_index_filename)
+  def load(directory, readonly=False):
+    filename = os.path.join(directory, 'index.msg')
+    with open(filename, 'rb') as f:
+      # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
+      # cannot be appended to and thus make the SymbolIndex essentially readonly.
+      out = _LocationIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly), directory)
+    return out
+
+  def add_module_by_key(self, module_key):
+    if module_key in self.module_keys or module_key in self.failed_module_keys:
+      warning(f'Skipping {module_key} - already processed.')
+      return
+    info(f'Adding to index: {module_key}')
+    
+    module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=False)
+    self.add_module(module, module_key)
+    self.module_keys.add(module_key)
+      self.symbol_dict[module_key.get_module_basename()][(module_key,
+                                                          True)] = _InternalSymbolEntry(SymbolType.MODULE,
+                                                                                        module_key,
+                                                                                        is_module_itself=True)
+
+  def add_module(self, module, module_key):
+    for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
+      try:
+        entry = self.symbol_dict[name][(module_key, False)] = _InternalSymbolEntry(
+            SymbolType.from_pobject_value(member.value()), module_key, imported=member.imported)
+      except errors.AmbiguousFuzzyValueError:
+        entry = self.symbol_dict[name][(module_key, False)] = _InternalSymbolEntry(SymbolType.AMBIGUOUS,
+                                                                                   module_key,
+                                                                                   imported=member.imported)
+
+
+@attr.s(slots=True)
+class SymbolIndex:
+  save_dir = attr.ib()
+  _builtins_location_index = attr.ib()
+  _location_indicies = attr.ib(factory=list)
+  _module_key_to_location_index_dict = attr.ib(factory=dict)
+
+  # Key is: (module_key,from_import_value, as_name)
+  _value_module_reference_map: Dict[Tuple[module_loader.ModuleKey, str, str], int] = attr.ib(factory=partial(
+      defaultdict, int),
+                                                                                             init=False)
+
+  def find_symbol(self, symbol):
+    yield from itertools.chain(*[index.find_symbol(symbol) for index in self._location_indicies])
+
+  @staticmethod
+  def load(directory, readonly=False):
+    indicies = []
+    module_key_to_location_index_dict = {}
+    for filename in os.listdir(directory):
+      full_filename = os.path.join(directory, filename)
+      if os.path.isdir(full_filename):
+        location_index = _LocationIndex.load(os.path.join(directory, full_filename))
+        indicies.append(location_index)
+        if not location_index.is_file_location:
+          builtins_location_index = location_index
+        for mk in location_index.module_keys:
+          module_key_to_location_index_dict[mk] = location_index
+
+    return SymbolIndex(directory,
+                       builtins_location_index,
+                       indicies,
+                       module_key_to_location_index_dict=module_key_to_location_index_dict)
+
+  def save(self):
+    for index in self._location_indicies:
+      index.save()
+
+  # TODO:
+  # @staticmethod
+  # def build_complete_index(save_dir):
+  #   index = SymbolIndex.create_index(save_dir)
+  #   for path in sys.path:
+  #     index.add_path(path, ignore_init=True)
+
+  #   return index
+
+  @staticmethod
+  def create_index(save_dir):
+    if not os.path.exists(save_dir):
+      os.makedirs(save_dir)
+    builtins_location_index = _LocationIndex.create_builtins_index(
+        SymbolIndex._get_location_save_dir_from_main_dir(save_dir, 'builtins'))
+    index = SymbolIndex(save_dir, builtins_location_index)
+    index._location_indicies.append(builtins_location_index)
     for path in sys.path:
-      index.add_path(path, ignore_init=True)
+      index._add_location_index_for_dir(path)
+    index._add_location_index_for_dir(path)
     return index
 
   @staticmethod
-  def build_index_from_package(package_path, target_index_filename):
+  def build_index_from_package(package_path, save_dir, clean=False):
     assert os.path.exists(package_path)
-    index = SymbolIndex(target_index_filename)
+    index = None
+    if os.path.exists(save_dir):
+      if not clean:
+        shutil.rmtree(save_dir)
+      else:
+        index = SymbolIndex.load(save_dir)
+        # TODO: check that package_path is in _location_indicies...
+    if not index:
+      index = SymbolIndex.create_index(save_dir)
+
     index.add_path(package_path, ignore_init=True, track_imported_modules=True)
-    index.process_tracked_imports()
+    index._process_tracked_imports()
     return index
+
+  @staticmethod
+  def _get_location_save_dir_from_main_dir(save_dir, location_name):
+    return os.path.join(save_dir, str(hash(location_name)))
+
+  def _get_location_save_dir(self, location_name):
+    return SymbolIndex._get_location_save_dir_from_main_dir(self.save_dir, str(hash(location_name)))
+
+  def _add_location_index_for_dir(self, directory):
+    # TODO: check if already present.
+    self._location_indicies.append(_LocationIndex(self._get_location_save_dir(directory), directory))
+
+  def _get_location_index_for_module_key(self, module_key):
+    if module_key in self._module_key_to_location_index_dict:
+      return self._module_key_to_location_index_dict[module_key]
+
+    if module_key.is_bad():
+      return None
+
+    if module_key.module_source_type == module_loader.ModuleSourceType.BUILTIN:
+      return self._builtins_location_index
+
+    filename = module_key.get_filename()
+    # TODO: Keep these sorted.
+    for location_index in sorted(self._location_indicies, key=lambda x: -len(x.location)):
+      if location_index.is_file_location:
+        if filename[:len(location_index.location)] == location_index.location:
+          return location_index
+    return None
 
   def update_index_from_package(self, package_path):
     assert os.path.exists(package_path)
     self.add_path(package_path, ignore_init=True, track_imported_modules=True)
-    self.process_tracked_imports()
-
-  def process_tracked_imports(self):
-    for (module_key, value, as_name), count in self.value_module_reference_map.items():
-      if module_key.module_source_type == module_loader.ModuleSourceType.BAD:
-        continue
-
-      self.add_module_by_key(module_key)
-
-      real_name = value if value else module_key.get_module_basename()
-      module_key_symbol_entry_dict = self.symbol_dict[real_name]
-      is_module_itself = not value
-
-      key = (module_key, is_module_itself)
-      # TODO: Dynamically add if this fails.
-      assert key in module_key_symbol_entry_dict
-      entry = module_key_symbol_entry_dict[key]
-      entry.import_count += count
-
-      if as_name:
-        symbol_alias_count_dict = self.symbol_alias_dict[as_name]
-        args = (real_name, module_key, is_module_itself)
-        if args in symbol_alias_count_dict:
-          symbol_alias_count_dict[args].import_count += 1
-        else:
-          symbol_alias_count_dict[args] = SymbolAlias(*args, import_count=1)
-    info(f'Processed tracked imports; clearing.')
-    self.value_module_reference_map.clear()
+    self._process_tracked_imports()
 
   def add_path(self, path, ignore_init=False, include_private_files=False, track_imported_modules=False):
     if not os.path.exists(path):
@@ -299,6 +412,47 @@ class SymbolIndex:
         self.add_path(os.path.join(path, directory), track_imported_modules=track_imported_modules)
     if track_imported_modules:
       module_loader.keep_graphs_default = False
+      self._process_tracked_imports()
+
+  def _get_symbol(self, symbol):
+    out = {}
+    for location_index in self._location_indicies:
+      out.update(location_index.symbol_dict[symbol])
+    return out
+
+  def _get_symbol_alias(self, symbol_alias):
+    out = {}
+    for location_index in self._location_indicies:
+      out.update(location_index.symbol_alias_dict[symbol_alias])
+    return out
+
+  def _process_tracked_imports(self):
+    for (module_key, value, as_name), count in self._value_module_reference_map.items():
+      if module_key.module_source_type == module_loader.ModuleSourceType.BAD:
+        continue
+
+      self.add_module_by_key(module_key)
+
+      real_name = value if value else module_key.get_module_basename()
+      module_key_symbol_entry_dict = self._get_symbol(real_name)
+      is_module_itself = not value
+
+      key = (module_key, is_module_itself)
+      # TODO: Dynamically add if this fails.
+      assert key in module_key_symbol_entry_dict
+      entry = module_key_symbol_entry_dict[key]
+      entry.import_count += count
+
+      if as_name:
+        location_index = self._get_location_index_for_module_key(module_key)
+        symbol_alias_count_dict = location_index.symbol_alias_dict[as_name]
+        args = (real_name, module_key, is_module_itself)
+        if args in symbol_alias_count_dict:
+          symbol_alias_count_dict[args].import_count += 1
+        else:
+          symbol_alias_count_dict[args] = _SymbolAlias(*args, import_count=1)
+    info(f'Processed tracked imports; clearing.')
+    self._value_module_reference_map.clear()
 
   def _track_modules(self, graph, directory):
     import_nodes = graph.get_descendents_of_types(
@@ -330,7 +484,7 @@ class SymbolIndex:
 
         imported_symbols_and_modules.append((module_key, value, as_name))
     for module_key_value_as_name in imported_symbols_and_modules:
-      self.value_module_reference_map[module_key_value_as_name] += 1
+      self._value_module_reference_map[module_key_value_as_name] += 1
 
   def add_file(self, filename, track_imported_modules=False):
     try:
@@ -344,50 +498,26 @@ class SymbolIndex:
       module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
       if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
         info(f'Failed on {module_key} - unreadable')
-        self.failed_module_keys.add(module_key)
+        location_index = self._get_location_index_for_module_key(module_key)
+        if not location_index:
+          location_index = self._builtins_location_index
+        location_index.failed_module_keys.add(module_key)
         return
       assert module.graph
       directory = os.path.dirname(module.filename)
       self._track_modules(module.graph, directory)
 
-    return self.add_module_by_key(module_key)
+    self.add_module_by_key(module_key)
+    if track_imported_modules:
+      self._process_tracked_imports()
 
   def add_module_by_key(self, module_key):
-    if module_key in self.module_keys or module_key in self.failed_module_keys:
-      warning(f'Skipping {module_key} - already processed.')
+    if module_key.is_bad():
       return
-    # filename = module_key.get_filename() if module_key.module_source_type != module_loader.ModuleSourceType.BUILTIN else None
-    info(f'Adding to index: {module_key}')
-    try:
-      module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=False)
-      self.add_module(module, module_key)
-    except OSError as e:  # Exception
-      info(f'Failed on {module_key}: {e}')
-      self.failed_module_keys.add(module_key)
-    else:
-      self.module_keys.add(module_key)
-      self.num_files_added += 1
-      self.symbol_dict[module_key.get_module_basename()][(module_key,
-                                                          True)] = InternalSymbolEntry(SymbolType.MODULE,
-                                                                                       module_key,
-                                                                                       is_module_itself=True)
-
-  def add_module(self, module, module_key):
-    for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
-      try:
-        entry = self.symbol_dict[name][(module_key, False)] = InternalSymbolEntry(
-            SymbolType.from_pobject_value(member.value()), module_key, imported=member.imported)
-      except errors.AmbiguousFuzzyValueError:
-        entry = self.symbol_dict[name][(module_key, False)] = InternalSymbolEntry(SymbolType.AMBIGUOUS,
-                                                                                    module_key,
-                                                                                    imported=member.imported)
-      # self.module_to_symbols_dict[module_key].append(entry)
-
-
-def _should_scan_file(filename, include_private_files):
-  if include_private_files:
-    return True
-  return filename[0] != '_'
+    location_index = self._get_location_index_for_module_key(module_key)
+    assert location_index
+    location_index.add_module_by_key(module_key)
+    self._module_key_to_location_index_dict[module_key] = location_index
 
 
 def _should_export_symbol(current_module, name, pobject):
@@ -402,13 +532,6 @@ def _should_export_symbol(current_module, name, pobject):
     return False
 
   return True
-
-
-def base_module_name(module_name):
-  if '.' not in module_name:
-    return module_name
-  else:
-    return module_name[:module_name.find('.')]
 
 
 def main(target_package, output_path):

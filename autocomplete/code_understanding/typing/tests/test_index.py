@@ -1,11 +1,12 @@
 import os
+import shutil
 
 from .. import symbol_index
 from ....nsn_logging import info
 
 HOME = os.getenv('HOME')
 TYPING_DIR = os.path.join(os.path.dirname(__file__), '..')
-INDEX_PATH = f'/tmp/index.msg'
+INDEX_PATH = f'/tmp/index'
 
 
 def test_build_test_index():
@@ -15,9 +16,9 @@ def test_build_test_index():
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.get_import_count())
   entry = entries[-1]
   assert not entry.is_imported() and entry.get_symbol_type() == symbol_index.SymbolType.MODULE and entry.get_import_count() == 2
-  info(f'Built package index. {len(index.module_list)} modules.')
+  # info(f'Built package index. {len(index.module_keys)} modules.')
   # Ensure it loaded as expected without crashing.
-  symbol_index.SymbolIndex().load(INDEX_PATH)
+  symbol_index.SymbolIndex.load(INDEX_PATH)
 
 
 def test_build_typing_index():
@@ -32,20 +33,19 @@ def test_build_typing_index():
   assert not entry.is_imported() and entry.get_symbol_type() == symbol_index.SymbolType.MODULE and entry.get_import_count() > 5
   # entries = index.find_symbol('attr')
   # assert entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE
-  info(f'Built package index. {len(index.module_list)} modules.')
+  # info(f'Built package index. {len(index.module_keys)} modules.')
   # Ensure it loaded as expected without crashing.
-  symbol_index.SymbolIndex().load(INDEX_PATH)
+  symbol_index.SymbolIndex.load(INDEX_PATH)
 
 
 def test_add_file():
-  initial_index = symbol_index.SymbolIndex(INDEX_PATH)
+  initial_index = symbol_index.SymbolIndex.create_index(INDEX_PATH)
   initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'),
                          track_imported_modules=True)
   # initial_index.add_file(
   #     os.path.join(TYPING_DIR, 'tests', 'test_fix_code.py'),
   #     track_imported_modules=True)
 
-  initial_index.process_tracked_imports()
   initial_index.save()
   loaded_index = symbol_index.SymbolIndex.load(INDEX_PATH)
 
@@ -75,6 +75,8 @@ def test_add_file():
 #   index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
 
 if __name__ == "__main__":
+  if os.path.exists(INDEX_PATH):
+    shutil.rmtree(INDEX_PATH)
   test_add_file()
   test_build_test_index()
   test_build_typing_index()
