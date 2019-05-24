@@ -242,8 +242,9 @@ class _LocationIndex:
                           is_file_location=is_file_location)
 
   def save(self):
-    # if not self._modified_since_save:
-    #   raise NotImplementedError()
+    if not self._modified_since_save:
+      return
+
     if not os.path.exists(self.save_dir):
       os.makedirs(self.save_dir)
     with open(os.path.join(self.save_dir, 'index.msg'), 'wb') as f:
@@ -263,7 +264,6 @@ class _LocationIndex:
       warning(f'Skipping {module_key} - already processed.')
       return
     info(f'Adding to index: {module_key}')
-    
     module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=False)
     self.add_module(module, module_key)
     self.module_keys.add(module_key)
@@ -271,6 +271,7 @@ class _LocationIndex:
                                                           True)] = _InternalSymbolEntry(SymbolType.MODULE,
                                                                                         module_key,
                                                                                         is_module_itself=True)
+    self._modified_since_save = True
 
   def add_module(self, module, module_key):
     for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
@@ -339,8 +340,6 @@ class SymbolIndex:
                        indicies,
                        module_key_to_location_index_dict=module_key_to_location_index_dict,
                        failed_module_keys=failed_module_keys)
-
-
 
   # TODO:
   # @staticmethod

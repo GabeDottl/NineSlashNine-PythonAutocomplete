@@ -1,3 +1,16 @@
+'''This class encapsulates a Trie with some optimizations and persistence abilities.
+
+Classic tries for autocomplete may include a count for leaf-nodes and a pointer to the child-subtree
+with the highest-value leaf node in it.
+
+This Trie implementation generalizes this slightly to 'comparable' objects - i.e. objects which
+support >,< and ==.
+
+Furthermore, the Trie supports saving/loading from a file using msgpack.
+'''
+import msgpack
+
+
 class Node:
   def __init__(self):
     self.children = {}

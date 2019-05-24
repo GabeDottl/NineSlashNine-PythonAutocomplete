@@ -2,11 +2,12 @@ import msgpack
 import time
 import os
 import attr
+import flatdict
 
 
 @attr.s
 class FileHistoryTracker:
-  tracking_file = attr.ib()
+  tracking_dir = attr.ib()
   file_timestamp_dict = attr.ib(factory=dict)
 
   def save(self):
@@ -14,12 +15,12 @@ class FileHistoryTracker:
       msgpack.pack(self.file_timestamp_dict, f, use_bin_type=True)
 
   @staticmethod
-  def load(filepath, lazy_create=True) -> 'FileHistoryTracker':
-    if not os.path.exists(filepath):
+  def load(load_dir, lazy_create=True) -> 'FileHistoryTracker':
+    if not os.path.exists(load_dir):
       if not lazy_create:
-        raise ValueError(f'Invalid path for loading: {filepath}')
+        raise ValueError(f'Invalid path for loading: {load_dir}')
       else:
-        return FileHistoryTracker(filepath)
+        return FileHistoryTracker(load_dir)
 
     with open(filepath, 'rb') as f:
       d = msgpack.unpack(f, raw=False, use_list=False)

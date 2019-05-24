@@ -1,7 +1,0 @@
-rule infer
-  command = pytype-single --imports_info $imports --module-name $module -V 3.6 -o $out --no-report-errors --nofail --quick $in
-rule check
-  command = pytype-single --imports_info $imports --module-name $module -V 3.6 -o $out --analyze-annotated --nofail --quick $in
-build /home/gabe/code/autocomplete/autocomplete/reverse_history/pytype_output/pyi/autocomplete/reverse_history/trie.pyi: check /home/gabe/code/autocomplete/autocomplete/reverse_history/trie.py
-  imports = /home/gabe/code/autocomplete/autocomplete/reverse_history/pytype_output/imports/autocomplete.reverse_history.trie.imports
-  module = autocomplete.reverse_history.trie

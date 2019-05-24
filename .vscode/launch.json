@@ -5,6 +5,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_trie",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.test_trie",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_cfg_to_ast",
       "type": "python",
       "request": "launch",
