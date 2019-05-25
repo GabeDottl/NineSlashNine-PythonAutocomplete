@@ -40,7 +40,7 @@
       "console": "integratedTerminal",
       "args": [
         "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
-        "$HOME/code/autocomplete/index.msg",
+        "$HOME/.nsn",
       ],
     },,
     {
@@ -51,7 +51,7 @@
       "console": "integratedTerminal",
       "args": [
         "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
-        "$HOME/code/autocomplete/index.msg",
+        "$HOME/.nsn",
       ],
     },
     {
@@ -62,7 +62,7 @@
       "console": "integratedTerminal",
       "args": [
         "$HOME/code/autocomplete_clone/autocomplete/code_understanding/typing",
-        "$HOME/code/autocomplete_clone_index.msg",
+        "$HOME/.nsn",
       ],
     },
     {
@@ -89,7 +89,7 @@
       "module": "autocomplete.code_understanding.typing.project_analysis.fix_code",
       "console": "integratedTerminal",
       "args": [
-        "$HOME/code/autocomplete_clone_index.msg",
+        "$HOME/.nsn",
         "$HOME/code/autocomplete_clone/autocomplete/code_understanding/typing",
         "-f"
       ],

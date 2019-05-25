@@ -78,10 +78,12 @@ class LiteralExpression(Expression):
 
 @attr.s(slots=True)
 class YieldExpression(Expression):
-  expression: Union[Expression, None] = attr.ib(None)
+  expression: Union[Expression, None] = attr.ib()
+  is_from_expression = attr.ib()  # yield from <expr> or yield <expr> or just yield.
 
   def _to_ast(self):
     if self.expression:
+      assert False # is_From todo
       return _ast.Yield(self.expression._to_ast())
     return _ast.Yield()
 
@@ -421,9 +423,9 @@ class AttributeExpression(Expression):
 
 @attr.s(slots=True)
 class Slice:
-  lower: Expression = attr.ib(None, kw_only=True)
-  upper: Expression = attr.ib(None, kw_only=True)
-  step: Expression = attr.ib(None, kw_only=True)
+  lower: Expression = attr.ib(None)
+  upper: Expression = attr.ib(None)
+  step: Expression = attr.ib(None)
 
   def _to_ast(self):
     return _ast.Slice(self.lower._to_ast() if self.lower else None,

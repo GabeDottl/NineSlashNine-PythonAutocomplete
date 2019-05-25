@@ -11,11 +11,11 @@ from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfg
                                        ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
-from .expressions import (AndOrExpression, AttributeExpression, CallExpression,
+from .expressions import (AndOrExpression, AttributeExpression, CallExpression, YieldExpression,
                           ComparisonExpression, DictExpression, Expression, FactorExpression,
                           ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression,
                           KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
-                          MathExpression, NotExpression, SetExpression, StarredExpression,
+                          MathExpression, NotExpression, SetExpression, StarredExpression, Slice, IndexSlice, ExtSlice,
                           SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)
 from .language_objects import (Parameter, ParameterType)
 from .utils import assert_returns_type
@@ -25,7 +25,7 @@ EXPRESSION_NODES = {
     'testlist_star_expr', 'comparison', 'star_expr', 'expr', 'xor_expr', 'arith_expr', 'and_expr', 'and_test',
     'or_test', 'not_test', 'comparison', 'comp_op', 'shift_expr', 'arith_expr', 'term', 'factor', 'power',
     'atom_expr', 'atom', 'starexpr', 'lambda', 'lambdef_nocond', 'exprlist', 'testlist_comp',
-    'dictorsetmaker', 'name', 'number', 'string', 'strings'
+    'dictorsetmaker', 'name', 'number', 'string', 'strings', 'yield_expr'
 }
 
 
@@ -463,10 +463,11 @@ class ParsoControlFlowGraphBuilder:
     children.append(self._create_cfg_node(node.children[1]))
     return GroupCfgNode(children, parse_node=parse_from_parso(node))
 
-  @assert_returns_type(CfgNode)
-  def _create_cfg_node_for_yield_expr(self, node):
-    # TODO: Generators.
-    return ReturnCfgNode(expression_from_node(node.children[1]), parse_node=parse_from_parso(node))
+  # @assert_returns_type(CfgNode)
+  # def _create_cfg_node_for_yield_expr(self, node):
+  #   # TODO: Generators.
+  #   if len(node.children) > 1:
+  #     return YieldCfgNode(expression_from_yield_arg(node.children[1]), parse_node=parse_from_parso(node))
 
   ##### Intentional NoOp nodes for our purposes. #####
   @assert_returns_type(CfgNode)
@@ -757,7 +758,7 @@ def expression_from_atom_expr(node) -> Expression:
         args, kwargs = args_and_kwargs_from_arglist(trailer.children[1])
         last_expression = CallExpression(last_expression, args, kwargs, parse_node=parse_from_parso(trailer))
     elif trailer.children[0].value == '[':
-      subscript_expression = expressions_from_subscriptlist(trailer.children[1])
+      subscript_expression = _slice_from_subscriptlist(trailer.children[1])
       last_expression = SubscriptExpression(last_expression,
                                             subscript_expression,
                                             parse_node=parse_from_parso(trailer))
@@ -781,11 +782,11 @@ def _unimplmented_expression(func):
   return wrapper
 
 
-def expressions_from_subscriptlist(node) -> Expression:
+def _slice_from_subscriptlist(node) -> Expression:
   # subscriptlist: subscript (',' subscript)* [',']
   # subscript: test | [test] ':' [test] [sliceop]
   # sliceop: ':' [test]
-  if node.type != 'subscriptlist' and node.type != 'subscript':
+  if node.type != 'subscriptlist' and node.type != 'subscript':# and node.type != 'sliceop':
     expression = expression_from_node(node)
     assert isinstance(expression, Expression)
     return expression
@@ -793,16 +794,30 @@ def expressions_from_subscriptlist(node) -> Expression:
     values = ItemListExpression(
         list(
             itertools.chain(
-                expressions_from_subscriptlist(node)
+                _slice_from_subscriptlist(node)
                 for node in filter(lambda x: x.type != 'operator' or x.value != ',', node.children))))
     assert all(isinstance(value, Expression) for value in values)
     return values
   else:  # subscript
-    assert False
     # num op num [sliceop]
+    first_child = node.children[0]
     if len(node.children) == 1:
-      return Slice(expression_from_node(node))
-    raise NotImplementedError()  # TODO
+      return IndexSlice(expression_from_node(first_child))
+    if len(node.children) == 2:
+      second_child = node.children[1]
+      if first_child.type == 'operator' and first_child.value == ':':
+        if second_child.type == 'operator' and second_child.value == ':':  # :::
+          return Slice(None, None, None)
+        elif second_child.type == 'sliceop':  # ::<expr>
+          return Slice(None, None, expression_from_node(second_child.children[1]))
+        # :<expr>
+        return Slice(None, expression_from_node(second_child), None)
+      # <expr>:
+      assert second_child.type == 'operator' and second_child.value == ':'
+      return Slice(expression_from_node(first_child), None, None)
+    if len(node.children) == 3:  # <expr>:<expr>
+      return Slice(expression_from_node(first_child), expression_from_node(node.children[2]), None)
+    assert False
 
 def kwarg_from_argument(argument):
   # argument: ( test [comp_for] |
@@ -905,6 +920,8 @@ def expression_from_node(node):
     return expression_from_and_test_or_test(node)
   if node.type == 'dotted_name':
     return AttributeExpression(VariableExpression(node.children[0].value), node.children[-1].value, parse_node=parse_from_parso(node))
+  if node.type == 'yield_expr':
+    return expression_from_yield_expr(node)
 
     # return UnknownExpression()
   debug(f'Unhanded type!!!!: {node_info(node)}')
@@ -912,6 +929,16 @@ def expression_from_node(node):
   assert False, node_info(node)
   raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))
+
+def expression_from_yield_expr(node):
+  # yield_expr: 'yield' [yield_arg]
+  # yield_arg: 'from' test | testlist
+  if len(node.children) == 1:
+    return YieldExpression()
+  second_child = node.children[1]
+  if not second_child.type == 'yield_arg':
+    return YieldExpression(expression_from_node(second_child), False)
+  return YieldExpression(expression_from_node(second_child.children[1]), True)
 
 
 def expression_from_and_test_or_test(node) -> Expression:

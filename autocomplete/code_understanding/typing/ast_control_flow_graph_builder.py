@@ -404,12 +404,12 @@ def expression_from_node(ast_node):
   if isinstance(ast_node, _ast.Yield):
     # (expr? value)
     if ast_node.value:  # hasattr(ast_node, 'value'):
-      return YieldExpression(expression_from_node(ast_node.value))
-    return YieldExpression()
+      return YieldExpression(expression_from_node(ast_node.value), False)
+    return YieldExpression(None, False)
   if isinstance(ast_node, _ast.YieldFrom):
     # (expr value)
     # TODO: Generator
-    return expression_from_node(ast_node.value)
+    return YieldExpression(expression_from_node(ast_node.value), True)
   if isinstance(ast_node, _ast.Compare):
     # (expr left, cmpop* ops, expr* comparators)
     # cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn

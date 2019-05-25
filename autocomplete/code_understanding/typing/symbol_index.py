@@ -587,7 +587,6 @@ class SymbolIndex:
     return None
 
   def update(self):
-    assert os.path.exists(package_path)
     for location_index in self._location_indicies:
       location_index.update()
     # self.add_path(package_path, ignore_init=True, track_imported_modules=True)
