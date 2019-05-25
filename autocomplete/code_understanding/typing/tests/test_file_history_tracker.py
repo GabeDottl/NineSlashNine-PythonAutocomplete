@@ -26,14 +26,25 @@ def test_file_history_tracker():
     filename = os.path.join(TEST_DIR, 'x')
     Path(filename).touch()
     assert list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR)) == [filename]
-    fht.update_timestamp_for_path(TEST_DIR)
+    fht.update_timestamp_for_path(filename)
     path = os.path.join(TEST_DIR, 'a', 'b', 'c', 'd')
     os.makedirs(path)
     filename = os.path.join(path, 'x')
+    # Create x.
     Path(filename).touch()
-
-    files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR))
+    files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
     assert files == [filename]
+    files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
+    assert files == []
+    # Modify x.
+    Path(filename).touch()
+    files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=False))
+    assert files == [filename]
+    # Ensure auto_update=False works:
+    files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
+    assert files == [filename]
+    files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
+    assert files == []
 
   finally:
     if os.path.exists(STORAGE_FILE):

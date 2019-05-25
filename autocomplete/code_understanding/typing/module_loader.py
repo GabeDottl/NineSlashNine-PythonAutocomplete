@@ -190,13 +190,16 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
 
   return UnknownObject(full_pobject_name, imported=True)
 
+
 __module_key_module_dict: Dict[Tuple[ModuleKey, str], Module] = {}
 
+
 def module_key_index(module_key, force_real):
-  return (module_key, module_key.get_filename(prefer_stub=not force_real) if module_key.is_loadable_by_file() else None)
+  return (module_key,
+          module_key.get_filename(prefer_stub=not force_real) if module_key.is_loadable_by_file() else None)
+
 
 def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_graph=False, force_real=False):
-  module_key, is_package, module_type = get_module_info_from_module_key(module_key)
   global __module_key_module_dict
   if module_key_index(module_key, force_real) in __module_key_module_dict:
     module = __module_key_module_dict[module_key_index(module_key, force_real)]
@@ -219,29 +222,37 @@ def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_gr
           module.graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module.filename))
       else:
         warning(f'Cannot include graph on module that is natively loaded.')
+    assert module
     return module
 
-  # We set this to None to start as a form of dependency-cycle-checking. This is the only way that
-  # an object is this dict is None and we check if a value retrieved from it is None above.
-  __module_key_module_dict[module_key_index(module_key, force_real)] = None
   try:
-    module = _load_module_from_module_info(module_key,
-                                           is_package,
-                                           module_type,
-                                           unknown_fallback=unknown_fallback,
-                                           lazy=lazy,
-                                           include_graph=include_graph,
-                                           force_real=force_real)
+    # Note: We fill insert the module before loading incase there is a circular dependency in the
+    # loading process. Oddly, this is valid.
+    # TODO: Weakref.
+    module = __module_key_module_dict[module_key_index(module_key, force_real)] = _create_module(
+        module_key,
+        unknown_fallback=unknown_fallback,
+        lazy=lazy,
+        include_graph=include_graph,
+        force_real=force_real)
+    if not lazy:
+      filename = module_key.get_filename(prefer_stub=not force_real)
+      try:
+        if include_graph or keep_graphs_default:
+          module._members, module.graph = _load_module_exports_from_filename(
+              module, filename, include_graph or keep_graphs_default)
+        else:
+          module._members = _load_module_exports_from_filename(module, filename)
+      except UnableToReadModuleFileError:
+        if not unknown_fallback:
+          raise InvalidModuleError(filename)
+        module.module_type = ModuleType.UNKNOWN_OR_UNREADABLE
   except InvalidModuleError:
     del __module_key_module_dict[module_key_index(module_key, force_real)]
     raise
   assert module is not None
   debug(f'Adding {module_key} to module dict.')
   __module_key_module_dict[module_key_index(module_key, force_real)] = module
-  # # Note: This will essentially stop us from storing modules which are unreadable because they are
-  # # sourced from invalid files. That's fine.
-  # if filename is not None and os.path.exists(filename):
-  #   __filename_module_dict[filename] = module
   return module
 
 
@@ -275,18 +286,17 @@ def _load_module_exports_from_filename(module, filename, return_graph=False):
     raise UnableToReadModuleFileError(e)
 
 
-def _load_module_from_module_info(module_key,
-                                  is_package,
-                                  module_type,
-                                  unknown_fallback=True,
-                                  lazy=True,
-                                  include_graph=False, force_real=False) -> Module:
-  if module_type == ModuleType.UNKNOWN_OR_UNREADABLE:
+def _create_module(module_key, unknown_fallback=True, lazy=True, include_graph=False,
+                   force_real=False) -> Module:
+  '''Creates the module from the provided specification, but will not load anything if it is normal.'''
+  if module_key.is_bad() or (module_key.is_loadable_by_file()
+                             and not os.path.exists(module_key.get_filename())):
     if unknown_fallback:
-      return _create_empty_module(module_key.id, module_type)
+      return _create_empty_module(module_key.id, ModuleType.UNKNOWN_OR_UNREADABLE)
     else:
       raise InvalidModuleError(module_key.id)
 
+  module_key, is_package, module_type = get_module_info_from_module_key(module_key)
   name = module_key.get_module_basename()
   if module_key.module_source_type.should_be_natively_loaded() or name in NATIVE_MODULE_WHITELIST:
     try:
@@ -298,7 +308,10 @@ def _load_module_from_module_info(module_key,
       python_module = importlib.import_module(name, package)
     except ImportError:
       warning(f'Failed to natively import {name} {package}')
-      return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
+      if unknown_fallback:
+        return _create_empty_module(module_key.id, module_type)
+      else:
+        raise InvalidModuleError(module_key.id)
     else:
       return NativeModule(name,
                           module_type,
@@ -342,16 +355,6 @@ def _load_normal_module(module_key,
                       is_package=is_package,
                       module_loader=sys.modules[__name__])
 
-  try:
-    if include_graph or keep_graphs_default:
-      module._members, module.graph = _load_module_exports_from_filename(module, filename, include_graph
-                                                                         or keep_graphs_default)
-    else:
-      module._members = _load_module_exports_from_filename(module, filename)
-  except UnableToReadModuleFileError:
-    if not unknown_fallback:
-      raise InvalidModuleError(filename)
-    return _create_empty_module(name, ModuleType.UNKNOWN_OR_UNREADABLE)
   return module
 
 

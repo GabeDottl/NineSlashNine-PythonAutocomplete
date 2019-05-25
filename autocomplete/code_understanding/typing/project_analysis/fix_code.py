@@ -12,6 +12,7 @@ from ....nsn_logging import info, warning
 from .. import api, module_loader, refactor, symbol_context, symbol_index, pobjects, errors
 from ..control_flow_graph_nodes import FromImportCfgNode, ImportCfgNode
 from . import find_missing_symbols
+from ..utils import is_python_file
 from .update_history_tracker import UpdateHistoryTracker
 
 
@@ -387,28 +388,24 @@ def main(index_file, target_file, force):
   assert os.path.exists(index_file)
   assert os.path.exists(target_file)
   index = symbol_index.SymbolIndex.load(index_file)
-  index.update()
   if os.path.isdir(target_file):
+    # TODO: Figure out smarter way to specify index updating.
+    index.update(target_file)
     from glob import glob
     from . import file_history_tracker
-    pattern = f'{target_file}{os.sep}**{os.sep}*py'
-    filenames = glob(pattern, recursive=True)
     fht = file_history_tracker.FileHistoryTracker.load(os.path.join(os.getenv('HOME'),
                                                                     'fix_code_updates.msg'))
     updated_a_file = False
-    for filename in filenames:
-      path = os.path.join(target_file, filename)
-      if fht.has_file_changed_since_timestamp(path) or force:
-        info(f'Fixing symbols in {path}')
-        new_code, changed = fix_missing_symbols_in_file(path, index)
-        if changed:
-          info(f'Made updates to {path}')
-        fht.update_timestamp_for_path(path)
-        updated_a_file = True
+    for filename in filter(is_python_file, fht.get_files_in_dir_modified_since_timestamp(target_file, auto_update=True)):
+      info(f'Fixing symbols in {filename}')
+      new_code, changed = fix_missing_symbols_in_file(filename, index)
+      if changed:
+        info(f'Made updates to {filename}')
+      updated_a_file = True
     if updated_a_file:
       fht.save()
     else:
-      info(f'All {len(filenames)} files already up-to-date.')
+      info(f'All files already up-to-date.')
   else:
     info(f'Fixing in {target_file}')
     fix_missing_symbols_in_file(target_file, index)

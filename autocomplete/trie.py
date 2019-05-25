@@ -21,15 +21,27 @@ import attr
 @attr.s(slots=True, cmp=False)
 class Trie:
   children = attr.ib(factory=dict)
-  value = attr.ib(0)
+  # IMPORTANT: See _serialize logic before adding to this. Tl;Dr: be careful with defaults & order.
+  # The ordering here is trying to optimize for the _serialize function.
+  remainder = attr.ib('')
   highest_child_value_at_or_beneath = attr.ib(0)
   highest_child_char = attr.ib('')
-  remainder = attr.ib('')
+  value = attr.ib(0)
+  store_value = attr.ib(None)
 
   def _serialize(self):
     args = list(attr.astuple(self, recurse=False))
     args[0] = {k: t._serialize() for k, t in args[0].items()}
-    return args
+    # This a clever but slightly dangerous optimization. All attributes after the first evaluate
+    # to False by default - we can therefore skip saving them in these cases and save some space on
+    # and increase read/write speed.
+    for i in range(1, len(args) - 2):  # -2 = skip first arg.
+      if args[-1*i]:
+        if i == 1:
+          return args  # Need to include everything.
+        else:
+          return args[:-i+1]  # Include everything but last (i-1)-attributes.
+    return args[:1]  # Only self.children needs to be stored.
 
   @staticmethod
   def _deserialize(args):
@@ -44,15 +56,6 @@ class Trie:
   def load(filename):
     with open(filename, 'rb') as f:
       return Trie._deserialize(msgpack.unpack(f, raw=False, use_list=True))
-
-  def handle_child_increase(self, char):
-    if self.highest_child_char == char:
-      return
-    child = self.children[char]
-    child_max_value = child._get_max_value_at_or_beneath()
-    if child_max_value > self.highest_child_value_at_or_beneath:
-      self.highest_child_char = char
-      self.highest_child_value_at_or_beneath = child_max_value
 
   def _get_max_value_at_or_beneath(self):
     return max(self.value, self.highest_child_value_at_or_beneath)
@@ -91,6 +94,12 @@ class Trie:
       raise e
     nodes.remove(self)
 
+  def store_value_iter(self):
+    if self.store_value:
+      yield self.store_value
+    for child in self.children.values():
+      yield child.store_value_iter()
+
   def _to_str(self, indent=''):
     return ''.join(
         f'{indent}{c}{node.remainder} ({str(node.value)})\n{node._to_str(indent + " "*(1+len(node.remainder)+ 2 + len(str(self.value))))}'
@@ -107,7 +116,13 @@ class Trie:
       self.highest_child_char = char
     self.children[char] = child
 
-  def get_path_to(self, s):
+  def get_most_recent_ancestor_or_actual(self, s):
+    path = self.get_path_to(s, return_mra_on_fail=True)
+    if not path:
+      return None
+    return path[-1][1]
+
+  def get_path_to(self, s, return_mra_on_fail=False):
     path = []
     curr_node = self
     sub_str = s
@@ -116,14 +131,19 @@ class Trie:
         return path
       i = min(len(curr_node.remainder), len(sub_str))
       if i > 0 and sub_str[:i] != curr_node.remainder[:i]:
+        if return_mra_on_fail:
+          return path[:-1]  # Return up-to last node since curr_node doesn't quite match.
         break
       if i == len(sub_str):
         return path
       try:
-        curr_node = curr_node.children[sub_str[i]]
-        path.append((sub_str[i], curr_node))
-        sub_str = sub_str[i + 1:]
+        next_char = sub_str[i]
+        curr_node = curr_node.children[next_char]
+        path.append((next_char, curr_node))
+        sub_str = sub_str[i + 1:]  # May be empty string.
       except KeyError:
+        if return_mra_on_fail:
+          return path
         break
     return None
 
@@ -134,42 +154,13 @@ class Trie:
       chars.append(curr_node.highest_child_char)
     return ''.join(chars)
 
-# first:
-#   curr node has no remainder matching or matching child
-#     create child with first letter + remainder
-# next:
-#   partial overlap in remainder:
-#     Find split point
-#     Replace node with 3:
-#       1) [0:split-point]
-#       2) [split_point]->old_node
-#       3) [split_point]->new node
-# extending overlap:
-#   new child with first letter + remainder
-# existing:
-#   increment
-#
-# no matching child and doesn't match remainder?
-#   Can't be reached
-#
-# mo matching child and does match remainder
-#
-# Insert partially into
+  def add(self, string, value, add_value=False, store_value=None) -> 'Trie':
+    '''Adds |string| to this Trie with the specified values and returns the Trie storing them.
 
-  def __setitem__(self, name, value):
-    self.add(name, value)
-
-  def __getitem__(self, name):
-    return self.get_max_value_at_or_beneath_prefix(name)
-
-  def __contains__(self, name):
-    nodes = self.get_path_to(name)
-    if not nodes:
-      return False
-    else:
-      return True
-
-  def add(self, string, value, add_value=False):
+      Important Note: The Trie this returns is guaranteed to represent string in the substructure
+      unless explicitly deleted - regardless of any subsequent additions and splits. In other words,
+      the Trie returned is stable.'''
+    
     def split_node(node, split_point, additional_remainder, additional_remainder_value):
       '''Takes an existing node with some string and splits it in its remainder string.
 
@@ -227,34 +218,42 @@ class Trie:
       if split_point > 0 and split_point != len(curr_node.remainder) - 1:
         new_subtree = split_node(curr_node, split_point + 1, '', 0)  # TODO: self.default_value
         new_subtree.value = value
+        new_subtree.store_value = store_value
         c, parent = path[-1]
         parent.children[c] = new_subtree
-      else:  # Perfect match with curr_node - increment value.
-        curr_node.value = value if not add_value else curr_node.value + value
-        last_node = curr_node
-        x = []
-        for c, n in path:
-          x.append(c)
-          x.append(n.remainder)
-        x.append(curr_node.remainder)
-        x = ''.join(x)
-        for c, node in path[::-1]:
-          last_node_max_value = last_node._get_max_value_at_or_beneath()
-          if node.highest_child_value_at_or_beneath < last_node_max_value:
-            node.highest_child_value_at_or_beneath = last_node_max_value
-            node.highest_child_char = c
-          else:
-            # If it's not highest at this level in the tree, it won't be further
-            # up.
-            break
+        return new_subtree
+
+      # Perfect match with curr_node - increment value.
+      curr_node.value = value if not add_value else curr_node.value + value
+      curr_node.store_value = store_value
+      last_node = curr_node
+      x = []
+      for c, n in path:
+        x.append(c)
+        x.append(n.remainder)
+      x.append(curr_node.remainder)
+      x = ''.join(x)
+      for c, node in path[::-1]:
+        last_node_max_value = last_node._get_max_value_at_or_beneath()
+        if node.highest_child_value_at_or_beneath < last_node_max_value:
+          node.highest_child_value_at_or_beneath = last_node_max_value
+          node.highest_child_char = c
+        else:
+          # If it's not highest at this level in the tree, it won't be further
+          # up.
+          break
+      return curr_node
     except RemainderSplitException as e:
       # Partially in remainder. Replace curr_node in tree with new subtree. curr_node will split
       # into 3 nodes.
       # TODO: update highest-values.
       prefix = ''.join(x[0] for x in path)
       remainder = ''.join([b] + list(string_iter))
+      assert remainder
       c, parent = path[-1]
       new_node = parent.children[c] = split_node(curr_node, e.split_point, remainder, value)
+      out = new_node.children[remainder[0]]
+      out.store_value = store_value
       if value > curr_node._get_max_value_at_or_beneath():
         # Need to update hierarchy.
         for c, node in path[::-1]:
@@ -263,12 +262,14 @@ class Trie:
             node.highest_child_char = c
           else:
             break  # Everything above is greater.
+      return out
     except KeyError:
       # Matches current node's remainder if any - need to add as new child.
       remaining_chars = ''.join(list(string_iter))
       new_node = Trie()
       new_node.remainder = remaining_chars
       new_node.value = value
+      new_node.store_value = store_value
       old_max = curr_node._get_max_value_at_or_beneath()
       curr_node._add_child(c, new_node)
       if old_max < value:
@@ -279,6 +280,8 @@ class Trie:
             node.highest_child_char = c
           else:
             break  # Everything above is greater.
+      return new_node
+    assert False  # Unreachable - should return a node somewhere above.
 
   def get_value_for_string(self, string):
     nodes = self.get_path_to(string)
@@ -307,3 +310,6 @@ class Trie:
       curr_node = curr_node.children[curr_node.highest_child_char]
       result_arr.append(curr_node.remainder)
     return ''.join(result_arr)
+
+  def has_children(self):
+    return bool(self.children)

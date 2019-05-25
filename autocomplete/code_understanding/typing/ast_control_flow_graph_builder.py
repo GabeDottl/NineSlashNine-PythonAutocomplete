@@ -142,8 +142,13 @@ class Visitor(ast.NodeVisitor):
   def visit_AnnAssign(self, ast_node):
     # (expr target, expr annotation, expr? value, int simple)
     # 'simple' indicates that we annotate simple name without parens
-    self.push(
-        AssignmentStmtCfgNode(expression_from_node(ast_node.target),
+    if not ast_node.value:
+      self.push(TypeHintCfgNode(expression_from_node(ast_node.target),
+                              expression_from_node(ast_node.annotation),
+                              parse_node=parse_from_ast(ast_node)))
+    else:
+      self.push(
+          AssignmentStmtCfgNode(expression_from_node(ast_node.target),
                               '=',
                               expression_from_node(ast_node.value),
                               parse_node=parse_from_ast(ast_node),

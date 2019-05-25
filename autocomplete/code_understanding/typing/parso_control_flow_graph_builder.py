@@ -6,7 +6,7 @@ from typing import (List, Tuple, Union)
 import parso
 
 import attr
-from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
+from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode, TypeHintStmtCfgNode,
                                        ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, RaiseCfgNode,
                                        ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
@@ -562,16 +562,18 @@ def statement_node_from_expr_stmt(node):
     annasign = node.children[1]
     assert_unexpected_parso(annasign.type == 'annassign', node_info(node))
     type_hint = expression_from_node(annasign.children[1])
-    assert len(annasign.children) == 4
-    operator = annasign.children[-2]
-    assert_unexpected_parso(operator.type == 'operator', node_info(node))
-    value_node = annasign.children[-1]
-    result_expression = expression_from_node(value_node)
-    return AssignmentStmtCfgNode(variables,
-                                 operator,
-                                 result_expression,
-                                 parse_node=parse_from_parso(node),
-                                 type_hint_expression=type_hint)
+    if len(annasign.children) == 4:  # e.g. a: int = 3
+      operator = annasign.children[-2]
+      assert_unexpected_parso(operator.type == 'operator', node_info(node))
+      value_node = annasign.children[-1]
+      result_expression = expression_from_node(value_node)
+      return AssignmentStmtCfgNode(variables,
+                                  operator,
+                                  result_expression,
+                                  parse_node=parse_from_parso(node),
+                                  type_hint_expression=type_hint)
+    assert len(annasign.children) == 2  # E.g. a: int
+    return TypeHintStmtCfgNode(variables, type_hint, parse_node=parse_from_parso(node))
   else:
     value_node = node.children[-1]
     result_expression = expression_from_node(value_node)

@@ -173,6 +173,7 @@ class ImportCfgNode(CfgNode):
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
     module = self.module_loader.get_module_from_key(self.get_module_key())
+    assert module
 
     if self.as_name:
       curr_frame[name] = AugmentedObject(module, imported=True)
@@ -354,6 +355,35 @@ class NoOpCfgNode(CfgNode):
   # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
+
+@attr.s(slots=True)
+class TypeHintStmtCfgNode(CfgNode):
+  # E.g. `a: int`
+  # https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
+  left_expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
+  type_hint_expression = attr.ib()
+  parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
+  
+
+  def _process_impl(self, curr_frame, strict=False):
+    # TODO: Handle operator.
+    pass
+
+  def __str__(self):
+    return self._to_str()
+
+  def _to_str(self):
+    out = []
+    if self.parse_node.get_code():
+      out.append(f'{self.__class__.__name__}: {self.parse_node.get_code()}')
+    return '\n'.join(out)
+
+  @assert_returns_type(dict)
+  def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return self.type_hint_expression.get_used_free_symbols()
+
+  def get_defined_and_exported_symbols(self) -> Iterable[str]:
+    return self.left_expression.get_used_free_symbols()
 
 
 @attr.s(slots=True)

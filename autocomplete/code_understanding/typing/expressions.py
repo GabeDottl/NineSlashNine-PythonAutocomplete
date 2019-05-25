@@ -94,7 +94,9 @@ class YieldExpression(Expression):
 
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return self.expression.get_used_free_symbols()
+    if self.expression:
+      return self.expression.get_used_free_symbols()
+    return {}
 
 
 @attr.s(slots=True)
