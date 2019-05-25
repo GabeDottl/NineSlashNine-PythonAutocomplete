@@ -387,6 +387,7 @@ def main(index_file, target_file, force):
   assert os.path.exists(index_file)
   assert os.path.exists(target_file)
   index = symbol_index.SymbolIndex.load(index_file)
+  index.update()
   if os.path.isdir(target_file):
     from glob import glob
     from . import file_history_tracker
