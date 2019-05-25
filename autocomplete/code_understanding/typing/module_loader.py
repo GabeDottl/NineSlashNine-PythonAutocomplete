@@ -27,6 +27,7 @@ from .collector import FileContext
 from .errors import (InvalidModuleError, UnableToReadModuleFileError)
 from .language_objects import (LazyModule, Module, ModuleImpl, ModuleType, NativeModule, create_main_module)
 from .pobjects import (AugmentedObject, NativeObject, PObject, UnknownObject)
+from .utils import instance_memoize
 from ...nsn_logging import (debug, info, warning)
 
 NATIVE_MODULE_WHITELIST = set(['six', 're'])
@@ -48,7 +49,7 @@ class ModuleSourceType(Enum):
     return self != ModuleSourceType.NORMAL
 
 
-@attr.s(hash=False, cmp=False)
+@attr.s(hash=False, cmp=False, str=False, repr=False)
 class ModuleKey:
   '''A key for uniquely identifying and retrieving any module - builtin, compiled, or normal.'''
   module_source_type = attr.ib()
@@ -70,6 +71,7 @@ class ModuleKey:
       return ModuleKey(ModuleSourceType.BAD, os.path.abspath(filename))
     return ModuleKey(type_, os.path.abspath(filename))
 
+  @instance_memoize
   def get_module_basename(self):
     if not self.is_loadable_by_file():
       return self.id
@@ -100,6 +102,12 @@ class ModuleKey:
 
   def __eq__(self, other):
     return hash(self) == hash(other)
+
+  def __str__(self):
+    return f'ModuleKey({self.module_source_type}, {self.id})'
+
+  def __repr__(self):
+    return str(self)
 
 
 def module_id_from_filename(filename):

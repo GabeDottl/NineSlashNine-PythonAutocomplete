@@ -16,7 +16,7 @@ def test_file_history_tracker():
     assert fht.has_file_changed_since_timestamp(TEST_FILE)
     fht.update_timestamp_for_path(TEST_FILE)
     assert not fht.has_file_changed_since_timestamp(TEST_FILE)
-    # Test saving and loading
+    # Test saving and loading.
     fht.save()
     fht2 = file_history_tracker.FileHistoryTracker.load(STORAGE_FILE)
     assert not fht2.has_file_changed_since_timestamp(TEST_FILE)
@@ -31,6 +31,7 @@ def test_file_history_tracker():
     os.makedirs(path)
     filename = os.path.join(path, 'x')
     Path(filename).touch()
+
     files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR))
     assert files == [filename]
 

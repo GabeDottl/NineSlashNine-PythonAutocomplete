@@ -9,7 +9,7 @@ import _ast
 import graphviz
 import pandas as pd
 from .ast.ast_utils import _name_id_or_arg
-from .reference_ast_node_visitor import (ReferenceAstNodeVisitor)
+# from .reference_ast_node_visitor import (ReferenceAstNodeVisitor)
 from .utils import *
 from ..nsn_logging import *
 
