@@ -3,7 +3,7 @@ import ast
 import _ast
 import attr
 from . import errors
-from .control_flow_graph_nodes import (AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode, RaiseCfgNode)  # Temporary.
+from .control_flow_graph_nodes import (TypeHintStmtCfgNode, AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode, RaiseCfgNode)  # Temporary.
 from .expressions import (InvertExpression, AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, ExtSlice, IndexSlice, StarredExpression, SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)  # Temporary.
 from .language_objects import (Parameter, ParameterType)  # Temporary.
 from ...nsn_logging import warning
@@ -143,7 +143,7 @@ class Visitor(ast.NodeVisitor):
     # (expr target, expr annotation, expr? value, int simple)
     # 'simple' indicates that we annotate simple name without parens
     if not ast_node.value:
-      self.push(TypeHintCfgNode(expression_from_node(ast_node.target),
+      self.push(TypeHintStmtCfgNode(expression_from_node(ast_node.target),
                               expression_from_node(ast_node.annotation),
                               parse_node=parse_from_ast(ast_node)))
     else:
