@@ -471,7 +471,7 @@ def expression_from_node(ast_node):
     return StarredExpression('*', expression_from_node(ast_node.value))
   if isinstance(ast_node, _ast.Name):
     # (identifier id, expr_context ctx)
-    return VariableExpression(ast_node.id)
+    return VariableExpression(ast_node.id, parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.List):
     # (expr* elts, expr_context ctx)
     return ListExpression(variables_from_targets(ast_node.elts))

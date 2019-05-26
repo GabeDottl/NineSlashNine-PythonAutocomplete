@@ -334,7 +334,7 @@ class ParsoControlFlowGraphBuilder:
         except_clause = keyword
         exceptions = expression_from_node(except_clause.children[1])
         if len(except_clause.children) == 4:
-          exception_variable = VariableExpression(except_clause.children[-1].value)
+          exception_variable = VariableExpression(except_clause.children[-1].value, parse_node=parse_from_parso(except_clause))
         else:
           exception_variable = None
         except_nodes.append(ExceptCfgNode(exceptions, exception_variable, suite_node))
@@ -889,7 +889,7 @@ def expression_from_node(node):
   if node.type == 'operator' and node.value == '...':
     return LiteralExpression(keyword_eval(node.value))
   if node.type == 'name':
-    return VariableExpression(node.value)
+    return VariableExpression(node.value, parse_node=parse_from_parso(node))
   if node.type == 'factor':
     return FactorExpression(node.children[0].value,
                             expression_from_node(node.children[1]),
@@ -921,7 +921,7 @@ def expression_from_node(node):
   if node.type == 'or_test' or node.type == 'and_test':
     return expression_from_and_test_or_test(node)
   if node.type == 'dotted_name':
-    return AttributeExpression(VariableExpression(node.children[0].value), node.children[-1].value, parse_node=parse_from_parso(node))
+    return AttributeExpression(VariableExpression(node.children[0].value, parse_node=parse_from_parso(node.children[0])), node.children[-1].value, parse_node=parse_from_parso(node))
   if node.type == 'yield_expr':
     return expression_from_yield_expr(node)
 

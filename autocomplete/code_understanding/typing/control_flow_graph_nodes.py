@@ -854,7 +854,7 @@ class FuncCfgNode(CfgNode):
         bound_locals[symbol] = curr_frame[symbol]
       func = BoundFunction(func, bound_locals=bound_locals)
 
-    curr_frame[VariableExpression(self.name)] = func
+    curr_frame[VariableExpression(self.name, None)] = func
 
   def _get_new_cell_symbols(self):
     # New symbols are those that are in child closures but not in our own closure because they're

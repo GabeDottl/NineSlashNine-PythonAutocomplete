@@ -10,7 +10,7 @@ class SymbolContext:
 
 @attr.s
 class RawSymbolContext(SymbolContext):
-  ...
+  parse_node = attr.ib()
 
 
 # parse_node = attr.ib()

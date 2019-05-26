@@ -247,13 +247,14 @@ class CallExpression(Expression):
 @attr.s(slots=True)
 class VariableExpression(Expression):
   name = attr.ib(validator=attr.validators.instance_of(str))
+  parse_node = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return curr_frame[self]
 
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return {self.name: symbol_context.RawSymbolContext()}
+    return {self.name: symbol_context.RawSymbolContext(self.parse_node)}
 
 
 @attr.s

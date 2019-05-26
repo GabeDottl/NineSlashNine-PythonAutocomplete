@@ -367,7 +367,9 @@ class _LocationIndex:
 
   def _add_module_by_key(self, module_key, track_imported_modules=False, check_descendent_index=True):
     if check_descendent_index and self._location_index_trie and self._location_index_trie.has_children():
-      assert self.location == path[:len(self.location)]
+      # We key on non-stub filenames
+      filename = module_key.get_filename(prefer_stub=False)
+      assert self.location == filename[:len(self.location)]
       # This will get the exact correct trie, regardless of how deep. store_value is a weakref.
       location_index = self._location_index_trie.get_most_recent_ancestor_or_actual(filename).store_value()
       return location_index._add_module_by_key(module_key,
