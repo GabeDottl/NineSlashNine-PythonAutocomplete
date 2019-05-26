@@ -1,5 +1,4 @@
 from pathlib import Path
-import shutil
 import os
 from ..project_analysis import file_history_tracker
 

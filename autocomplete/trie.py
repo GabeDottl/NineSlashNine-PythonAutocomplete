@@ -98,7 +98,7 @@ class Trie:
     if self.store_value:
       yield self.store_value
     for child in self.children.values():
-      yield child.store_value_iter()
+      return child.store_value_iter()
 
   def _to_str(self, indent=''):
     return ''.join(

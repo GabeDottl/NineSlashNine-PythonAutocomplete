@@ -2,7 +2,6 @@ import os
 import shutil
 
 from .. import symbol_index
-from ....nsn_logging import info
 
 HOME = os.getenv('HOME')
 TYPING_DIR = os.path.join(os.path.dirname(__file__), '..')

@@ -95,6 +95,19 @@
       ],
     },
     {
+      "name": "fix_code",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.code_understanding.typing.project_analysis.fix_code",
+      "console": "integratedTerminal",
+      "cwd": "$CODE/autocomplete_clone",
+      "args": [
+        "$HOME/.nsn",
+        "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
+        "-f"
+      ],
+    },
+    {
       "name": "test_index",
       "type": "python",
       "request": "launch",

@@ -1,8 +1,6 @@
-import msgpack
 import time
 import os
 import attr
-from glob import glob
 
 from ....trie import Trie
 

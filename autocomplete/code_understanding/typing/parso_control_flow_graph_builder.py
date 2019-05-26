@@ -11,12 +11,7 @@ from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfg
                                        ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
-from .expressions import (AndOrExpression, AttributeExpression, CallExpression, YieldExpression,
-                          ComparisonExpression, DictExpression, Expression, FactorExpression,
-                          ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression,
-                          KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
-                          MathExpression, NotExpression, SetExpression, StarredExpression, Slice, IndexSlice, ExtSlice,
-                          SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression)
+from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, Expression, FactorExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, IndexSlice, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, StarredExpression, SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression, YieldExpression)
 from .language_objects import (Parameter, ParameterType)
 from .utils import assert_returns_type
 from ...nsn_logging import (debug, error, info)

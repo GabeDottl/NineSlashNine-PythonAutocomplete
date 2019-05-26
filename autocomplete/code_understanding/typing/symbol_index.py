@@ -1,4 +1,3 @@
-import builtins
 import weakref
 import itertools
 import os
@@ -8,8 +7,7 @@ import shutil
 from collections import defaultdict
 from enum import Enum
 from functools import partial
-from glob import glob
-from typing import Dict, List, Tuple
+from typing import (Dict, List)
 
 import attr
 import msgpack
