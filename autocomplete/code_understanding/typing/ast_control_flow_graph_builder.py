@@ -245,7 +245,7 @@ class Visitor(ast.NodeVisitor):
       except_nodes.append(
           ExceptCfgNode(
               expression_from_node(except_handler.type) if except_handler.type else None,
-              VariableExpression(except_handler.name) if except_handler.name else None,
+              VariableExpression(except_handler.name, parse_node=parse_from_ast(ast_node)) if except_handler.name else None,
               self._group_from_body(except_handler.body)))
 
     self.push(TryCfgNode(suite, except_nodes, else_suite, finally_suite))

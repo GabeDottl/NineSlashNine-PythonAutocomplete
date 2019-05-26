@@ -543,7 +543,7 @@ class SymbolIndex:
 
   @staticmethod
   def _deserialize(unpacked):
-    return [ModuleKey.deserialize(serialized_mk) for serialized_mk in unpacked]
+    return [module_loader.ModuleKey.deserialize(serialized_mk) for serialized_mk in unpacked]
 
   def save(self):
     for index in self._location_indicies:
