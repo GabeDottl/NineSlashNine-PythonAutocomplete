@@ -13,7 +13,7 @@ import attr
 import msgpack
 
 from . import (control_flow_graph_nodes, errors, language_objects, module_loader, utils)
-from .project_analysis.file_history_tracker import FileHistoryTracker
+from .project_analysis.file_history_tracker import FileHistoryTracker, python_package_filter
 from .utils import is_python_file
 from ...nsn_logging import info, warning
 from ...trie import Trie
@@ -28,7 +28,11 @@ class SymbolType(Enum):
   AMBIGUOUS = 5
 
   @staticmethod
-  def from_pobject_value(value):
+  def from_pobject(pobject):
+    try:
+      value = pobject.value()
+    except errors.AmbiguousFuzzyValueError:
+      return SymbolType.AMBIGUOUS
     if isinstance(value, language_objects.Klass):
       return SymbolType.TYPE
     if isinstance(value, language_objects.Function):
@@ -172,11 +176,12 @@ class _LocationIndex:
   module_keys = attr.ib(factory=set, kw_only=True)
   is_file_location: bool = attr.ib(True, kw_only=True)
   _modified_since_save = attr.ib(False, init=False)
-  # This is introducing a circular dependency - to avoid headaches with garbage collection breaking,
-  # we use weakrefs here.
+  # This is introducing a circular dependency - to avoid subtle headaches with garbage collection
+  #  breaking, we use weakrefs here.
   _symbol_index_weakref: weakref = attr.ib(kw_only=True)
   _file_history_tracker: FileHistoryTracker = attr.ib(None, kw_only=True)
   _location_index_trie = attr.ib(None, kw_only=True)
+  _module_key_symbols_cache = attr.ib(factory=dict, kw_only=True)
 
   def __attrs_post_init__(self):
     if not os.path.exists(self.save_dir):
@@ -280,17 +285,35 @@ class _LocationIndex:
     self._file_history_tracker.save()
     self._modified_since_save = False
 
+  def _get_subtrie_index_pos(self):
+    # The trie stored by location indicies is a subtrie of the main trie. It's start position is
+    # not at then end of self.location necessarily because our trie utilizes remainders for
+    # efficiency - so we have to account for that here.
+    return len(self.location) - len(self._location_index_trie.remainder)
+
   def update(self, directory):
-    if self.is_file_location:
-      if len(directory) < len(self.location) and self.location[:len(directory)] == directory:
-        filenames = self._file_history_tracker.get_files_in_dir_modified_since_timestamp(self.location)
-      elif len(directory) > len(self.location) and directory[:len(self.location)] == self.location:
-        filenames = self._file_history_tracker.get_files_in_dir_modified_since_timestamp(directory)
-      else:
-        return
-      for filename in filenames:
-        self.add_file(filename, check_timestamp=False)
-      self._file_history_tracker.update_timestamp_for_path(self.location)
+    # Directory must be contained within this _LocationIndex or one of it's 'children'.
+    assert self.is_file_location and len(directory) > len(
+        self.location) and directory[:len(self.location)] == self.location
+    # Get any relevant child location indicies.
+    subtree = self._location_index_trie.get_most_recent_ancestor_or_actual(
+        directory[self._get_subtrie_index_pos():])
+    children_location_indicies = [sv() for sv in subtree.store_value_iter()]
+    for location_index in children_location_indicies:
+      # These nodes are entirely contained, so update the whole thing.
+      location_index.update(location_index.location)
+    # Don't include child location indicies subdirs.
+    if children_location_indicies:
+      excluded_subdirs = set(location_index.location for location_index in children_location_indicies)
+      filter_fn = lambda root, subdir: os.path.join(
+          root, subdir) not in excluded_subdirs and python_package_filter(root, subdir)
+    else:
+      filter_fn = python_package_filter
+    filenames = self._file_history_tracker.get_files_in_dir_modified_since_timestamp(self.location,
+                                                                                     filter_fn,
+                                                                                     auto_update=True)
+    for filename in filenames:
+      self.add_file(filename, check_timestamp=False)
 
   @staticmethod
   def load(save_dir, symbol_index, readonly=False):
@@ -303,6 +326,12 @@ class _LocationIndex:
                                          symbol_index)
 
   def add_path(self, path, include_private_files=False, track_imported_modules=False):
+    '''Adds python files under |path| to this index.
+
+    This will only add python packages (i.e. directories with __init__.py) beneath |path|, however,
+    even if |path| is itself not a python package, all python files directly in it will still
+    be added. This essentially mirror behavior with sys.path in pythons module finding logic.'''
+
     assert os.path.exists(path)
     assert self.location == path[:len(self.location)]
 
@@ -322,27 +351,15 @@ class _LocationIndex:
         self._location_index_trie.store_value_iter()) if check_descendent_index else [self]
 
     for location_index in location_indicies:
+      # Note: this will naturally filter out non-python packages by chekcing for __init__.py in
+      # subdirs. It will *not* check for __init__.py directly under |path|.
       full_filenames = location_index._file_history_tracker.get_files_in_dir_modified_since_timestamp(
-          path, auto_update=True)
+          path, python_package_filter, auto_update=True)
       for full_filename in full_filenames:
         if is_python_file(full_filename):
           self.add_file(full_filename,
                         track_imported_modules=track_imported_modules,
                         check_descendent_index=check_descendent_index)
-
-    # path does not correspond with any individual _LocationIndex - put things in their places.
-    # if ignore_init or os.path.exists(os.path.join(path, '__init__.py')):
-    #   info(f'Adding dir: {path}')
-    #   for filename in os.listdir(path):  # glob(os.path.join(path, '*.py')):
-    #     full_filename = os.path.join(path, filename)
-    #     if filename[-3:] == '.py':
-    #       self.add_file(full_filename,
-    #                     track_imported_modules=track_imported_modules,
-    #                     check_descendent_index=check_descendent_index)
-    #     elif os.path.isdir(filename):
-    #       self.add_path(os.path.join(path, directory), track_imported_modules=track_imported_modules)
-
-    # self._file_history_tracker.update_timestamp_for_path(path)
 
   def add_file(self,
                filename,
@@ -359,11 +376,12 @@ class _LocationIndex:
     module_key = module_loader.ModuleKey.from_filename(filename)
     self._add_module_by_key(module_key,
                             track_imported_modules=track_imported_modules,
-                            check_descendent_index=check_descendent_index)
+                            check_descendent_index=check_descendent_index,
+                            check_timestamp=check_timestamp)
     self._file_history_tracker.update_timestamp_for_path(filename)
     self._modified_since_save = True  # File history changed if nothing else.
 
-  def _add_module_by_key(self, module_key, track_imported_modules=False, check_descendent_index=True):
+  def _add_module_by_key(self, module_key, track_imported_modules=False, check_descendent_index=True, check_timestamp=True):
     if check_descendent_index and self._location_index_trie and self._location_index_trie.has_children():
       # We key on non-stub filenames
       filename = module_key.get_filename(prefer_stub=False)
@@ -374,11 +392,19 @@ class _LocationIndex:
                                                track_imported_modules,
                                                check_descendent_index=False)
 
+    module_key_already_present = module_key in self.module_keys
+    # Don't add bad modules or re-add builtins.
+    if module_key.is_bad() or (not module_key.is_loadable_by_file() and module_key_already_present):
+      return False
+
+    if check_timestamp and module_key.is_loadable_by_file() and not self._file_history_tracker.has_file_changed_since_timestamp(module_key.get_filename(prefer_stub=False)):
+      return False
+
     # Note that we explicity do this here instead of in _add_module_by_key as the latter may have
     # already been done without tracking the module's contents and would thus return early.
     module = None
 
-    if track_imported_modules and not module_key.is_bad():
+    if track_imported_modules:
       module_loader.keep_graphs_default = True
       module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
       assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
@@ -386,33 +412,70 @@ class _LocationIndex:
       directory = os.path.dirname(module.filename)
       self._process_tracked_imports(module_key, module.graph, directory)
 
-    if module_key in self.module_keys:
-      warning(f'Skipping {module_key} - already processed.')
-      return False
-
-    info(f'Adding to index: {module_key}')
     module = module if module else module_loader.get_module_from_key(
         module_key, lazy=False, include_graph=False)
-    self._add_module(module, module_key)
-    self.module_keys.add(module_key)
-    self.symbol_dict[module_key.get_module_basename()][(module_key,
-                                                        True)] = _InternalSymbolEntry(SymbolType.MODULE,
-                                                                                      module_key,
-                                                                                      is_module_itself=True)
-    self._modified_since_save = True
+
+    
+    if module_key_already_present:
+      info(f'{module_key} already recorded - getting symbols.')
+      # TODO: This list could be created more efficiently at loading time if done carefully - i.e.
+      # check which files are going to need updating from FHT, then save the symbols for those files
+      # when creating symbol_dict.
+      if module_key not in self._module_key_symbols_cache:
+        warning(f'Scanning symbol_dict for lone key :/.')
+        self._add_module_keys_symbols_to_cache([module_key])
+      existing_symbols = self._module_key_symbols_cache[module_key]
+    else:
+      existing_symbols = {}
+    for name, member in module.items():
+      if name in existing_symbols:
+        entry = existing_symbols[name]
+        # Update attributes as needed.
+        # TODO: Clean up this logic so we're not messing around with _modified_since_save so much.
+        # Perhaps properties + dirty bit? Or perhaps just assume modified if we're in this func
+        # at all?
+        symbol_type = SymbolType.from_pobject(member)
+        if symbol_type != entry.symbol_type:
+          entry.symbol_type = symbol_type
+          self._modified_since_save = True
+        
+        if entry.imported != member.imported:
+          entry.symbol_type = symbol_type
+          self._modified_since_save = True 
+        del existing_symbols[name]
+      else:
+        self.symbol_dict[name][(module_key, False)] = _InternalSymbolEntry(SymbolType.from_pobject(member),
+                                                                           module_key,
+                                                                           imported=member.imported)
+
+    # Remove any remaining existing symbols that have since been removed.
+    for name in existing_symbols.keys():
+      del self.symbol_dict[name][(module_key, False)]
+
+    if not module_key_already_present:
+      self._modified_since_save = True
+      self.module_keys.add(module_key)
+      self.symbol_dict[module_key.get_module_basename()][(module_key,
+                                                          True)] = _InternalSymbolEntry(SymbolType.MODULE,
+                                                                                        module_key,
+                                                                                        is_module_itself=True)
+    if module_key.is_loadable_by_file():
+      self._modified_since_save = True
+      self._file_history_tracker.update_timestamp_for_path(module_key.get_filename(prefer_stub=False))
+
     if track_imported_modules:
       module_loader.keep_graphs_default = False
-    return True
+    return not module_key_already_present
 
-  def _add_module(self, module, module_key):
-    for name, member in filter(lambda kv: _should_export_symbol(module, *kv), module.items()):
-      try:
-        entry = self.symbol_dict[name][(module_key, False)] = _InternalSymbolEntry(
-            SymbolType.from_pobject_value(member.value()), module_key, imported=member.imported)
-      except errors.AmbiguousFuzzyValueError:
-        entry = self.symbol_dict[name][(module_key, False)] = _InternalSymbolEntry(SymbolType.AMBIGUOUS,
-                                                                                   module_key,
-                                                                                   imported=member.imported)
+  def _add_module_keys_symbols_to_cache(self, module_keys):
+    cache = self._module_key_symbols_cache
+    keys = [(module_key, False) for module_key in module_keys]
+    for module_key in module_keys:
+      cache[module_key] = {}
+    for symbol, subdict in self.symbol_dict.items():
+      for key in keys:
+        if key in subdict:
+          cache[key[0]][symbol] = subdict[key]
 
   def _process_tracked_imports(self, source_module_key, graph, source_dir):
     # TODO: Consider combining with other modules to avoid repeated symbol_entry lookups.
@@ -554,10 +617,14 @@ class SymbolIndex:
     if not os.path.exists(save_dir):
       raise ValueError(save_dir)
 
-    with open(os.path.join(save_dir, 'failed.msg'), 'rb') as f:
-      # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
-      # cannot be appended to and thus make the SymbolIndex essentially readonly.
-      failed_module_keys = SymbolIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly))
+    failed_path = os.path.join(save_dir, 'failed.msg')
+    if os.path.exists(failed_path):
+      with open(failed_path, 'rb') as f:
+        # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
+        # cannot be appended to and thus make the SymbolIndex essentially readonly.
+        failed_module_keys = SymbolIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly))
+    else:
+      failed_module_keys = set()
 
     location_indicies = []
     module_key_to_location_index_dict = {}
@@ -578,7 +645,7 @@ class SymbolIndex:
         for mk in location_index.module_keys:
           module_key_to_location_index_dict[mk] = location_index
 
-    trie = Trie()
+    trie = index._file_location_indicies_trie
     # Note: order doesn't matter since returned Tries are stable.
     for location_index in filter(lambda x: x.is_file_location, location_indicies):
       location_index._location_index_trie = trie.add(location_index.location,
@@ -586,6 +653,10 @@ class SymbolIndex:
                                                      store_value=weakref.ref(location_index))
 
     index._file_location_indicies_trie = trie
+
+    # save_dir may be only partially completed if someone messed with the dir or things crashed
+    # somewhere. Just in case, check things out.
+    index._fill_in_missing()
     return index
 
   # TODO:
@@ -601,14 +672,20 @@ class SymbolIndex:
   def create_index(save_dir):
     if not os.path.exists(save_dir):
       os.makedirs(save_dir)
-    builtins_location_index = _LocationIndex.create_builtins_index(
-        SymbolIndex._get_location_save_dir_from_main_dir(save_dir, 'builtins'))
-    index = SymbolIndex(save_dir, builtins_location_index)
-    index._location_indicies.append(builtins_location_index)
-    for path in sys.path:
-      index._get_or_add_location_index_for_dir(path)
-
+    index = SymbolIndex(save_dir, None)
+    index._fill_in_missing()
     return index
+
+  def _fill_in_missing(self):
+    if not self._builtins_location_index:
+      self._builtins_location_index = _LocationIndex.create_builtins_index(
+          SymbolIndex._get_location_save_dir_from_main_dir(self.save_dir, 'builtins'))
+      self._location_indicies.append(self._builtins_location_index)
+
+    for path in sys.path:
+      if not path:
+        continue
+      self._get_or_add_location_index_for_dir(path)
 
   @staticmethod
   def build_index_from_package(package_path, save_dir, clean=False):
@@ -625,7 +702,8 @@ class SymbolIndex:
         # TODO: check that package_path is in _location_indicies...
     if not index:
       index = SymbolIndex.create_index(save_dir)
-
+    # Ensure path is included in an index.
+    index._get_or_add_location_index_for_dir(package_path)
     index.add_path(package_path, track_imported_modules=True)
     index.save()
     return index
@@ -638,16 +716,24 @@ class SymbolIndex:
     return SymbolIndex._get_location_save_dir_from_main_dir(self.save_dir, str(hash(location_name)))
 
   def _get_or_add_location_index_for_dir(self, directory):
+    if not os.path.exists(directory):
+      return
     location_index = self._get_location_index_for_filename(dir_w_sep(directory))
     if location_index:
-      # assert location_index.location == directory  # TODO: Support splitting _LocationIndicies.
+      # TODO: Support splitting _LocationIndicies beneath a higher-level directory. E.g. /a -> /a/b.
       return location_index
 
     # Doesn't exist - create.
     location_index = _LocationIndex.create_location_index(self._get_location_save_dir(directory), directory,
                                                           self)
     self._location_indicies.append(location_index)
-    self._file_location_indicies_trie.add(dir_w_sep(directory), value=0, store_value=location_index)
+    # Note: Rather neatly, if this new directory is above some existing directories, the Trie will
+    # allow things to work as-expected - that is, this location index shall not track those subdirs
+    # because when adding paths, it will check the trie for appropriate children.
+    trie = self._file_location_indicies_trie.add(dir_w_sep(directory),
+                                                 value=0,
+                                                 store_value=weakref.ref(location_index))
+    location_index._location_index_trie = trie
     return location_index
 
   def _get_location_index_for_module_key(self, module_key):
@@ -661,31 +747,26 @@ class SymbolIndex:
       return self._builtins_location_index
 
     filename = module_key.get_filename()
-    return self._get_location_index_for_filename(filename)
-
-  def _get_location_indicies_for_dir(self, directory):
-    trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(dir_w_sep(directory))
-    if trie:
-      for value in trie.store_value_iter():
-        yield value()  # weakref.
-    return []
+    location_index = self._get_location_index_for_filename(filename)
+    self._module_key_to_location_index_dict[module_key] = location_index
 
   def _get_location_index_for_filename(self, filename):
     if os.path.isdir(filename):
       filename = dir_w_sep(filename)
-    trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(filename)
+    trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(
+        filename, filter_fn=trie_has_location_index)
     if trie:
       return trie.store_value()
     return None
 
   def update(self, directory):
     # If dir is lower than multiple indicies, multiple indicies may be associated with it.
-    location_indicies = self._get_location_indicies_for_dir(directory)
-    # If it's fully contained in an index, the above will be empty - get the lone index then.
-    if not location_indicies:
-      location_indicies = [self._get_location_index_for_filename(directory)]
-    for location_index in location_indicies:
-      location_index.update(directory)
+    # location_indicies = self._get_location_indicies_for_dir(directory)
+    trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(
+        dir_w_sep(directory), filter_fn=trie_has_location_index)
+    assert trie, "Directory not captured in index already."
+    location_index = trie.store_value()
+    location_index.update(directory)
 
   def add_path(self, path, include_private_files=False, track_imported_modules=False):
     assert os.path.exists(path)
@@ -708,6 +789,11 @@ class SymbolIndex:
       self._failed_module_keys.append(module_key)
       return
     location_index = self._get_location_index_for_module_key(module_key)
+    if not location_index:
+      assert module_key.is_loadable_by_file()
+      # Dynamically create a _LocationIndex for the directory containing the module.
+      location_index = self._get_or_add_location_index_for_dir(
+          os.path.dirname(module_key.get_filename(prefer_stub=False)))
     assert location_index
     newly_added = location_index._add_module_by_key(module_key, track_imported_modules)
     if newly_added:
@@ -715,18 +801,9 @@ class SymbolIndex:
     return location_index
 
 
-def _should_export_symbol(current_module, name, pobject):
-  if name == '_' or name[:2] == '__':
-    return False
-
-  # TODO: Include, but possibly penalize later.
-  # if pobject.imported:
-  #   return False
-
-  if isinstance(pobject, language_objects.Module):
-    return False
-
-  return True
+def trie_has_location_index(trie):
+  # store_value is a weakref to a LocationIndex or None.
+  return trie.store_value and trie.store_value()
 
 
 # TODO: Merge w/FHT logic. FilePathTrie?

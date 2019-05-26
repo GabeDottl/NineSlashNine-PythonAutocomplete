@@ -396,7 +396,7 @@ def main(index_file, target_file, force):
     fht = file_history_tracker.FileHistoryTracker.load(os.path.join(os.getenv('HOME'),
                                                                     'fix_code_updates.msg'))
     updated_a_file = False
-    for filename in filter(is_python_file, fht.get_files_in_dir_modified_since_timestamp(target_file, auto_update=True)):
+    for filename in filter(is_python_file, fht.get_files_in_dir_modified_since_timestamp(target_file, file_history_tracker.python_package_filter, auto_update=True)):
       info(f'Fixing symbols in {filename}')
       new_code, changed = fix_missing_symbols_in_file(filename, index)
       if changed:

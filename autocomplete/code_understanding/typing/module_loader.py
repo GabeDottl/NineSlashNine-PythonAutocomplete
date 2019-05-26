@@ -225,17 +225,19 @@ def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_gr
     assert module
     return module
 
+  module_key_index_value = module_key_index(module_key, force_real)
   try:
     # Note: We fill insert the module before loading incase there is a circular dependency in the
     # loading process. Oddly, this is valid.
     # TODO: Weakref.
-    module = __module_key_module_dict[module_key_index(module_key, force_real)] = _create_module(
+    debug(f'Adding {module_key} to module dict.')
+    module = __module_key_module_dict[module_key_index_value] = _create_module(
         module_key,
         unknown_fallback=unknown_fallback,
         lazy=lazy,
         include_graph=include_graph,
         force_real=force_real)
-    if not lazy:
+    if not lazy and module_key.is_loadable_by_file():
       filename = module_key.get_filename(prefer_stub=not force_real)
       try:
         if include_graph or keep_graphs_default:
@@ -248,11 +250,10 @@ def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_gr
           raise InvalidModuleError(filename)
         module.module_type = ModuleType.UNKNOWN_OR_UNREADABLE
   except InvalidModuleError:
-    del __module_key_module_dict[module_key_index(module_key, force_real)]
+    if module_key_index_value in __module_key_module_dict:
+      del __module_key_module_dict[module_key_index_value]
     raise
   assert module is not None
-  debug(f'Adding {module_key} to module dict.')
-  __module_key_module_dict[module_key_index(module_key, force_real)] = module
   return module
 
 
@@ -303,11 +304,13 @@ def _create_module(module_key, unknown_fallback=True, lazy=True, include_graph=F
       package = None
       if module_key.module_source_type == ModuleSourceType.COMPILED:
         package = package_from_directory(os.path.dirname(module_key.get_filename()))
+        if package:
+          name = f'.{name}' if name[0] != '.' else name
       else:
         assert name[0] != '.'
       python_module = importlib.import_module(name, package)
     except ImportError:
-      warning(f'Failed to natively import {name} {package}')
+      warning(f'Failed to natively import {package}.{name}')
       if unknown_fallback:
         return _create_empty_module(module_key.id, module_type)
       else:

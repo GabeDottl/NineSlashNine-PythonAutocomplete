@@ -11,7 +11,7 @@ from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfg
                                        ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
                                        TryCfgNode, WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
-from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, Expression, FactorExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, IndexSlice, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, StarredExpression, SubscriptExpression, TupleExpression, UnknownExpression, VariableExpression, YieldExpression)
+from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, Expression, FactorExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, IndexSlice, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, StarredExpression, SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)
 from .language_objects import (Parameter, ParameterType)
 from .utils import assert_returns_type
 from ...nsn_logging import (debug, error, info)
@@ -766,19 +766,6 @@ def expression_from_atom_expr(node) -> Expression:
                                             parse_node=parse_from_parso(trailer))
   return last_expression
 
-
-def _unimplmented_expression(func):
-  @wraps(func)
-  def wrapper(node):
-    try:
-      return func(node)
-    except NotImplementedError:
-      debug(f'Failing to handle node: {node_info(node)}')
-      return UnknownExpression(node.get_code())
-
-  return wrapper
-
-
 def _slice_from_subscriptlist(node) -> Expression:
   # subscriptlist: subscript (',' subscript)* [',']
   # subscript: test | [test] ':' [test] [sliceop]
@@ -1015,7 +1002,6 @@ def expression_from_dictorsetmaker(dictorsetmaker) -> Union[SetExpression, DictE
 
 
 @assert_returns_type(Expression)
-@_unimplmented_expression
 def expression_from_atom(node):
   # atom: ('(' [yield_expr|testlist_comp] ')' |
   #       '[' [testlist_comp] ']' |
@@ -1024,7 +1010,10 @@ def expression_from_atom(node):
   if node.children[0].value == '(':
     # yield_expr|testlist_comp
     if node.children[1].type == 'keyword' and node.children[1].value == 'yield':
-      raise NotImplementedError('Not yet handling yield_expr')
+      assert not node.children[1].children
+      return YieldExpression(None, False)
+      return expression_from_yield_expr(node.children[1])
+      # raise NotImplementedError('Not yet handling yield_expr')
     elif len(node.children) == 2:
       return ItemListExpression([])
     else:
@@ -1081,7 +1070,6 @@ def expression_from_test(node):
 
 
 @assert_returns_type(Expression)
-@_unimplmented_expression
 def expression_from_math_expr(node):
   # expr: xor_expr ('|' xor_expr)*
   # xor_expr: and_expr ('^' and_expr)*

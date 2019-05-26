@@ -29,28 +29,6 @@ class Expression(ABC):
     ''' Gets symbols used in a free context - i.e. not as attributes.'''
 
 
-# @attr.s(slots=True)
-# class AnonymousExpression(Expression):
-#   pobject: PObject = attr.ib()
-
-#   def evaluate(self, curr_frame) -> PObject:
-#     return self.pobject
-
-#   @assert_returns_type(dict)
-#   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-#     return {}
-
-@attr.s(slots=True)
-class UnknownExpression(Expression):
-  string = attr.ib()
-
-  def evaluate(self, curr_frame):
-    return UnknownObject(self.string)
-
-  @assert_returns_type(dict)
-  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return {}
-
 @attr.s(slots=True)
 class LiteralExpression(Expression):
   literal = attr.ib()

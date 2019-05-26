@@ -19,7 +19,5 @@ def test_literal():
     globals_, locals_ = {}, {}
     assert eval(code_obj, globals_, locals_) == eval(s)
 
-
-
 if __name__ == "__main__":
   test_literal()

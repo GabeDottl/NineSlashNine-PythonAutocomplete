@@ -116,9 +116,14 @@ class Trie:
       self.highest_child_char = char
     self.children[char] = child
 
-  def get_most_recent_ancestor_or_actual(self, s):
+  def get_most_recent_ancestor_or_actual(self, s, filter_fn=None):
     path = self.get_path_to(s, return_mra_on_fail=True)
     if not path:
+      return None
+    if filter_fn:
+      for i in range(1, len(path) +1):
+        if filter_fn(path[-i][1]):
+          return path[-i][1]
       return None
     return path[-1][1]
 
