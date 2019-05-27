@@ -394,10 +394,16 @@ def main(index_file, target_file, force):
     from glob import glob
     from . import file_history_tracker
     fht = file_history_tracker.FileHistoryTracker.load(os.path.join(os.getenv('HOME'),
-                                                                    'fix_code_updates.msg'))
+                                                                    'fix_code_updates.msg'),
+                                                      root_dir=target_file,  # TODO: Will this fuck things up if this changes across calls?
+                                                      filter_fn=file_history_tracker.python_package_filter)
     updated_a_file = False
-    for filename in filter(is_python_file, fht.get_files_in_dir_modified_since_timestamp(target_file, file_history_tracker.python_package_filter, auto_update=True)):
+    for updated, filename in fht.get_files_in_dir_modified_since_timestamp(target_file, auto_update=True):
+      if not updated:
+        continue  # deleted.
+      assert is_python_file(filename)
       info(f'Fixing symbols in {filename}')
+      
       new_code, changed = fix_missing_symbols_in_file(filename, index)
       if changed:
         info(f'Made updates to {filename}')
