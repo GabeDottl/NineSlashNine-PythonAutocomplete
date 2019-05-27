@@ -6,6 +6,7 @@ from .. import symbol_index
 HOME = os.getenv('HOME')
 TYPING_DIR = os.path.join(os.path.dirname(__file__), '..')
 INDEX_PATH = f'/tmp/index'
+TMP_DIR = '/tmp'
 
 
 def test_build_test_index():
@@ -63,6 +64,57 @@ def test_add_file():
 
   #     track_imported_modules=True)
 
+def test_micro_index_lifecycle():
+  from pathlib import Path
+  import shutil
+  import time
+  import os
+  PROJECT_PATH = os.path.join(TMP_DIR, 'project')
+  A = os.path.join(PROJECT_PATH, 'a')
+  A_CHILD = os.path.join(A, 'test')
+  B = os.path.join(PROJECT_PATH, 'b')
+  B_CHILD = os.path.join(B, 'q')
+  C = os.path.join(PROJECT_PATH, 'c')
+  C_CHILD = os.path.join(C, 'd')
+  if os.path.exists(PROJECT_PATH):
+      shutil.rmtree(PROJECT_PATH)
+  try:
+    for d in [A, A_CHILD, B, B_CHILD, C, C_CHILD]:
+      os.makedirs(d)
+      Path(os.path.join(d, '__init__.py')).touch()
+    index = symbol_index.SymbolIndex.build_index_from_package(A, os.path.join(PROJECT_PATH, 'nsn_index'), sys_path=[])
+    # index.add_path(A)
+    assert len(list(index.find_symbol('a'))) == 1
+    assert len(list(index.find_symbol('test'))) == 1
+    # Ensure nothing is updated when nothing has changed.
+    assert index.update(A) == 0
+    # Ensure touching a file triggers an update only for that file.
+    time.sleep(0.2)  # Accounting for time.time() imprecision to ensure getmtime is after timestamp.
+    Path(os.path.join(A, '__init__.py')).touch()
+    assert index.update(A) == 1
+    # Ensure adding a file triggers an update.
+    Path(os.path.join(A, 'x.py')).touch()
+    assert index.update(A) == 1
+    assert len(list(index.find_symbol('x'))) == 1
+    y_py = os.path.join(A_CHILD, 'y.py')
+    with open(y_py, 'w') as f:
+      f.writelines('a=1')
+    assert len(list(index.find_symbol('b'))) == 0
+    index.add_path(B)
+    assert len(list(index.find_symbol('b'))) == 1
+    # Add y.py.
+    assert index.update(A) == 1
+    assert len(list(index.find_symbol('a'))) == 2
+    os.remove(y_py)
+    assert index.update(A) == 1
+    assert len(list(index.find_symbol('a'))) == 1
+
+    
+  finally:
+    if os.path.exists(PROJECT_PATH):
+      shutil.rmtree(PROJECT_PATH)
+  
+
 
 # Commented out so pytest doesn't run on it.
 # def test_build_full_index():
@@ -76,7 +128,8 @@ def test_add_file():
 if __name__ == "__main__":
   if os.path.exists(INDEX_PATH):
     shutil.rmtree(INDEX_PATH)
-  test_add_file()
-  test_build_test_index()
-  test_build_typing_index()
+  test_micro_index_lifecycle()
+  # test_add_file()
+  # test_build_test_index()
+  # test_build_typing_index()
   # test_build_full_index()

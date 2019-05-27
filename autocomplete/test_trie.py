@@ -2,7 +2,7 @@ from collections import Counter
 import os
 import glob
 
-from .trie import Trie
+from .trie import Trie, FilePathTrie
 
 
 def test_trie():
@@ -34,7 +34,7 @@ def test_trie_with_file_tree():
   assert os.path.exists(base_dir)
   paths = glob.glob(os.path.join(base_dir, '**','*.py'), recursive=True)
   directories = set()
-  trie = Trie()
+  trie = FilePathTrie()
   for path in paths:
     full_path = os.path.join(base_dir, path)
     directories.add(os.path.dirname(full_path))
@@ -43,7 +43,7 @@ def test_trie_with_file_tree():
   # OS should be essentially doing similar behaviour with getmtime for directories - check.
   TMP_PATH = '/tmp/tmp_trie.msg'
   trie.save(TMP_PATH)
-  trie_loaded = Trie.load(TMP_PATH)
+  trie_loaded = FilePathTrie.load(TMP_PATH)
   # Check things work for both the original trie and the loaded one.
   # TODO: Perhaps just replace this with some equals check....
   for t in (trie, trie_loaded):

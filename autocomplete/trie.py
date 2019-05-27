@@ -14,6 +14,7 @@ valuable when the trie would otherwise be sparse at many nodes - for example, wi
 '''
 import msgpack
 import attr
+import os
 
 
 # We set cmp=False so that attrs doesn't add an __eq__ - we want comparisons to be id-based
@@ -94,11 +95,11 @@ class Trie:
       raise e
     nodes.remove(self)
 
-  def store_value_iter(self):
-    if self.store_value:
+  def children_store_value_iter(self, first=True):
+    if self.store_value and not first:
       yield self.store_value
     for child in self.children.values():
-      return child.store_value_iter()
+      return child.children_store_value_iter(False)
 
   def _to_str(self, indent=''):
     return ''.join(
@@ -128,8 +129,8 @@ class Trie:
     return path[-1][1]
 
   def get_path_to(self, s, return_mra_on_fail=False):
-    path = []
     curr_node = self
+    path = [('', curr_node)]
     sub_str = s
     while True:
       if sub_str == curr_node.remainder:
@@ -318,3 +319,24 @@ class Trie:
 
   def has_children(self):
     return bool(self.children)
+
+@attr.s
+class FilePathTrie(Trie):
+  def add(self, string, value, add_value=False, store_value=None) -> 'Trie':
+    if os.path.isdir(string):
+      string = dir_w_sep(string)
+    return super().add(string, value, add_value, store_value)
+
+  def get_value_for_string(self, string):
+    if os.path.isdir(string):
+      string = dir_w_sep(string)
+    return super().get_value_for_string(string)
+  
+  @staticmethod
+  def load(filename):
+    return FilePathTrie(**attr.asdict(Trie.load(filename), recurse=False))
+
+def dir_w_sep(directory):
+  if directory[-1] == os.sep:
+    return directory
+  return f'{directory}{os.sep}'

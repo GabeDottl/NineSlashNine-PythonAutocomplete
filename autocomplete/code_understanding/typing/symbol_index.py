@@ -282,26 +282,28 @@ class _LocationIndex:
     with open(os.path.join(self.save_dir, 'index.msg'), 'wb') as f:
       msgpack.pack(self._serialize(), f, use_bin_type=True)
 
-    self._file_history_tracker.save()
+    if self._file_history_tracker:
+      self._file_history_tracker.save()
     self._modified_since_save = False
 
   def _get_subtrie_index_pos(self):
     # The trie stored by location indicies is a subtrie of the main trie. It's start position is
     # not at then end of self.location necessarily because our trie utilizes remainders for
     # efficiency - so we have to account for that here.
-    return len(self.location) - len(self._location_index_trie.remainder)
+    return len(self.location) - len(self._location_index_trie.remainder) + 1
 
   def update(self, directory):
+    update_count = 0
     # Directory must be contained within this _LocationIndex or one of it's 'children'.
-    assert self.is_file_location and len(directory) > len(
+    assert self.is_file_location and len(directory) >= len(
         self.location) and directory[:len(self.location)] == self.location
     # Get any relevant child location indicies.
     subtree = self._location_index_trie.get_most_recent_ancestor_or_actual(
-        directory[self._get_subtrie_index_pos():])
-    children_location_indicies = [sv() for sv in subtree.store_value_iter()]
+        dir_w_sep(directory)[self._get_subtrie_index_pos():])
+    children_location_indicies = [sv() for sv in subtree.children_store_value_iter()]
     for location_index in children_location_indicies:
       # These nodes are entirely contained, so update the whole thing.
-      location_index.update(location_index.location)
+      update_count += location_index.update(location_index.location)
     # Don't include child location indicies subdirs.
     if children_location_indicies:
       excluded_subdirs = set(location_index.location for location_index in children_location_indicies)
@@ -313,7 +315,9 @@ class _LocationIndex:
                                                                                      filter_fn,
                                                                                      auto_update=True)
     for filename in filenames:
+      update_count+=1
       self.add_file(filename, check_timestamp=False)
+    return update_count
 
   @staticmethod
   def load(save_dir, symbol_index, readonly=False):
@@ -325,7 +329,7 @@ class _LocationIndex:
       return _LocationIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly), save_dir,
                                          symbol_index)
 
-  def add_path(self, path, include_private_files=False, track_imported_modules=False):
+  def add_path(self, path, track_imported_modules=False):
     '''Adds python files under |path| to this index.
 
     This will only add python packages (i.e. directories with __init__.py) beneath |path|, however,
@@ -344,11 +348,11 @@ class _LocationIndex:
     if check_descendent_index:
       location_index = self._location_index_trie.get_most_recent_ancestor_or_actual(path).store_value()
       if id(location_index) != id(self):
-        location_index.add_path(path, include_private_files, track_imported_modules)
+        location_index.add_path(path, track_imported_modules)
         return
 
     location_indicies = [self] + list(
-        self._location_index_trie.store_value_iter()) if check_descendent_index else [self]
+        self._location_index_trie.children_store_value_iter()) if check_descendent_index else [self]
 
     for location_index in location_indicies:
       # Note: this will naturally filter out non-python packages by chekcing for __init__.py in
@@ -669,26 +673,26 @@ class SymbolIndex:
   #   return index
 
   @staticmethod
-  def create_index(save_dir):
+  def create_index(save_dir, sys_path=sys.path):
     if not os.path.exists(save_dir):
       os.makedirs(save_dir)
     index = SymbolIndex(save_dir, None)
-    index._fill_in_missing()
+    index._fill_in_missing(sys_path)
     return index
 
-  def _fill_in_missing(self):
+  def _fill_in_missing(self, sys_path=sys.path):
     if not self._builtins_location_index:
       self._builtins_location_index = _LocationIndex.create_builtins_index(
           SymbolIndex._get_location_save_dir_from_main_dir(self.save_dir, 'builtins'))
       self._location_indicies.append(self._builtins_location_index)
 
-    for path in sys.path:
+    for path in sys_path:
       if not path:
         continue
       self._get_or_add_location_index_for_dir(path)
 
   @staticmethod
-  def build_index_from_package(package_path, save_dir, clean=False):
+  def build_index_from_package(package_path, save_dir, clean=False, sys_path=sys.path):
     # TODO: Use this as a marking-mechanism perhaps - i.e. do as this is doing now, but explicitly
     # allow marking 'packages of interest' so it's not always about building a new index - instead,
     # a different project may care about the same one.
@@ -701,7 +705,7 @@ class SymbolIndex:
         index = SymbolIndex.load(save_dir)
         # TODO: check that package_path is in _location_indicies...
     if not index:
-      index = SymbolIndex.create_index(save_dir)
+      index = SymbolIndex.create_index(save_dir, sys_path=sys_path)
     # Ensure path is included in an index.
     index._get_or_add_location_index_for_dir(package_path)
     index.add_path(package_path, track_imported_modules=True)
@@ -766,9 +770,9 @@ class SymbolIndex:
         dir_w_sep(directory), filter_fn=trie_has_location_index)
     assert trie, "Directory not captured in index already."
     location_index = trie.store_value()
-    location_index.update(directory)
+    return location_index.update(directory)
 
-  def add_path(self, path, include_private_files=False, track_imported_modules=False):
+  def add_path(self, path, track_imported_modules=False):
     assert os.path.exists(path)
     if not os.path.isdir(path):
       self.add_file(path, track_imported_modules)
@@ -777,7 +781,6 @@ class SymbolIndex:
     location_index = self._get_or_add_location_index_for_dir(path)
 
     location_index.add_path(path,
-                            include_private_files=include_private_files,
                             track_imported_modules=track_imported_modules)
 
   def add_file(self, filename, track_imported_modules=False):

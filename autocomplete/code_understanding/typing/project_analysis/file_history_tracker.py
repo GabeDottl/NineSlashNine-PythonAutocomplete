@@ -3,13 +3,13 @@ import os
 import attr
 from functools import partial
 
-from ....trie import Trie
+from ....trie import FilePathTrie
 
 
 @attr.s
 class FileHistoryTracker:
   save_filename = attr.ib()
-  file_timestamp_trie = attr.ib(factory=Trie)
+  file_timestamp_trie = attr.ib(factory=FilePathTrie)
 
   def save(self):
     self.file_timestamp_trie.save(self.save_filename)
@@ -21,7 +21,7 @@ class FileHistoryTracker:
         raise ValueError(f'Invalid path for loading: {filename}')
       else:
         return FileHistoryTracker(filename)
-    return FileHistoryTracker(filename, Trie.load(filename))
+    return FileHistoryTracker(filename, FilePathTrie.load(filename))
 
   def update_timestamp_for_path(self, filename, timestamp=None):
     if timestamp is None:
@@ -33,15 +33,13 @@ class FileHistoryTracker:
     # subdir string is a subset of another (e.g. /go and /google). By marking the dir, we're
     # indicating we've inspected everything we care about in the dir and thus the value set here
     # is representative of the entire subtree.
-    if os.path.isdir(filename) and filename[-1] != os.sep:
-      filename = f'{filename}{os.sep}'
     self.file_timestamp_trie.add(filename, timestamp)
 
   def has_file_changed_since_timestamp(self, filename):
     '''Important: This is *not* recursive - use get_files_in_dir_modified_since_timestamp for recursion.'''
     return os.path.exists(filename) and os.path.getmtime(filename) > self.file_timestamp_trie.get_value_for_string(filename)
 
-  def get_files_in_dir_modified_since_timestamp(self, directory, filter_fn, auto_update=False):
+  def get_files_in_dir_modified_since_timestamp(self, directory, filter_fn, auto_update=False, include_deleted=False):
     # if not include_only_python_packages:
     #   filter_fn = lambda d: d != '.git'
     for root, subdirs, filenames in os.walk(directory, topdown=True):
@@ -58,6 +56,8 @@ class FileHistoryTracker:
           yield full_filename
         if auto_update:
           self.update_timestamp_for_path(full_filename)
+      # if include_deleted:
+      #   for existing
       if auto_update:
         self.update_timestamp_for_path(root)
     if auto_update:
