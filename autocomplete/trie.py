@@ -24,6 +24,7 @@ class Trie:
   children = attr.ib(factory=dict)
   # IMPORTANT: See _serialize logic before adding to this. Tl;Dr: be careful with defaults & order.
   # The ordering here is trying to optimize for the _serialize function.
+  end_point = attr.ib(False)
   remainder = attr.ib('')
   highest_child_value_at_or_beneath = attr.ib(0)
   highest_child_char = attr.ib('')
@@ -62,7 +63,8 @@ class Trie:
     return max(self.value, self.highest_child_value_at_or_beneath)
 
   def copy_with_lower_values_pruned(self, min_value) -> 'Trie':
-    out = Trie()
+    out = type(self)()  # Supports subclass.
+    out.end_point = True
     if self.highest_child_value_at_or_beneath >= min_value:
       out.highest_child_value_at_or_beneath = self.highest_child_value_at_or_beneath
       out.highest_child_char = self.highest_child_char
@@ -160,6 +162,40 @@ class Trie:
       chars.append(curr_node.highest_child_char)
     return ''.join(chars)
 
+  def remove(self, string, remove_subtree=True):
+    path = self.get_path_to(string)
+    path_str = ''.join(f'{x[0]}{x[1].remainder}' for x in path)
+    if path_str == string:
+      # Path points exactly to string - so we can remove the node.
+      target_char, target_node = path[-1]
+      if remove_subtree:
+        del path[-2][1].children[target_char]
+      else:  # Just mark node as no longer being an endpoint and remove it's values.
+        if target_node.end_point:
+          if not target_node.children:
+            # Safe to delete.
+            del path[-2][1].children[target_char]
+          else:
+            target_node.end_point = False
+            target_node.value = 0
+            target_node.store_value = None
+      # Update value-count hierarchy.
+      for a, b in zip(path[::-1], path[::-1][1:]):
+        c = a[0]
+        node = b[1]
+
+        if node.highest_child_char == c:
+          # Search for new char.
+          if not node.children:  # No other children.
+            node.highest_child_char = ''
+            node.highest_child_value_at_or_beneath = 0
+          else:  # Search for next greatest child.
+            child_char, child_node = max(node.children.items(), key=lambda cn: cn[1]._get_max_value_at_or_beneath())
+            node.highest_child_char = child_char
+            node.highest_child_value_at_or_beneath = child_node._get_max_value_at_or_beneath()
+        else:
+          break
+
   def add(self, string, value, add_value=False, store_value=None) -> 'Trie':
     '''Adds |string| to this Trie with the specified values and returns the Trie storing them.
 
@@ -180,14 +216,16 @@ class Trie:
       Alternatively, additional_remainder may be '' in which case instead of 3 nodes, there
       are now 2 with 'Go' as a new possible end-point.
       '''
-      new_node = Trie()
+      new_node = type(self)()  # Supports subclass.
       new_node.remainder = node.remainder[:split_point]
       c = node.remainder[split_point]
       # new_node.value = self.default_value - TODO
       new_node._add_child(c, node)
       node.remainder = node.remainder[split_point + 1:]
+      # TODO: Pull this out of this function?
       if len(additional_remainder) > 0:
-        new_child = Trie()
+        new_child = type(self)()  # Supports subclass.
+        new_child.end_point = True
         new_child.remainder = additional_remainder[1:]  # First char used for indexing below.
         new_child.value = additional_remainder_value
         new_node._add_child(additional_remainder[0], new_child)
@@ -223,13 +261,15 @@ class Trie:
             raise RemainderSplitException(split_point=split_point)
       if split_point > 0 and split_point != len(curr_node.remainder) - 1:
         new_subtree = split_node(curr_node, split_point + 1, '', 0)  # TODO: self.default_value
+        new_subtree.end_point = True
         new_subtree.value = value
         new_subtree.store_value = store_value
         c, parent = path[-1]
         parent.children[c] = new_subtree
         return new_subtree
 
-      # Perfect match with curr_node - increment value.
+      # Perfect match with curr_node - update value.
+      curr_node.end_point = True
       curr_node.value = value if not add_value else curr_node.value + value
       curr_node.store_value = store_value
       last_node = curr_node
@@ -245,9 +285,7 @@ class Trie:
           node.highest_child_value_at_or_beneath = last_node_max_value
           node.highest_child_char = c
         else:
-          # If it's not highest at this level in the tree, it won't be further
-          # up.
-          break
+          break   # If it's not highest at this level in the tree, it won't be further up.
       return curr_node
     except RemainderSplitException as e:
       # Partially in remainder. Replace curr_node in tree with new subtree. curr_node will split
@@ -259,6 +297,7 @@ class Trie:
       c, parent = path[-1]
       new_node = parent.children[c] = split_node(curr_node, e.split_point, remainder, value)
       out = new_node.children[remainder[0]]
+      out.end_point = True
       out.store_value = store_value
       if value > curr_node._get_max_value_at_or_beneath():
         # Need to update hierarchy.
@@ -272,7 +311,8 @@ class Trie:
     except KeyError:
       # Matches current node's remainder if any - need to add as new child.
       remaining_chars = ''.join(list(string_iter))
-      new_node = Trie()
+      new_node = type(self)()  # Supports subclass.
+      new_node.end_point = True
       new_node.remainder = remaining_chars
       new_node.value = value
       new_node.store_value = store_value
@@ -322,21 +362,22 @@ class Trie:
 
 @attr.s
 class FilePathTrie(Trie):
-  def add(self, string, value, add_value=False, store_value=None) -> 'Trie':
-    if os.path.isdir(string):
-      string = dir_w_sep(string)
-    return super().add(string, value, add_value, store_value)
+  def remove(self, string, remove_subtree=True):
+    return super().remove(string=append_sep_if_dir(string), remove_subtree=remove_subtree)
+
+  def add(self, string, value, add_value=False, store_value=None) -> 'FilePathTrie':
+    return super().add(string=append_sep_if_dir(string), value=value, add_value=add_value, store_value=store_value)
 
   def get_value_for_string(self, string):
-    if os.path.isdir(string):
-      string = dir_w_sep(string)
-    return super().get_value_for_string(string)
+    return super().get_value_for_string(string=append_sep_if_dir(string))
   
   @staticmethod
   def load(filename):
     return FilePathTrie(**attr.asdict(Trie.load(filename), recurse=False))
 
-def dir_w_sep(directory):
-  if directory[-1] == os.sep:
-    return directory
-  return f'{directory}{os.sep}'
+def append_sep_if_dir(path):
+  if os.path.isdir(path):
+    if path[-1] == os.sep:
+      return path
+    return f'{path}{os.sep}'
+  return path

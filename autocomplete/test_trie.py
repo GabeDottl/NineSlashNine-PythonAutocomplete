@@ -6,7 +6,7 @@ from .trie import Trie, FilePathTrie
 
 
 def test_trie():
-  examples = ['abcde', 'abcde', 'abcdf', 'abc', 'abcdfg', 'qres', 'abcde', 'abc', 'abd', 'abd', 'abde']
+  examples = ['ab','abcde', 'ab', 'abcde', 'abcdf', 'abc', 'ab', 'abcdfg','ab','ab', 'qres', 'abcde', 'abc', 'abd', 'abd', 'abde']
   counter = Counter(examples)
   counts = dict(zip(counter.keys(), counter.values()))
 
@@ -15,12 +15,13 @@ def test_trie():
     t.add(example, 1, add_value=True)
 
   value = t.get_max('a')
-  assert value == 'abcde', value
+  assert value == 'ab', value
   assert t.get_value_for_string(value) == counts[value]
   assert t.get_max('n') is None
 
-  value = t.get_max('abd')
-  assert value == 'abd'
+  t.remove('ab', remove_subtree=False)
+  value = t.get_max('a')
+  assert value == 'abcde', value
   assert t.get_value_for_string(value) == counts[value]
 
   value = t.get_max('q')
@@ -32,14 +33,18 @@ def test_trie():
 def test_trie_with_file_tree():
   base_dir = os.path.join(os.getenv('CODE'), 'autocomplete')#, 'autocomplete', 'code_understanding', 'typing')
   assert os.path.exists(base_dir)
-  paths = glob.glob(os.path.join(base_dir, '**','*.py'), recursive=True)
   directories = set()
   trie = FilePathTrie()
+  paths = glob.glob(os.path.join(base_dir, '**','*.py'), recursive=True)
   for path in paths:
     full_path = os.path.join(base_dir, path)
     directories.add(os.path.dirname(full_path))
     trie.add(full_path, value=os.path.getmtime(full_path))
-
+  assert trie.get_value_for_string(__file__)
+  directory_removed = os.path.dirname(__file__)
+  trie.remove(directory_removed)
+  assert not trie.get_value_for_string(__file__)
+  assert not trie.get_max(os.path.dirname(full_path))
   # OS should be essentially doing similar behaviour with getmtime for directories - check.
   TMP_PATH = '/tmp/tmp_trie.msg'
   trie.save(TMP_PATH)
@@ -48,6 +53,8 @@ def test_trie_with_file_tree():
   # TODO: Perhaps just replace this with some equals check....
   for t in (trie, trie_loaded):
     for directory in directories:
+      if directory_removed == directory[:len(directory_removed)]:
+        continue
       # Cannot guarantee this because we recurse down the tree whereas getmtime doesn't.
       # assert t.get_max_value_at_or_beneath_prefix(directory) <= os.path.getmtime(directory)
       max_file = t.get_max(directory)
