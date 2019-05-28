@@ -434,7 +434,8 @@ class _LocationIndex:
       filename = module_key.get_filename(prefer_stub=False)
       assert self.location == filename[:len(self.location)]
       # This will get the exact correct trie, regardless of how deep. store_value is a weakref.
-      location_index = self._location_index_trie.get_most_recent_ancestor_or_actual(filename).store_value()
+      trie = self._location_index_trie.get_most_recent_ancestor_or_actual(filename[self._get_subtrie_index_pos():], filter_fn=trie_has_location_index)
+      location_index = trie.store_value()
       return location_index._add_module_by_key(module_key, check_descendent_index=False)
 
     module_key_already_present = module_key in self.module_keys
