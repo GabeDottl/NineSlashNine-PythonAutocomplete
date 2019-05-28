@@ -488,7 +488,7 @@ def remove_last_node_from_path(path, remove_subtree=True):
 
 def append_sep_if_dir(path, force=False):
   if os.path.isdir(path) or force:
-    if path[-1] == os.sep:
+    if path and  path[-1] == os.sep:
       return path
     return f'{path}{os.sep}'
   return path

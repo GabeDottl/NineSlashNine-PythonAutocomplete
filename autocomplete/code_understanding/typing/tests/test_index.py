@@ -15,7 +15,8 @@ def test_build_test_index():
   index.save()
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.get_import_count())
   entry = entries[-1]
-  assert not entry.is_imported() and entry.get_symbol_type() == symbol_index.SymbolType.MODULE and entry.get_import_count() == 2
+  assert not entry.is_imported() and entry.get_symbol_type(
+  ) == symbol_index.SymbolType.MODULE and entry.get_import_count() == 2
   # info(f'Built package index. {len(index.module_keys)} modules.')
   # Ensure it loaded as expected without crashing.
   symbol_index.SymbolIndex.load(INDEX_PATH)
@@ -30,7 +31,8 @@ def test_build_typing_index():
   entries = sorted(index.find_symbol('attr'), key=lambda e: e.get_import_count())
   entry = entries[-1]
   # Ensure that
-  assert not entry.is_imported() and entry.get_symbol_type() == symbol_index.SymbolType.MODULE and entry.get_import_count() > 5
+  assert not entry.is_imported() and entry.get_symbol_type(
+  ) == symbol_index.SymbolType.MODULE and entry.get_import_count() > 5
   # entries = index.find_symbol('attr')
   # assert entries[0].imported and entries[0].symbol_type == symbol_index.SymbolType.MODULE
   # info(f'Built package index. {len(index.module_keys)} modules.')
@@ -64,6 +66,7 @@ def test_add_file():
 
   #     track_imported_modules=True)
 
+
 def test_micro_index_lifecycle():
   from pathlib import Path
   import shutil
@@ -77,12 +80,14 @@ def test_micro_index_lifecycle():
   C = os.path.join(PROJECT_PATH, 'c')
   C_CHILD = os.path.join(C, 'd')
   if os.path.exists(PROJECT_PATH):
-      shutil.rmtree(PROJECT_PATH)
+    shutil.rmtree(PROJECT_PATH)
   try:
     for d in [A, A_CHILD, B, B_CHILD, C, C_CHILD]:
       os.makedirs(d)
       Path(os.path.join(d, '__init__.py')).touch()
-    index = symbol_index.SymbolIndex.build_index_from_package(A, os.path.join(PROJECT_PATH, 'nsn_index'), sys_path=[])
+    index = symbol_index.SymbolIndex.build_index_from_package(A,
+                                                              os.path.join(PROJECT_PATH, 'nsn_index'),
+                                                              sys_path=[])
     # index.add_path(A)
     assert len(list(index.find_symbol('a'))) == 1
     assert len(list(index.find_symbol('test'))) == 1
@@ -105,15 +110,28 @@ def test_micro_index_lifecycle():
     # Add y.py.
     assert index.update(A) == 1
     assert len(list(index.find_symbol('a'))) == 2
-    os.remove(y_py)
+    assert len(list(index.find_symbol('y'))) == 1
+    source = '''
+import .test.y
+'''
+    x_py = os.path.join(A, 'x.py')
+    with open(x_py, 'w') as f:
+      f.writelines(source)
     assert index.update(A) == 1
+    assert len(list(index.find_symbol('x'))) == 1
+    y_entries = list(index.find_symbol('y'))
+    assert y_entries[0].get_import_count() == 1
+    # Remove x.py.
+    os.remove(x_py)
+    assert index.update(A) == 1
+    # No more references to y.
+    assert y_entries[0].get_import_count() == 0
     assert len(list(index.find_symbol('a'))) == 1
+    assert len(list(index.find_symbol('x'))) == 0
 
-    
   finally:
     if os.path.exists(PROJECT_PATH):
       shutil.rmtree(PROJECT_PATH)
-  
 
 
 # Commented out so pytest doesn't run on it.

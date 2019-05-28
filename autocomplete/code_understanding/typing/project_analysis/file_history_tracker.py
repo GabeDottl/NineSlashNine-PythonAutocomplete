@@ -64,7 +64,7 @@ class FileHistoryTracker:
     if not os.path.exists(filename):
       return False
     filename = append_sep_if_dir(filename)
-    if not filename[:len(self.root_dir)] != self.root_dir:
+    if filename[:len(self.root_dir)] != self.root_dir:
       return False
     if not self.filter_fn:
       return True
@@ -121,6 +121,8 @@ class FileHistoryTracker:
             base_path = f'{path_to_str(trie_path[:-1])}{trie_path[-1][0]}'
             for string in trie_path[-1][1].get_descendent_end_point_strings():
               yield (False, f'{base_path}{string}')
+          else:  # Deleting non-dir - return it.
+            yield (False, os.path.join(root, filename))
           remove_last_node_from_path(trie_path)
 
       if auto_update:

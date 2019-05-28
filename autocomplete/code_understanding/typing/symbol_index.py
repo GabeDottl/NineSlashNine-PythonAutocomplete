@@ -175,6 +175,8 @@ class _LocationIndex:
   symbol_alias_dict = attr.ib(factory=partial(defaultdict, dict), kw_only=True)
   module_keys = attr.ib(factory=set, kw_only=True)
   is_file_location: bool = attr.ib(True, kw_only=True)
+  # Indicates whether or not we track imports for files tracked by this index.
+  is_import_tracking: bool = attr.ib(False, kw_only=True)
   _modified_since_save = attr.ib(False, init=False)
   # This is introducing a circular dependency - to avoid subtle headaches with garbage collection
   #  breaking, we use weakrefs here.
@@ -204,12 +206,15 @@ class _LocationIndex:
     return index
 
   @staticmethod
-  def create_location_index(save_dir, target_directory, symbol_index):
-    file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'), root_dir=target_directory, filter_fn=python_package_filter)
+  def create_location_index(save_dir, target_directory, is_import_tracking, symbol_index):
+    file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'),
+                                                   root_dir=target_directory,
+                                                   filter_fn=python_package_filter)
     return _LocationIndex(save_dir=save_dir,
                           location=target_directory,
                           symbol_index_weakref=weakref.ref(symbol_index),
-                          file_history_tracker=file_history_tracker)
+                          file_history_tracker=file_history_tracker,
+                          is_import_tracking=is_import_tracking)
 
   def find_symbol(self, symbol):
     for alias in self.symbol_alias_dict[symbol].values():
@@ -234,11 +239,14 @@ class _LocationIndex:
         key.serialize() for key, _ in sorted(module_key_to_index_dict.items(), key=lambda kv: kv[1])
     ]
 
-    return [self.location, d, alias_dict, serialized_module_key_list, self.is_file_location]
+    return [
+        self.location, d, alias_dict, serialized_module_key_list, self.is_file_location,
+        self.is_import_tracking
+    ]
 
   @staticmethod
   def _deserialize(unpacked, save_dir, symbol_index):
-    location, d, alias_dict, serialized_module_key_list, is_file_location = unpacked
+    location, d, alias_dict, serialized_module_key_list, is_file_location, is_import_tracking = unpacked
     module_key_list = [
         module_loader.ModuleKey(module_loader.ModuleSourceType(type_), path)
         for type_, path in serialized_module_key_list
@@ -263,6 +271,7 @@ class _LocationIndex:
                           symbol_alias_dict=symbol_alias_dict,
                           module_keys=set(module_key_list),
                           is_file_location=is_file_location,
+                          is_import_tracking=is_import_tracking,
                           symbol_index_weakref=weakref.ref(symbol_index))
 
   def save(self):
@@ -287,14 +296,13 @@ class _LocationIndex:
       # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
       # cannot be appended to and thus make the SymbolIndex essentially readonly.
       out = _LocationIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly), save_dir,
-                                         symbol_index)
+                                        symbol_index)
     if out.is_file_location:
       out._file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'))
     else:
       out._file_history_tracker = None
-    
-    return out
 
+    return out
 
   def _get_subtrie_index_pos(self):
     # The trie stored by location indicies is a subtrie of the main trie. It's start position is
@@ -321,19 +329,17 @@ class _LocationIndex:
           root, subdir) not in excluded_subdirs and python_package_filter(root, subdir)
     else:
       filter_fn = python_package_filter
-    update_and_filenames = self._file_history_tracker.get_files_in_dir_modified_since_timestamp(self.location,
-                                                                                     auto_update=True)
+    update_and_filenames = self._file_history_tracker.get_files_in_dir_modified_since_timestamp(
+        self.location, auto_update=True)
     for update, filename in update_and_filenames:
       update_count += 1
       if update:
         self.add_file(filename, check_timestamp=False)
       else:
-        # TODO: delete.
-        pass
+        self.remove_file(filename)
     return update_count
 
-
-  def add_path(self, path, track_imported_modules=False):
+  def add_path(self, path=False):
     '''Adds python files under |path| to this index.
 
     This will only add python packages (i.e. directories with __init__.py) beneath |path|, however,
@@ -344,7 +350,7 @@ class _LocationIndex:
     assert self.location == path[:len(self.location)]
 
     if not os.path.isdir(path):
-      self.add_file(path, track_imported_modules)
+      self.add_file(path)
       return
 
     # Always add to the location index that is closest to the path.
@@ -352,7 +358,7 @@ class _LocationIndex:
     if check_descendent_index:
       location_index = self._location_index_trie.get_most_recent_ancestor_or_actual(path).store_value()
       if id(location_index) != id(self):
-        location_index.add_path(path, track_imported_modules)
+        location_index.add_path(path)
         return
 
     location_indicies = [self] + list(
@@ -365,16 +371,9 @@ class _LocationIndex:
           path, auto_update=True)
       for update, full_filename in update_and_full_filenames:
         if update and is_python_file(full_filename):
-          self.add_file(full_filename,
-                        track_imported_modules=track_imported_modules,
-                        check_descendent_index=check_descendent_index)
+          self.add_file(full_filename, check_descendent_index=check_descendent_index)
 
-  def add_file(self,
-               filename,
-               *,
-               track_imported_modules=False,
-               check_descendent_index=True,
-               check_timestamp=True):
+  def add_file(self, filename, *, check_descendent_index=True, check_timestamp=True):
     if not is_python_file(filename):
       return
 
@@ -383,26 +382,39 @@ class _LocationIndex:
 
     module_key = module_loader.ModuleKey.from_filename(filename)
     self._add_module_by_key(module_key,
-                            track_imported_modules=track_imported_modules,
                             check_descendent_index=check_descendent_index,
                             check_timestamp=check_timestamp)
     self._file_history_tracker.update_timestamp_for_path(filename)
     self._modified_since_save = True  # File history changed if nothing else.
 
-  def _add_module_by_key(self,
-                         module_key,
-                         track_imported_modules=False,
-                         check_descendent_index=True,
-                         check_timestamp=True):
+  def remove_file(self, filename):
+    # TODO: Merge better with _add_module_by_key.
+    module_key = module_loader.ModuleKey.from_filename(filename)
+    if module_key not in self._module_key_symbols_cache:
+      warning(f'Scanning symbol_dict for lone key :/.')
+      self._add_module_keys_symbols_to_cache([module_key])
+      existing_symbols = self._module_key_symbols_cache[module_key]
+    for name in existing_symbols.keys():
+      del self.symbol_dict[name][(module_key, False)]
+    del self.symbol_dict[module_key.get_module_basename()][(module_key, True)]
+    # TODO: Merge better with _process_tracked_imports.
+    existing_module_key_to_value_as_name_dict = self._load_existing_module_value_as_names(module_key)
+    if existing_module_key_to_value_as_name_dict:
+      for module_key, existing_value_as_name_set in existing_module_key_to_value_as_name_dict.items():
+        location_index = symbol_index._get_location_index_for_module_key(module_key)
+        # Remove any symbol references that are no longer present in the file.
+        for value, as_name in existing_value_as_name_set:
+          _update_symbol(location_index, module_key, value, as_name, -1)
+    self._modified_since_save = True
+
+  def _add_module_by_key(self, module_key, check_descendent_index=True, check_timestamp=True):
     if check_descendent_index and self._location_index_trie and self._location_index_trie.has_children():
       # We key on non-stub filenames
       filename = module_key.get_filename(prefer_stub=False)
       assert self.location == filename[:len(self.location)]
       # This will get the exact correct trie, regardless of how deep. store_value is a weakref.
       location_index = self._location_index_trie.get_most_recent_ancestor_or_actual(filename).store_value()
-      return location_index._add_module_by_key(module_key,
-                                               track_imported_modules,
-                                               check_descendent_index=False)
+      return location_index._add_module_by_key(module_key, check_descendent_index=False)
 
     module_key_already_present = module_key in self.module_keys
     # Don't add bad modules or re-add builtins.
@@ -418,7 +430,12 @@ class _LocationIndex:
     # already been done without tracking the module's contents and would thus return early.
     module = None
 
-    if track_imported_modules:
+    # TODO: Do a proper 'reload' - which means loading all dependent modules as well whose values
+    # may change as a result...
+    if module_key_already_present:
+      # Delete module so that we get the new module from scratch.
+      module_loader.remove_module_by_key(module_key)
+    if self.is_import_tracking:
       module_loader.keep_graphs_default = True
       module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
       assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
@@ -476,7 +493,7 @@ class _LocationIndex:
       self._modified_since_save = True
       self._file_history_tracker.update_timestamp_for_path(module_key.get_filename(prefer_stub=False))
 
-    if track_imported_modules:
+    if self.is_import_tracking:
       module_loader.keep_graphs_default = False
     return not module_key_already_present
 
@@ -515,7 +532,7 @@ class _LocationIndex:
         changed = True
         # Not already added - add to symbol entry.
         _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, 1)
-      # Remove any symbols that are no longer present in the file.
+      # Remove any symbol references that are no longer present in the file.
       for value, as_name in existing_value_as_name_set:
         _update_symbol(location_index, module_key, value, as_name, -1)
       # Determine if the symbols imported by the module have changed - update if so.
@@ -716,8 +733,8 @@ class SymbolIndex:
     if not index:
       index = SymbolIndex.create_index(save_dir, sys_path=sys_path)
     # Ensure path is included in an index.
-    index._get_or_add_location_index_for_dir(package_path)
-    index.add_path(package_path, track_imported_modules=True)
+    index._get_or_add_location_index_for_dir(package_path, True)
+    index.add_path(package_path, )
     index.save()
     return index
 
@@ -728,17 +745,23 @@ class SymbolIndex:
   def _get_location_save_dir(self, location_name):
     return SymbolIndex._get_location_save_dir_from_main_dir(self.save_dir, str(hash(location_name)))
 
-  def _get_or_add_location_index_for_dir(self, directory):
+  def _get_or_add_location_index_for_dir(self, directory, is_import_tracking=False):
     if not os.path.exists(directory):
       return
     location_index = self._get_location_index_for_filename(directory)
+    # TODO: If a _LocationIndex exists already w/o is_import_tracking and we want it, we need to do
+    # a bunch of work to go track everything. Also, might need to split out. DF"KDSOIFJDS. Too tired.
+    if is_import_tracking and location_index and not location_index.is_import_tracking:
+      assert location_index.location == directory
+      location_index.is_import_tracking = True
+      assert not location_index.module_keys  # Ensure we've not already added shit.
     if location_index:
       # TODO: Support splitting _LocationIndicies beneath a higher-level directory. E.g. /a -> /a/b.
       return location_index
 
     # Doesn't exist - create.
     location_index = _LocationIndex.create_location_index(self._get_location_save_dir(directory), directory,
-                                                          self)
+                                                          is_import_tracking, self)
     self._location_indicies.append(location_index)
     # Note: Rather neatly, if this new directory is above some existing directories, the FilePathTrie will
     # allow things to work as-expected - that is, this location index shall not track those subdirs
@@ -777,21 +800,21 @@ class SymbolIndex:
     location_index = trie.store_value()
     return location_index.update(directory)
 
-  def add_path(self, path, track_imported_modules=False):
+  def add_path(self, path, is_import_tracking=False):
     assert os.path.exists(path)
     if not os.path.isdir(path):
-      self.add_file(path, track_imported_modules)
+      self.add_file(path)
       return
 
-    location_index = self._get_or_add_location_index_for_dir(path)
+    location_index = self._get_or_add_location_index_for_dir(path, is_import_tracking)
 
-    location_index.add_path(path, track_imported_modules=track_imported_modules)
+    location_index.add_path(path)
 
-  def add_file(self, filename, track_imported_modules=False):
+  def add_file(self, filename):
     module_key = module_loader.ModuleKey.from_filename(filename)
-    self._add_module_by_key(module_key, track_imported_modules=track_imported_modules)
+    self._add_module_by_key(module_key)
 
-  def _add_module_by_key(self, module_key, track_imported_modules=False):
+  def _add_module_by_key(self, module_key):
     if module_key.is_bad():
       self._failed_module_keys.append(module_key)
       return
@@ -802,7 +825,7 @@ class SymbolIndex:
       location_index = self._get_or_add_location_index_for_dir(
           os.path.dirname(module_key.get_filename(prefer_stub=False)))
     assert location_index
-    newly_added = location_index._add_module_by_key(module_key, track_imported_modules)
+    newly_added = location_index._add_module_by_key(module_key)
     if newly_added:
       self._module_key_to_location_index_dict[module_key] = location_index
     return location_index

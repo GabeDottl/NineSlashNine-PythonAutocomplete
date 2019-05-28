@@ -122,7 +122,7 @@ def module_id_from_filename(filename):
 
 
 def loader_path_from_file_module_id(module_id, prefer_stub):
-  assert os.path.exists(module_id)
+  # assert os.path.exists(module_id)
   if not prefer_stub:
     return module_id
 
@@ -193,6 +193,16 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
 
 __module_key_module_dict: Dict[Tuple[ModuleKey, str], Module] = {}
 
+def remove_module_by_key(module_key):
+  keys = [module_key_index(module_key, False), module_key_index(module_key, True)]
+  for key in keys:
+    if key in __module_key_module_dict:
+      del __module_key_module_dict[key]
+
+  filenames = [module_key.get_filename(False), module_key.get_filename(True)]
+  for filename in filenames:
+    if filename in __loaded_paths:
+      __loaded_paths.remove(filename)
 
 def module_key_index(module_key, force_real):
   return (module_key,
