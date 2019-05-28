@@ -1,5 +1,6 @@
 import itertools
 import os
+import _ast
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
@@ -88,6 +89,10 @@ class GroupCfgNode(CfgNode):
   def __iter__(self):
     return iter(self.children)
 
+  def to_ast(self):
+    # TODO: Wrap.
+    return [child.to_ast() for child in self.children]
+
   @children.validator
   def _validate_children(self, attribute, children):
     for child in children:
@@ -133,6 +138,10 @@ class GroupCfgNode(CfgNode):
     out = f'{super().pretty_print(indent)}\n'
     return out + "\n".join(child.pretty_print(indent + "  ") for child in self.children)
 
+@attr.s
+class ModuleCfgNode(GroupCfgNode):
+  def to_ast(self):
+    return _ast.Module(super().to_ast())
 
 @attr.s(slots=True)
 class ExpressionCfgNode(CfgNode):

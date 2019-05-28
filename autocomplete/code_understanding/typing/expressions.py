@@ -14,7 +14,7 @@ from .utils import assert_returns_type
 
 class Expression(ABC):
   def to_ast(self) -> _ast.Expression:
-    return _ast.Expression(self._to_ast())
+    return _ast.Expr(self._to_ast())
 
   def _to_ast(self):
     raise NotImplementedError()

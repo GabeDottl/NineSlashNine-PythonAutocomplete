@@ -4,6 +4,7 @@ import _ast
 import attr
 from . import errors
 from .control_flow_graph_nodes import (TypeHintStmtCfgNode, AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode, RaiseCfgNode)  # Temporary.
+from .control_flow_graph_nodes import ModuleCfgNode
 from .expressions import (InvertExpression, AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, ExtSlice, IndexSlice, StarredExpression, SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)  # Temporary.
 from .language_objects import (Parameter, ParameterType)  # Temporary.
 from ...nsn_logging import warning
@@ -61,11 +62,11 @@ class Visitor(ast.NodeVisitor):
 
   def visit_Module(self, ast_node):
     assert not self.root
-    self.root = self._group_from_body(ast_node.body)
-    # with self.container_context(self.root):
-    # with ListPopper(self._container_stack, self.root.children):
-    #   self.visit(ast_node)
-    # self._container_stack.pop()
+    self.root = ModuleCfgNode()
+    with ListPopper(self._container_stack, self.root.children):
+      for stmt in ast_node.body:
+        self.visit(stmt)
+
     assert not self._container_stack
 
   def visit_Interactive(self, ast_node):
