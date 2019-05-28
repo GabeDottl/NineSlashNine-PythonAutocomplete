@@ -30,7 +30,7 @@ class ControlFlowGraphBuilder:
     # Try AST-based builder first because it's waaay faster.
     try:
       builder = ast_control_flow_graph_builder.AstControlFlowGraphBuilder(self.module_loader, module)
-      # return builder.graph_from_source(source, source_filename)
+      return condense_graph(builder.graph_from_source(source, source_filename))
     except errors.AstUnableToParse:
       builder = parso_control_flow_graph_builder.ParsoControlFlowGraphBuilder(self.module_loader, module)
-    return condense_graph(builder.graph_from_source(source, source_filename))
+      return condense_graph(builder.graph_from_source(source, source_filename))

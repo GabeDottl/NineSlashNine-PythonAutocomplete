@@ -22,7 +22,7 @@ import shutil
 from collections import defaultdict
 from enum import Enum
 from functools import partial
-from typing import (Dict, List)
+from typing import Dict
 
 import attr
 import msgpack
@@ -481,14 +481,14 @@ class _LocationIndex:
 
       if self.is_import_tracking:
         module_loader.keep_graphs_default = True
-        module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
+        module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True, force_real=True)
         assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
         assert module.graph
         directory = os.path.dirname(module.filename)
         self._process_tracked_imports(module_key, module.graph, directory)
 
       module = module if module else module_loader.get_module_from_key(
-          module_key, lazy=False, include_graph=False)
+          module_key, lazy=False, include_graph=False, force_real=True)
 
       if module_key_already_present:
         info(f'{module_key} already recorded - getting symbols.')
@@ -529,6 +529,7 @@ class _LocationIndex:
                             real_name=name)
           entry.symbol_type = SymbolType.from_pobject(member)
           entry.not_yet_found_in_module = False
+          entry.is_module_itself = False
           entry.imported = member.imported
 
       # Remove any remaining existing symbols that have since been removed.

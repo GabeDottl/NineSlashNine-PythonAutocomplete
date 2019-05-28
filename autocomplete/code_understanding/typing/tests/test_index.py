@@ -64,6 +64,7 @@ def test_add_file():
 
 
 def test_micro_index_lifecycle():
+  _clean
   PROJECT_PATH = os.path.join(TMP_DIR, 'project')
   A = os.path.join(PROJECT_PATH, 'a')
   A_CHILD = os.path.join(A, 'test')
@@ -138,8 +139,6 @@ from .test import y
 #   index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
 
 if __name__ == "__main__":
-  if os.path.exists(INDEX_PATH):
-    shutil.rmtree(INDEX_PATH)
   test_micro_index_lifecycle()
   test_add_file()
   test_build_test_index()
