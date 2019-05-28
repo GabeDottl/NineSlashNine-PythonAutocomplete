@@ -50,29 +50,17 @@ def test_build_typing_index():
 def test_add_file():
   _clean()
   initial_index = symbol_index.SymbolIndex.create_index(INDEX_PATH)
-  initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'),
-                         track_imported_modules=True)
-  # initial_index.add_file(
-  #     os.path.join(TYPING_DIR, 'tests', 'test_fix_code.py'),
-  #     track_imported_modules=True)
-
+  initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'))
   initial_index.save()
   loaded_index = symbol_index.SymbolIndex.load(INDEX_PATH)
 
-  # index.add_path(
-  #     f'/usr/local/lib/python3.6/site-packages/numpy')
   for index in (initial_index, loaded_index):
-    entries = list(filter(lambda x: not x.is_imported(), index.find_symbol('attr')))
-    assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
-    ).id and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE
-    entries = list(filter(lambda x: not x.is_imported(), index.find_symbol('at')))
-    assert len(entries) == 1 and entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
-    ).id and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE
-    entries = list(index.find_symbol('attrib'))
-    assert len(entries) >= 1 and not entries[0].is_module_itself() and 'attr' in entries[0].get_module_key(
-    ).id and entries[0].get_symbol_type() == symbol_index.SymbolType.FUNCTION
-
-  #     track_imported_modules=True)
+    # Note: Because we're only adding a file without tracking, for both of these entries they're
+    # simply what has been imported into boo.py.
+    entries = list(index.find_symbol('attr'))
+    assert len(entries) == 1 and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE and entries[0].is_imported()
+    entries = list(index.find_symbol('at'))
+    assert len(entries) == 1 and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE  and entries[0].is_imported()
 
 
 def test_micro_index_lifecycle():
@@ -96,14 +84,14 @@ def test_micro_index_lifecycle():
     assert len(list(index.find_symbol('a'))) == 1
     assert len(list(index.find_symbol('test'))) == 1
     # Ensure nothing is updated when nothing has changed.
-    assert index.update(A) == 0
+    assert index.update(A, True) == 0
     # Ensure touching a file triggers an update only for that file.
     time.sleep(0.2)  # Accounting for time.time() imprecision to ensure getmtime is after timestamp.
     Path(os.path.join(A, '__init__.py')).touch()
-    assert index.update(A) == 1
+    assert index.update(A, True) == 1
     # Ensure adding a file triggers an update.
     Path(os.path.join(A, 'x.py')).touch()
-    assert index.update(A) == 1
+    assert index.update(A, True) == 1
     assert len(list(index.find_symbol('x'))) == 1
     y_py = os.path.join(A_CHILD, 'y.py')
     with open(y_py, 'w') as f:
@@ -112,7 +100,7 @@ def test_micro_index_lifecycle():
     index.add_path(B)
     assert len(list(index.find_symbol('b'))) == 1
     # Add y.py.
-    assert index.update(A) == 1
+    assert index.update(A, True) == 1
     assert len(list(index.find_symbol('a'))) == 2
     assert len(list(index.find_symbol('y'))) == 1
     source = '''
@@ -121,7 +109,7 @@ from .test import y
     x_py = os.path.join(A, 'x.py')
     with open(x_py, 'w') as f:
       f.writelines(source)
-    assert index.update(A) == 1
+    assert index.update(A, True) == 1
     assert len(list(index.find_symbol('x'))) == 1
     y_entries = list(index.find_symbol('y'))
     assert len(y_entries) == 2
@@ -129,7 +117,7 @@ from .test import y
     assert y_entries[0].get_import_count() == 1
     # Remove x.py.
     os.remove(x_py)
-    assert index.update(A) == 1
+    assert index.update(A, True) == 1
     # No more references to y.
     assert y_entries[0].get_import_count() == 0
     assert len(list(index.find_symbol('y'))) == 1
@@ -153,7 +141,7 @@ if __name__ == "__main__":
   if os.path.exists(INDEX_PATH):
     shutil.rmtree(INDEX_PATH)
   test_micro_index_lifecycle()
-  # test_add_file()
-  # test_build_test_index()
-  # test_build_typing_index()
+  test_add_file()
+  test_build_test_index()
+  test_build_typing_index()
   # test_build_full_index()

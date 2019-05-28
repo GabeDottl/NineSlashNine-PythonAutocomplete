@@ -529,7 +529,7 @@ class _LocationIndex:
                             real_name=name)
           entry.symbol_type = SymbolType.from_pobject(member)
           entry.not_yet_found_in_module = False
-          entry.imported = False
+          entry.imported = member.imported
 
       # Remove any remaining existing symbols that have since been removed.
       for name in existing_symbols.keys():
