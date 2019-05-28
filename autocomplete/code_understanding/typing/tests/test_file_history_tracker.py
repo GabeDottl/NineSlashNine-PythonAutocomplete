@@ -6,13 +6,14 @@ from ..project_analysis import file_history_tracker
 from ....trie import append_sep_if_dir
 
 STORAGE_FILE = '/tmp/fht_tmp.msg'
-TEST_FILE = '/tmp/x_fht'
+TEST_FILE = '/tmp/fht_dir/x_fht'
 TEST_DIR = '/tmp/fht_dir'
 
-
+# TODO: clean this up.
 def test_file_history_tracker():
   _clean()
   try:
+    os.makedirs(TEST_DIR)
     fht = file_history_tracker.FileHistoryTracker.load(STORAGE_FILE, TEST_DIR, None)
     assert not fht.has_file_changed_since_timestamp(TEST_FILE)
     Path(TEST_FILE).touch()
@@ -26,11 +27,12 @@ def test_file_history_tracker():
     _clean()
 
     os.makedirs(TEST_DIR)
+    fht = file_history_tracker.FileHistoryTracker.load(STORAGE_FILE, TEST_DIR, None)
     assert not list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR))
     filename = os.path.join(TEST_DIR, 'x')
     time.sleep(0.2)  # Accounting for time.time() imprecision to ensure getmtime is after timestamp.
     Path(filename).touch()
-    assert list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR)) == [filename]
+    assert list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR)) == [(True, filename)]
     fht.update_timestamp_for_path(filename)
     path = os.path.join(TEST_DIR, 'a', 'b', 'c', 'd')
     os.makedirs(path)
@@ -120,5 +122,5 @@ def _clean():
 
 
 if __name__ == "__main__":
-  # test_file_history_tracker()
+  test_file_history_tracker()
   test_filtering_and_removal()

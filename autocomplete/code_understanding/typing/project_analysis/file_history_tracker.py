@@ -92,13 +92,13 @@ class FileHistoryTracker:
       if self.filter_fn:
         # Note: [:] so we modify subdirs in place to avoid walking down them.
         subdirs[:] = list(filter(partial(self.filter_fn, root), subdirs))
-        filenames_filtered = list(filter(partial(self.filter_fn, root), filenames))
+        filenames = list(filter(partial(self.filter_fn, root), filenames))
       # Frustratingly, getmtime for an individual directory will only reflect changes directly to
       # the directory including creating/deleting files, but not modifications to them... As such,
       # we must check *every* file...
       # TODO: Find some cheaper ways to do this. Perhaps using platform-dependent call - e.g.:
       # https://stackoverflow.com/questions/4561895/how-to-recursively-find-the-latest-modified-file-in-a-directory
-      for filename in filenames_filtered:
+      for filename in filenames:
         full_filename = os.path.join(root, filename)
         if self._modified_since_update(full_filename):
           yield (True, full_filename)
@@ -109,7 +109,7 @@ class FileHistoryTracker:
             self.update_timestamp_for_path(full_filename)
 
       # Both of these sets have already been filtered if necessary
-      filename_set = set(filenames_filtered)
+      filename_set = set(filenames)
       subdir_set = set(f'{d}{os.sep}' for d in subdirs)
       for filename, trie_path in self.file_timestamp_trie.get_nodes_in_dir(root):
         if filename not in subdir_set and filename not in filename_set:
