@@ -55,10 +55,9 @@ def test_trie_with_file_tree():
     for directory in directories:
       if directory_removed == directory[:len(directory_removed)]:
         continue
-      # Cannot guarantee this because we recurse down the tree whereas getmtime doesn't.
       max_file = t.get_max(directory)
       assert max_file
-      assert t.get_value_for_string(directory) == os.path.getmtime(max_file)
+      assert t.get_max_value_at_or_beneath_prefix(directory) == os.path.getmtime(max_file)
 
 if __name__ == '__main__':
   test_trie()

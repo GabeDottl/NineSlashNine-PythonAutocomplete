@@ -290,11 +290,11 @@ class Trie:
       return 0
     return nodes[-1][1].value
 
-  # def get_max_value_at_or_beneath_prefix(self, prefix, default=0):
-  #   path = self._get_path_to(prefix)
-  #   if not path:
-  #     return default
-  #   return path[-1][1]._get_max_value_at_or_beneath()
+  def get_max_value_at_or_beneath_prefix(self, prefix, default=0):
+    path = self._get_path_to(prefix)
+    if not path:
+      return default
+    return path[-1][1]._get_max_value_at_or_beneath()
 
   def get_max(self, prefix):
     path = self._get_path_to(prefix)
