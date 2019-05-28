@@ -75,9 +75,9 @@ class ModuleKey:
   def get_module_basename(self):
     if not self.is_loadable_by_file():
       return self.id
-    return module_name_from_filename(self.get_filename(), basename_only=True)
+    return module_name_from_filename(self.get_filename(False), basename_only=True)
 
-  def get_filename(self, prefer_stub=True):
+  def get_filename(self, prefer_stub):
     assert self.is_loadable_by_file()
     # Can't cache because 2 versions - stub and not stub.
     return loader_path_from_file_module_id(self.id, prefer_stub=prefer_stub)
@@ -228,7 +228,7 @@ def get_module_from_key(module_key, unknown_fallback=True, lazy=True, include_gr
     elif include_graph and not module.graph:
       if not module_key.module_source_type.should_be_natively_loaded():
         # Damn, alreadly loaded but did not keep the graph the first time...
-        with open(module_key.get_filename()) as f:
+        with open(module_key.get_filename(False)) as f:
           module.graph = api.graph_from_source(''.join(f.readlines()), os.path.dirname(module.filename))
       else:
         warning(f'Cannot include graph on module that is natively loaded.')
@@ -301,7 +301,7 @@ def _create_module(module_key, unknown_fallback=True, lazy=True, include_graph=F
                    force_real=False) -> Module:
   '''Creates the module from the provided specification, but will not load anything if it is normal.'''
   if module_key.is_bad() or (module_key.is_loadable_by_file()
-                             and not os.path.exists(module_key.get_filename())):
+                             and not os.path.exists(module_key.get_filename(prefer_stub=False))):
     if unknown_fallback:
       return _create_empty_module(module_key.id, ModuleType.UNKNOWN_OR_UNREADABLE)
     else:
@@ -313,7 +313,7 @@ def _create_module(module_key, unknown_fallback=True, lazy=True, include_graph=F
     try:
       package = None
       if module_key.module_source_type == ModuleSourceType.COMPILED:
-        package = package_from_directory(os.path.dirname(module_key.get_filename()))
+        package = package_from_directory(os.path.dirname(module_key.get_filename(prefer_stub=False)))
         if package:
           name = f'.{name}' if name[0] != '.' else name
       else:
@@ -414,8 +414,8 @@ def get_module_info_from_module_key(module_key):
     module_type = ModuleType.COMPILED
     is_package = False
   else:
-    module_type = module_type_from_filename(module_key.get_filename())
-    is_package = _is_init(module_key.get_filename())
+    module_type = module_type_from_filename(module_key.get_filename(False))
+    is_package = _is_init(module_key.get_filename(False))
   return module_key, is_package, module_type
 
 

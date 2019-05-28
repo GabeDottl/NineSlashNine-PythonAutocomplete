@@ -220,7 +220,7 @@ class ImportCfgNode(CfgNode):
           # assert is_package
           ancestor_module = SimplePackageModule(current_name,
                                                 module_type,
-                                                filename=module_key.get_filename() if module_key.is_loadable_by_file() else module_key.id,
+                                                filename=module_key.get_filename(False) if module_key.is_loadable_by_file() else module_key.id,
                                                 is_package=True,
                                                 members={},
                                                 module_loader=self.module_loader)

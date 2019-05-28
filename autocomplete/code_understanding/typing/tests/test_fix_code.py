@@ -1,4 +1,5 @@
 import os
+import shutil
 from glob import glob
 
 from .. import api, symbol_index
@@ -11,6 +12,13 @@ CODE = os.getenv('CODE')
 # where there's ambiguity between whether or code isn't working (not finding a fix) or our code is
 # actually broken (fix is right - our code is wrong).
 AUTCOMPLETE_CLONE_DIR = os.path.join(CODE, 'autocomplete_clone', 'autocomplete')
+TMP_INDEX_PATH='/tmp/index_storage_dir'
+REAL_INDEX_DIR=os.path.join(os.getenv('HOME'), '.nsn')
+
+def _clean():
+  if os.path.exists(TMP_INDEX_PATH):
+    shutil.rmtree(TMP_INDEX_PATH)
+
 
 
 def test_strip_imports():
@@ -33,7 +41,8 @@ def test_add_all_imports():
 b = a_int
 a_func()
 c = AClass()'''
-  index = symbol_index.SymbolIndex()
+  _clean()
+  index = symbol_index.SymbolIndex.create_index(TMP_INDEX_PATH)
   index.add_file(os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package',
                               'exports.py'))
   new_source, changed = fix_code.fix_missing_symbols_in_source(source, filename=__file__, index=index)
@@ -55,7 +64,7 @@ a_func()
 c = AClass()'''
   # TODO: Windows support for /tmp.
   index = symbol_index.SymbolIndex.build_index_from_package(
-      os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package'), '/tmp/tmp.msg')
+      os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package'),save_dir=TMP_INDEX_PATH, clean=True)
   new_source, changed = fix_code.fix_missing_symbols_in_source(source, filename=__file__, index=index)
   graph = api.graph_from_source(new_source, __file__)
   print(new_source)
@@ -67,7 +76,7 @@ def test_fix_imports_typing_match_actual():
   from .... import code_understanding
   # TODO: replace w/ clone.
   autocomplete_dir = os.path.join(os.path.dirname(code_understanding.__file__), '..', '..')
-  index = symbol_index.SymbolIndex.load(os.path.join(autocomplete_dir, 'index.msg'))
+  index = symbol_index.SymbolIndex.load(REAL_INDEX_DIR)
   typing_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
   filenames = glob(os.path.join(typing_dir, '**/*.py'), recursive=True)
   for filename in filter(lambda f: 'grammar.py' not in f and 'examples' not in f, filenames):

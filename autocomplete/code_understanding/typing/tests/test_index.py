@@ -1,5 +1,7 @@
 import os
 import shutil
+from pathlib import Path
+import time
 
 from .. import symbol_index
 
@@ -8,8 +10,12 @@ TYPING_DIR = os.path.join(os.path.dirname(__file__), '..')
 INDEX_PATH = f'/tmp/index'
 TMP_DIR = '/tmp'
 
+def _clean():
+  if os.path.exists(INDEX_PATH):
+    shutil.rmtree(INDEX_PATH)
 
 def test_build_test_index():
+  _clean()
   index = symbol_index.SymbolIndex.build_index_from_package(
       os.path.join(TYPING_DIR, 'examples', 'index_test_package'), INDEX_PATH)
   index.save()
@@ -23,6 +29,7 @@ def test_build_test_index():
 
 
 def test_build_typing_index():
+  _clean()
   index = symbol_index.SymbolIndex.build_index_from_package(TYPING_DIR, INDEX_PATH)
   symbol_entries = list(filter(lambda x: not x.is_imported(), index.find_symbol('Function')))
   assert len(symbol_entries) == 1
@@ -41,6 +48,7 @@ def test_build_typing_index():
 
 
 def test_add_file():
+  _clean()
   initial_index = symbol_index.SymbolIndex.create_index(INDEX_PATH)
   initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'),
                          track_imported_modules=True)
@@ -68,10 +76,6 @@ def test_add_file():
 
 
 def test_micro_index_lifecycle():
-  from pathlib import Path
-  import shutil
-  import time
-  import os
   PROJECT_PATH = os.path.join(TMP_DIR, 'project')
   A = os.path.join(PROJECT_PATH, 'a')
   A_CHILD = os.path.join(A, 'test')

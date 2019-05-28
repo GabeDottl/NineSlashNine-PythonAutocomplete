@@ -1,3 +1,18 @@
+'''This module stores an index of modules symbols and metadata.
+
+Note: in general, os.path.abspath is preferred over pathlib.Path due to the dramatic performance
+difference between the two:
+
+CPU times: user 249 µs, sys: 10 µs, total: 259 µs
+Wall time: 214 µs
+Out[50]: PosixPath('/asdf')
+
+In [52]: %time os.path.abspath('/asdf/')
+CPU times: user 10 µs, sys: 1e+03 ns, total: 11 µs
+Wall time: 12.6 µs
+Out[52]: '/asdf'
+
+'''
 import weakref
 import itertools
 import os
@@ -185,6 +200,7 @@ class _LocationIndex:
   _file_history_tracker: FileHistoryTracker = attr.ib(None, kw_only=True)
   _location_index_trie = attr.ib(None, kw_only=True)
   _module_key_symbols_cache = attr.ib(factory=dict, kw_only=True)
+  _module_keys_being_processed = attr.ib(factory=set, init=False)
 
   def __attrs_post_init__(self):
     if not os.path.exists(self.save_dir):
@@ -438,105 +454,114 @@ class _LocationIndex:
       location_index = trie.store_value()
       return location_index._add_module_by_key(module_key, check_descendent_index=False)
 
-    module_key_already_present = module_key in self.module_keys
-    # Don't add bad modules or re-add builtins.
-    if module_key.is_bad() or (not module_key.is_loadable_by_file() and module_key_already_present):
-      return False
+    # Avoid recursion problems by nipping them in the bud here.
+    if module_key in self._module_keys_being_processed:
+      return
+    self._module_keys_being_processed.add(module_key)
+    try:
+      module_key_already_present = module_key in self.module_keys
+      # Don't add bad modules or re-add builtins.
+      if module_key.is_bad() or (not module_key.is_loadable_by_file() and module_key_already_present):
+        return False
 
-    if check_timestamp and module_key.is_loadable_by_file(
-    ) and not self._file_history_tracker.has_file_changed_since_timestamp(
-        module_key.get_filename(prefer_stub=False)):
-      return False
+      if check_timestamp and module_key.is_loadable_by_file(
+      ) and not self._file_history_tracker.has_file_changed_since_timestamp(
+          module_key.get_filename(prefer_stub=False)):
+        return False
 
-    # Note that we explicity do this here instead of in _add_module_by_key as the latter may have
-    # already been done without tracking the module's contents and would thus return early.
-    module = None
+      # Note that we explicity do this here instead of in _add_module_by_key as the latter may have
+      # already been done without tracking the module's contents and would thus return early.
+      module = None
 
-    # TODO: Do a proper 'reload' - which means loading all dependent modules as well whose values
-    # may change as a result...
-    if module_key_already_present:
-      # Delete module so that we get the new module from scratch.
-      module_loader.remove_module_by_key(module_key)
-    if self.is_import_tracking:
-      module_loader.keep_graphs_default = True
-      module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
-      assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
-      assert module.graph
-      directory = os.path.dirname(module.filename)
-      self._process_tracked_imports(module_key, module.graph, directory)
+      # TODO: Do a proper 'reload' - which means loading all dependent modules as well whose values
+      # may change as a result...
+      if module_key_already_present:
+        # Delete module so that we get the new module from scratch.
+        module_loader.remove_module_by_key(module_key)
 
-    module = module if module else module_loader.get_module_from_key(
-        module_key, lazy=False, include_graph=False)
+      if self.is_import_tracking:
+        module_loader.keep_graphs_default = True
+        module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True)
+        assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
+        assert module.graph
+        directory = os.path.dirname(module.filename)
+        self._process_tracked_imports(module_key, module.graph, directory)
 
-    if module_key_already_present:
-      info(f'{module_key} already recorded - getting symbols.')
-      # TODO: This list could be created more efficiently at loading time if done carefully - i.e.
-      # check which files are going to need updating from FHT, then save the symbols for those files
-      # when creating symbol_dict.
-      if module_key not in self._module_key_symbols_cache:
-        warning(f'Scanning symbol_dict for lone key :/.')
-        self._add_module_keys_symbols_to_cache([module_key])
-      existing_symbols = self._module_key_symbols_cache[module_key]
-      del self._module_key_symbols_cache[module_key]  # About to invalidate.
-    else:
-      existing_symbols = {}
-    for name, member in module.items():
-      if name in existing_symbols:
-        entry = existing_symbols[name]
-        # Update attributes as needed.
-        # TODO: Clean up this logic so we're not messing around with _modified_since_save so much.
-        # Perhaps properties + dirty bit? Or perhaps just assume modified if we're in this func
-        # at all?
-        symbol_type = SymbolType.from_pobject(member)
-        if symbol_type != entry.symbol_type:
-          entry.symbol_type = symbol_type
-          self._modified_since_save = True
+      module = module if module else module_loader.get_module_from_key(
+          module_key, lazy=False, include_graph=False)
 
-        if entry.not_yet_found_in_module:
-          entry.not_yet_found_in_module = True
-          self._modified_since_save = True
-
-        if entry.imported != member.imported:
-          entry.symbol_type = symbol_type
-          self._modified_since_save = True
-        del existing_symbols[name]
+      if module_key_already_present:
+        info(f'{module_key} already recorded - getting symbols.')
+        # TODO: This list could be created more efficiently at loading time if done carefully - i.e.
+        # check which files are going to need updating from FHT, then save the symbols for those files
+        # when creating symbol_dict.
+        if module_key not in self._module_key_symbols_cache:
+          warning(f'Scanning symbol_dict for lone key :/.')
+          self._add_module_keys_symbols_to_cache([module_key])
+        existing_symbols = self._module_key_symbols_cache[module_key]
+        del self._module_key_symbols_cache[module_key]  # About to invalidate.
       else:
+        existing_symbols = {}
+      for name, member in module.items():
+        if name in existing_symbols:
+          entry = existing_symbols[name]
+          # Update attributes as needed.
+          # TODO: Clean up this logic so we're not messing around with _modified_since_save so much.
+          # Perhaps properties + dirty bit? Or perhaps just assume modified if we're in this func
+          # at all?
+          symbol_type = SymbolType.from_pobject(member)
+          if symbol_type != entry.symbol_type:
+            entry.symbol_type = symbol_type
+            self._modified_since_save = True
+
+          if entry.not_yet_found_in_module:
+            entry.not_yet_found_in_module = True
+            self._modified_since_save = True
+
+          if entry.imported != member.imported:
+            entry.symbol_type = symbol_type
+            self._modified_since_save = True
+          del existing_symbols[name]
+        else:
+          entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
+                            module_key=module_key,
+                            is_module_itself=False,
+                            real_name=name)
+          entry.symbol_type = SymbolType.from_pobject(member)
+          entry.not_yet_found_in_module = False
+          entry.imported = False
+
+      # Remove any remaining existing symbols that have since been removed.
+      for name in existing_symbols.keys():
+        d = self.symbol_dict[name]
+        entry = d[(module_key, False)]
+        if entry.import_count > 0:
+          # Some tracked things are still importing this it seems - just mark it as no longer found.
+          entry.not_yet_found_in_module = True
+        else:  # Safe to delete.
+          del d[(module_key, False)]
+
+      if not module_key_already_present:
+        self._modified_since_save = True
+        self.module_keys.add(module_key)
         entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
-                          module_key=module_key,
-                          is_module_itself=False,
-                          real_name=name)
-        entry.symbol_type = SymbolType.from_pobject(member)
+                                  module_key=module_key,
+                                  is_module_itself=True,
+                                  real_name=module_key.get_module_basename())
+        entry.symbol_type = SymbolType.MODULE
         entry.not_yet_found_in_module = False
+        entry.is_module_itself = True
         entry.imported = False
 
-    # Remove any remaining existing symbols that have since been removed.
-    for name in existing_symbols.keys():
-      d = self.symbol_dict[name]
-      entry = d[(module_key, False)]
-      if entry.import_count > 0:
-        # Some tracked things are still importing this it seems - just mark it as no longer found.
-        entry.not_yet_found_in_module = True
-      else:  # Safe to delete.
-        del d[(module_key, False)]
+      if module_key.is_loadable_by_file():
+        self._modified_since_save = True
+        self._file_history_tracker.update_timestamp_for_path(module_key.get_filename(prefer_stub=False))
 
-    if not module_key_already_present:
-      self._modified_since_save = True
-      self.module_keys.add(module_key)
-      entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
-                                module_key=module_key,
-                                is_module_itself=True,
-                                real_name=module_key.get_module_basename())
-      entry.symbol_type = SymbolType.MODULE
-      entry.not_yet_found_in_module = False
-      entry.imported = False
-
-    if module_key.is_loadable_by_file():
-      self._modified_since_save = True
-      self._file_history_tracker.update_timestamp_for_path(module_key.get_filename(prefer_stub=False))
-
-    if self.is_import_tracking:
-      module_loader.keep_graphs_default = False
-    info(f'module_key loaded: {module_key}')
+      if self.is_import_tracking:
+        module_loader.keep_graphs_default = False
+      info(f'module_key loaded: {module_key}')
+    finally:
+      self._module_keys_being_processed.remove(module_key)
     return not module_key_already_present
 
   def _add_module_keys_symbols_to_cache(self, module_keys):
@@ -561,8 +586,7 @@ class _LocationIndex:
 
     symbol_use_changed = False
     for module_key, value_as_name_list in imported_module_key_to_value_as_names.items():
-      if module_key not in symbol_index._module_key_to_location_index_dict:
-        symbol_index._add_module_by_key(module_key)
+      symbol_index._add_module_by_key(module_key)
       location_index = symbol_index._get_location_index_for_module_key(module_key)
       module_keys = location_index.module_keys
       symbol_dict = location_index.symbol_dict
@@ -621,7 +645,7 @@ def _get_or_add_entry(module_keys, symbol_dict, module_key, is_module_itself, re
   if key in key_dict:
     return key_dict[key]
   # Dynamically create and track.
-  entry = key_dict[key] = _InternalSymbolEntry(SymbolType.UNKNOWN, module_key, imported=False)
+  entry = key_dict[key] = _InternalSymbolEntry(SymbolType.UNKNOWN, module_key, not_yet_found_in_module = True, imported=False)
   module_keys.add(module_key)
   # Add to cache
   # self._module_key_symbols_cache[module_key][real_name] = entry
@@ -636,7 +660,7 @@ def _update_symbol(module_keys, symbol_dict, symbol_alias_dict, module_key, valu
   # Check if entry only was present due to imports and is no longer imported by anyone. If it is
   # no longer reference and not found directly from a module, we should delete it.
   if entry.import_count <= 0 and entry.not_yet_found_in_module:
-    del symbol_dict[real_name][key]
+    del symbol_dict[real_name][(module_key, is_module_itself)]
   if as_name:
     symbol_alias_count_dict = symbol_alias_dict[as_name]
     args = (real_name, module_key, is_module_itself)
@@ -768,8 +792,9 @@ class SymbolIndex:
 
   @staticmethod
   def create_index(save_dir, sys_path=sys.path):
-    if not os.path.exists(save_dir):
-      os.makedirs(save_dir)
+    assert not os.path.exists(save_dir)
+    os.makedirs(save_dir)
+    
     index = SymbolIndex(save_dir, None)
     index._fill_in_missing(sys_path)
     return index
@@ -783,10 +808,11 @@ class SymbolIndex:
     for path in sys_path:
       if not path:
         continue
-      self._get_or_add_location_index_for_dir(path)
+      self._get_or_add_location_index_for_dir(os.path.abspath(path))
 
   @staticmethod
   def build_index_from_package(package_path, save_dir, clean=False, sys_path=sys.path):
+    package_path = os.path.abspath(package_path)
     # TODO: Use this as a marking-mechanism perhaps - i.e. do as this is doing now, but explicitly
     # allow marking 'packages of interest' so it's not always about building a new index - instead,
     # a different project may care about the same one.
@@ -802,7 +828,7 @@ class SymbolIndex:
       index = SymbolIndex.create_index(save_dir, sys_path=sys_path)
     # Ensure path is included in an index.
     index._get_or_add_location_index_for_dir(package_path, True)
-    index.add_path(package_path, )
+    index.add_path(package_path, is_import_tracking=True)
     index.save()
     return index
 
@@ -816,6 +842,7 @@ class SymbolIndex:
   def _get_or_add_location_index_for_dir(self, directory, is_import_tracking=False):
     if not os.path.exists(directory):
       return
+    directory = os.path.abspath(directory)
     location_index = self._get_location_index_for_filename(directory)
     # TODO: If a _LocationIndex exists already w/o is_import_tracking and we want it, we need to do
     # a bunch of work to go track everything. Also, might need to split out. DF"KDSOIFJDS. Too tired.
@@ -855,7 +882,7 @@ class SymbolIndex:
     if module_key.module_source_type == module_loader.ModuleSourceType.BUILTIN:
       return self._builtins_location_index
 
-    filename = module_key.get_filename()
+    filename = module_key.get_filename(prefer_stub=False)
     location_index = self._get_location_index_for_filename(filename)
     if not location_index:
       # Darn, need to create.
@@ -866,6 +893,7 @@ class SymbolIndex:
     return location_index
 
   def _get_location_index_for_filename(self, filename):
+    filename = os.path.abspath(filename)
     trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(
         filename, filter_fn=trie_has_location_index)
     if trie:
@@ -873,6 +901,7 @@ class SymbolIndex:
     return None
 
   def update(self, directory, is_import_tracking):
+    directory = os.path.abspath(directory)
     # If dir is lower than multiple indicies, multiple indicies may be associated with it.
     # location_indicies = self._get_location_indicies_for_dir(directory)
     trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(
@@ -885,6 +914,7 @@ class SymbolIndex:
     return location_index.update(directory)
 
   def add_path(self, path, is_import_tracking=False):
+    path = os.path.abspath(path)
     assert os.path.exists(path)
     if not os.path.isdir(path):
       self.add_file(path)
@@ -895,6 +925,7 @@ class SymbolIndex:
     return location_index.add_path(path)
 
   def add_file(self, filename):
+    filename = os.path.abspath(filename)
     module_key = module_loader.ModuleKey.from_filename(filename)
     self._add_module_by_key(module_key)
 
@@ -909,6 +940,7 @@ class SymbolIndex:
       location_index = self._get_or_add_location_index_for_dir(
           os.path.dirname(module_key.get_filename(prefer_stub=False)))
     assert location_index
+    assert not module_key.is_loadable_by_file() or (location_index.location in module_key.get_filename(False))
     newly_added = location_index._add_module_by_key(module_key)
     if newly_added:
       self._module_key_to_location_index_dict[module_key] = location_index

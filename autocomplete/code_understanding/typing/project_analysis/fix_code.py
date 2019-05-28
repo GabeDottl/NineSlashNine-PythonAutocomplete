@@ -202,7 +202,7 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
     imported_symbol = as_name if as_name else from_import_name
     if not value:
       assert module_key.is_loadable_by_file()
-      name = module_name_from_filename_relative_to_dir(import_.module_key.get_filename(), directory)
+      name = module_name_from_filename_relative_to_dir(import_.module_key.get_filename(False), directory)
       return imported_symbol == name[name.rfind('.') + 1:]
 
     if value == imported_symbol:
@@ -303,7 +303,7 @@ def symbol_entry_file_distance(symbol_entry, directory):
   module_key = symbol_entry.get_module_key()
   if not module_key.is_loadable_by_file():
     return 4  # No filename is probably a builtin - fallback to some reasonable default score.
-  return file_distance(module_key.get_filename(), directory)
+  return file_distance(module_key.get_filename(False), directory)
 
 
 def file_distance(filename1, filename2):
