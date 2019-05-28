@@ -112,7 +112,7 @@ def test_micro_index_lifecycle():
     assert len(list(index.find_symbol('a'))) == 2
     assert len(list(index.find_symbol('y'))) == 1
     source = '''
-import .test.y
+from .test import y
 '''
     x_py = os.path.join(A, 'x.py')
     with open(x_py, 'w') as f:
@@ -120,13 +120,15 @@ import .test.y
     assert index.update(A) == 1
     assert len(list(index.find_symbol('x'))) == 1
     y_entries = list(index.find_symbol('y'))
+    assert len(y_entries) == 2
+    # TODO: Make sure we pick the right symbol entry here - this might break randomly.
     assert y_entries[0].get_import_count() == 1
     # Remove x.py.
     os.remove(x_py)
     assert index.update(A) == 1
     # No more references to y.
     assert y_entries[0].get_import_count() == 0
-    assert len(list(index.find_symbol('a'))) == 1
+    assert len(list(index.find_symbol('y'))) == 1
     assert len(list(index.find_symbol('x'))) == 0
 
   finally:

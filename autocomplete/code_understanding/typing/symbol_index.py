@@ -388,12 +388,15 @@ class _LocationIndex:
     self._modified_since_save = True  # File history changed if nothing else.
 
   def remove_file(self, filename):
+    symbol_index = self._symbol_index_weakref()
+    if not symbol_index:
+      return
     # TODO: Merge better with _add_module_by_key.
     module_key = module_loader.ModuleKey.from_filename(filename)
     if module_key not in self._module_key_symbols_cache:
       warning(f'Scanning symbol_dict for lone key :/.')
       self._add_module_keys_symbols_to_cache([module_key])
-      existing_symbols = self._module_key_symbols_cache[module_key]
+    existing_symbols = self._module_key_symbols_cache[module_key]
     for name in existing_symbols.keys():
       del self.symbol_dict[name][(module_key, False)]
     del self.symbol_dict[module_key.get_module_basename()][(module_key, True)]
@@ -404,7 +407,7 @@ class _LocationIndex:
         location_index = symbol_index._get_location_index_for_module_key(module_key)
         # Remove any symbol references that are no longer present in the file.
         for value, as_name in existing_value_as_name_set:
-          _update_symbol(location_index, module_key, value, as_name, -1)
+          _update_symbol(location_index.symbol_dict, location_index.symbol_alias_dict, module_key=module_key, value=value, as_name=as_name, count_delta=-1)
     self._modified_since_save = True
 
   def _add_module_by_key(self, module_key, check_descendent_index=True, check_timestamp=True):
@@ -455,6 +458,7 @@ class _LocationIndex:
         warning(f'Scanning symbol_dict for lone key :/.')
         self._add_module_keys_symbols_to_cache([module_key])
       existing_symbols = self._module_key_symbols_cache[module_key]
+      del self._module_key_symbols_cache[module_key]  # About to invalidate.
     else:
       existing_symbols = {}
     for name, member in module.items():
@@ -534,7 +538,7 @@ class _LocationIndex:
         _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, 1)
       # Remove any symbol references that are no longer present in the file.
       for value, as_name in existing_value_as_name_set:
-        _update_symbol(location_index, module_key, value, as_name, -1)
+        _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, -1)
       # Determine if the symbols imported by the module have changed - update if so.
       if changed or existing_value_as_name_set:
         existing_module_key_to_value_as_name_dict[module_key] = set(value_as_name_list)
@@ -555,7 +559,7 @@ class _LocationIndex:
 
     with open(filename, 'rb') as f:
       d = msgpack.unpack(f, use_list=False, raw=False)
-      return defaultdict(set, {k: set(v) for k, v in d.items()})
+      return defaultdict(set, {module_loader.ModuleKey.deserialize(k): set(v) for k, v in d.items()})
 
   def _save_existing_module_value_as_names(self, module_key, existing_module_value_as_names):
     # TODO: Make this async & start load before doing anything with the module to get higher
@@ -576,14 +580,15 @@ def _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, c
   is_module_itself = False if value else True
   key = (module_key, is_module_itself)
   entry = symbol_dict[real_name][key]
-  entry.import_count += 1
+  entry.import_count += count_delta
   if as_name:
     symbol_alias_count_dict = symbol_alias_dict[as_name]
     args = (real_name, module_key, is_module_itself)
     if args in symbol_alias_count_dict:
-      symbol_alias_count_dict[args].import_count += 1
+      symbol_alias_count_dict[args].import_count += count_delta
     else:
-      symbol_alias_count_dict[args] = _SymbolAlias(*args, import_count=1)
+      assert count_delta > 0
+      symbol_alias_count_dict[args] = _SymbolAlias(*args, import_count=count_delta)
 
 
 def _track_modules(graph, source_dir):
