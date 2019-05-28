@@ -83,6 +83,7 @@ class _InternalSymbolEntry:
   symbol_type: SymbolType = attr.ib()
   module_key: module_loader.ModuleKey = attr.ib()
   # symbol_meta = attr.ib(None)
+  not_yet_found_in_module = attr.ib(False)
   is_module_itself: bool = attr.ib(False)
   imported: bool = attr.ib(False)
   import_count: int = attr.ib(0)
@@ -202,7 +203,8 @@ class _LocationIndex:
     for symbol in utils.get_possible_builtin_symbols():
       if symbol not in index.symbol_dict:
         index.symbol_dict[symbol][(builtins_module_key,
-                                   False)] = _InternalSymbolEntry(SymbolType.UNKNOWN, builtins_module_key)
+                                   False)] = _InternalSymbolEntry(symbol_type=SymbolType.UNKNOWN,
+                                                                  module_key=builtins_module_key)
     return index
 
   @staticmethod
@@ -407,7 +409,12 @@ class _LocationIndex:
         location_index = symbol_index._get_location_index_for_module_key(module_key)
         # Remove any symbol references that are no longer present in the file.
         for value, as_name in existing_value_as_name_set:
-          _update_symbol(location_index.symbol_dict, location_index.symbol_alias_dict, module_key=module_key, value=value, as_name=as_name, count_delta=-1)
+          _update_symbol(location_index.symbol_dict,
+                         location_index.symbol_alias_dict,
+                         module_key=module_key,
+                         value=value,
+                         as_name=as_name,
+                         count_delta=-1)
     self._modified_since_save = True
 
   def _add_module_by_key(self, module_key, check_descendent_index=True, check_timestamp=True):
@@ -473,32 +480,51 @@ class _LocationIndex:
           entry.symbol_type = symbol_type
           self._modified_since_save = True
 
+        if entry.not_yet_found_in_module:
+          entry.not_yet_found_in_module = True
+          self._modified_since_save = True
+
         if entry.imported != member.imported:
           entry.symbol_type = symbol_type
           self._modified_since_save = True
         del existing_symbols[name]
       else:
-        self.symbol_dict[name][(module_key, False)] = _InternalSymbolEntry(SymbolType.from_pobject(member),
-                                                                           module_key,
-                                                                           imported=member.imported)
+        entry = _get_or_add_entry(symbol_dict=self.symbol_dict,
+                          module_key=module_key,
+                          is_module_itself=False,
+                          real_name=name)
+        entry.symbol_type = SymbolType.from_pobject(member)
+        entry.not_yet_found_in_module = False
+        entry.imported = False
 
     # Remove any remaining existing symbols that have since been removed.
     for name in existing_symbols.keys():
-      del self.symbol_dict[name][(module_key, False)]
+      d = self.symbol_dict[name]
+      entry = d[(module_key, False)]
+      if entry.import_count > 0:
+        # Some tracked things are still importing this it seems - just mark it as no longer found.
+        entry.not_yet_found_in_module = True
+      else:  # Safe to delete.
+        del d[(module_key, False)]
 
     if not module_key_already_present:
       self._modified_since_save = True
       self.module_keys.add(module_key)
-      self.symbol_dict[module_key.get_module_basename()][(module_key,
-                                                          True)] = _InternalSymbolEntry(SymbolType.MODULE,
-                                                                                        module_key,
-                                                                                        is_module_itself=True)
+      entry = _get_or_add_entry(symbol_dict=self.symbol_dict,
+                                module_key=module_key,
+                                is_module_itself=True,
+                                real_name=module_key.get_module_basename())
+      entry.symbol_type = SymbolType.MODULE
+      entry.not_yet_found_in_module = False
+      entry.imported = False
+
     if module_key.is_loadable_by_file():
       self._modified_since_save = True
       self._file_history_tracker.update_timestamp_for_path(module_key.get_filename(prefer_stub=False))
 
     if self.is_import_tracking:
       module_loader.keep_graphs_default = False
+    info(f'module_key loaded: {module_key}')
     return not module_key_already_present
 
   def _add_module_keys_symbols_to_cache(self, module_keys):
@@ -523,7 +549,8 @@ class _LocationIndex:
 
     symbol_use_changed = False
     for module_key, value_as_name_list in imported_module_key_to_value_as_names.items():
-      symbol_index._add_module_by_key(module_key)
+      if module_key not in symbol_index._module_key_to_location_index_dict:
+        symbol_index._add_module_by_key(module_key)
       location_index = symbol_index._get_location_index_for_module_key(module_key)
       symbol_dict = location_index.symbol_dict
       symbol_alias_dict = location_index.symbol_alias_dict
@@ -575,17 +602,35 @@ class _LocationIndex:
     return os.path.join(self.save_dir, f'{str(hash(module_key))}.msg')
 
 
+def _get_or_add_entry(symbol_dict, module_key, is_module_itself, real_name):
+  key = (module_key, is_module_itself)
+  key_dict = symbol_dict[real_name]
+  if key in key_dict:
+    return key_dict[key]
+  # Dynamically create and track.
+  entry = key_dict[key] = _InternalSymbolEntry(SymbolType.UNKNOWN, module_key, imported=False)
+  # Add to cache
+  # self._module_key_symbols_cache[module_key][real_name] = entry
+  return entry
+
+
 def _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, count_delta):
   real_name = value if value else module_key.get_module_basename()
   is_module_itself = False if value else True
-  key = (module_key, is_module_itself)
-  entry = symbol_dict[real_name][key]
+  entry = _get_or_add_entry(symbol_dict, module_key, is_module_itself, real_name)
   entry.import_count += count_delta
+  # Check if entry only was present due to imports and is no longer imported by anyone. If it is
+  # no longer reference and not found directly from a module, we should delete it.
+  if entry.import_count <= 0 and entry.not_yet_found_in_module:
+    del symbol_dict[real_name][key]
   if as_name:
     symbol_alias_count_dict = symbol_alias_dict[as_name]
     args = (real_name, module_key, is_module_itself)
     if args in symbol_alias_count_dict:
-      symbol_alias_count_dict[args].import_count += count_delta
+      alias = symbol_alias_count_dict[args]
+      alias.import_count += count_delta
+      if alias.import_count <= 0:  # Alias no longer used anywhere.
+        del symbol_alias_count_dict[args]
     else:
       assert count_delta > 0
       symbol_alias_count_dict[args] = _SymbolAlias(*args, import_count=count_delta)
@@ -757,14 +802,21 @@ class SymbolIndex:
     # TODO: If a _LocationIndex exists already w/o is_import_tracking and we want it, we need to do
     # a bunch of work to go track everything. Also, might need to split out. DF"KDSOIFJDS. Too tired.
     if is_import_tracking and location_index and not location_index.is_import_tracking:
-      assert location_index.location == directory
-      location_index.is_import_tracking = True
-      assert not location_index.module_keys  # Ensure we've not already added shit.
+      if location_index.location != directory:
+        assert not location_index.module_keys
+        return self._create_location_index(directory, is_import_tracking)
+      else:
+        assert not location_index.module_keys  # Ensure we've not already added shit.
+        location_index.is_import_tracking = True
+
     if location_index:
       # TODO: Support splitting _LocationIndicies beneath a higher-level directory. E.g. /a -> /a/b.
       return location_index
 
     # Doesn't exist - create.
+    self._create_location_index(directory, is_import_tracking)
+
+  def _create_location_index(self, directory, is_import_tracking):
     location_index = _LocationIndex.create_location_index(self._get_location_save_dir(directory), directory,
                                                           is_import_tracking, self)
     self._location_indicies.append(location_index)
