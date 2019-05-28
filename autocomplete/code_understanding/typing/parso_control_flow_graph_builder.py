@@ -306,7 +306,6 @@ class ParsoControlFlowGraphBuilder:
   def _create_cfg_node_for_for_stmt(self, node):
     # Example for loop_variables in loop_expression: suite
     loop_variables = variables_from_node(node.children[1])
-    assert not isinstance(loop_variables, UnknownExpression)
     loop_expression = expression_from_node(node.children[3])
     suite = self._create_cfg_node(node.children[-1])
     return ForCfgNode(loop_variables, loop_expression, suite, parse_node=parse_from_parso(node))
@@ -770,10 +769,13 @@ def _slice_from_subscriptlist(node) -> Expression:
   # subscriptlist: subscript (',' subscript)* [',']
   # subscript: test | [test] ':' [test] [sliceop]
   # sliceop: ':' [test]
-  if node.type != 'subscriptlist' and node.type != 'subscript':# and node.type != 'sliceop':
+  if node.type != 'subscriptlist' and node.type != 'subscript' and node.type != 'operator':# and node.type != 'sliceop':
     expression = expression_from_node(node)
     assert isinstance(expression, Expression)
     return expression
+  elif node.type == 'operator':
+    assert node.value == ':'
+    return Slice()
   elif node.type == 'subscriptlist':
     values = ItemListExpression(
         list(
@@ -907,9 +909,7 @@ def expression_from_node(node):
   if node.type == 'yield_expr':
     return expression_from_yield_expr(node)
 
-    # return UnknownExpression()
   debug(f'Unhanded type!!!!: {node_info(node)}')
-  # return UnknownExpression(node.get_code())
   assert False, node_info(node)
   raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))

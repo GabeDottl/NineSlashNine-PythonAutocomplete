@@ -295,12 +295,19 @@ class _LocationIndex:
     filename = os.path.join(save_dir, 'index.msg')
     assert os.path.exists(filename)
     with open(filename, 'rb') as f:
+      try:
+        unpacked = msgpack.unpack(f, raw=False, use_list=not readonly)
+      except msgpack.exceptions.UnpackException:
+        warning(f'Unable to unpack {filename}')
+        return None
+      else: 
+         out = _LocationIndex._deserialize(unpacked, save_dir, symbol_index)
       # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
       # cannot be appended to and thus make the SymbolIndex essentially readonly.
-      out = _LocationIndex._deserialize(msgpack.unpack(f, raw=False, use_list=not readonly), save_dir,
-                                        symbol_index)
+    out = _LocationIndex._deserialize(unpacked, save_dir,
+                                      symbol_index)
     if out.is_file_location:
-      out._file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'))
+      out._file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'), out.location, python_package_filter)
     else:
       out._file_history_tracker = None
 
@@ -339,6 +346,7 @@ class _LocationIndex:
         self.add_file(filename, check_timestamp=False)
       else:
         self.remove_file(filename)
+    self.save()
     return update_count
 
   def add_path(self, path=False):
@@ -353,19 +361,19 @@ class _LocationIndex:
 
     if not os.path.isdir(path):
       self.add_file(path)
-      return
+      return 1
 
     # Always add to the location index that is closest to the path.
     check_descendent_index = self._location_index_trie and self._location_index_trie.has_children()
     if check_descendent_index:
       location_index = self._location_index_trie.get_most_recent_ancestor_or_actual(path).store_value()
       if id(location_index) != id(self):
-        location_index.add_path(path)
-        return
+        return location_index.add_path(path)
 
     location_indicies = [self] + list(
         self._location_index_trie.children_store_value_iter()) if check_descendent_index else [self]
 
+    add_count = 0
     for location_index in location_indicies:
       # Note: this will naturally filter out non-python packages by chekcing for __init__.py in
       # subdirs. It will *not* check for __init__.py directly under |path|.
@@ -374,6 +382,9 @@ class _LocationIndex:
       for update, full_filename in update_and_full_filenames:
         if update and is_python_file(full_filename):
           self.add_file(full_filename, check_descendent_index=check_descendent_index)
+          add_count +=1
+    self.save()
+    return add_count
 
   def add_file(self, filename, *, check_descendent_index=True, check_timestamp=True):
     if not is_python_file(filename):
@@ -409,7 +420,7 @@ class _LocationIndex:
         location_index = symbol_index._get_location_index_for_module_key(module_key)
         # Remove any symbol references that are no longer present in the file.
         for value, as_name in existing_value_as_name_set:
-          _update_symbol(location_index.symbol_dict,
+          _update_symbol(location_index.module_keys, location_index.symbol_dict,
                          location_index.symbol_alias_dict,
                          module_key=module_key,
                          value=value,
@@ -489,7 +500,7 @@ class _LocationIndex:
           self._modified_since_save = True
         del existing_symbols[name]
       else:
-        entry = _get_or_add_entry(symbol_dict=self.symbol_dict,
+        entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
                           module_key=module_key,
                           is_module_itself=False,
                           real_name=name)
@@ -510,7 +521,7 @@ class _LocationIndex:
     if not module_key_already_present:
       self._modified_since_save = True
       self.module_keys.add(module_key)
-      entry = _get_or_add_entry(symbol_dict=self.symbol_dict,
+      entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
                                 module_key=module_key,
                                 is_module_itself=True,
                                 real_name=module_key.get_module_basename())
@@ -552,6 +563,7 @@ class _LocationIndex:
       if module_key not in symbol_index._module_key_to_location_index_dict:
         symbol_index._add_module_by_key(module_key)
       location_index = symbol_index._get_location_index_for_module_key(module_key)
+      module_keys = location_index.module_keys
       symbol_dict = location_index.symbol_dict
       symbol_alias_dict = location_index.symbol_alias_dict
       existing_value_as_name_set = existing_module_key_to_value_as_name_dict[module_key]
@@ -562,10 +574,10 @@ class _LocationIndex:
           continue
         changed = True
         # Not already added - add to symbol entry.
-        _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, 1)
+        _update_symbol(module_keys, symbol_dict, symbol_alias_dict, module_key, value, as_name, 1)
       # Remove any symbol references that are no longer present in the file.
       for value, as_name in existing_value_as_name_set:
-        _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, -1)
+        _update_symbol(module_keys, symbol_dict, symbol_alias_dict, module_key, value, as_name, -1)
       # Determine if the symbols imported by the module have changed - update if so.
       if changed or existing_value_as_name_set:
         existing_module_key_to_value_as_name_dict[module_key] = set(value_as_name_list)
@@ -602,22 +614,23 @@ class _LocationIndex:
     return os.path.join(self.save_dir, f'{str(hash(module_key))}.msg')
 
 
-def _get_or_add_entry(symbol_dict, module_key, is_module_itself, real_name):
+def _get_or_add_entry(module_keys, symbol_dict, module_key, is_module_itself, real_name):
   key = (module_key, is_module_itself)
   key_dict = symbol_dict[real_name]
   if key in key_dict:
     return key_dict[key]
   # Dynamically create and track.
   entry = key_dict[key] = _InternalSymbolEntry(SymbolType.UNKNOWN, module_key, imported=False)
+  module_keys.add(module_key)
   # Add to cache
   # self._module_key_symbols_cache[module_key][real_name] = entry
   return entry
 
 
-def _update_symbol(symbol_dict, symbol_alias_dict, module_key, value, as_name, count_delta):
+def _update_symbol(module_keys, symbol_dict, symbol_alias_dict, module_key, value, as_name, count_delta):
   real_name = value if value else module_key.get_module_basename()
   is_module_itself = False if value else True
-  entry = _get_or_add_entry(symbol_dict, module_key, is_module_itself, real_name)
+  entry = _get_or_add_entry(module_keys, symbol_dict, module_key, is_module_itself, real_name)
   entry.import_count += count_delta
   # Check if entry only was present due to imports and is no longer imported by anyone. If it is
   # no longer reference and not found directly from a module, we should delete it.
@@ -719,6 +732,10 @@ class SymbolIndex:
         if not os.path.exists(os.path.join(full_filename, 'index.msg')):
           continue
         location_index = _LocationIndex.load(full_filename, index)
+        if not location_index:
+          warning(f'Failed to load LocationIndex from {full_filename}. Deleting corrupted dir.')
+          shutil.rmtree(full_filename)
+          continue
         location_indicies.append(location_index)
         if not location_index.is_file_location:
           index._builtins_location_index = location_index
@@ -814,7 +831,7 @@ class SymbolIndex:
       return location_index
 
     # Doesn't exist - create.
-    self._create_location_index(directory, is_import_tracking)
+    return self._create_location_index(directory, is_import_tracking)
 
   def _create_location_index(self, directory, is_import_tracking):
     location_index = _LocationIndex.create_location_index(self._get_location_save_dir(directory), directory,
@@ -839,7 +856,13 @@ class SymbolIndex:
 
     filename = module_key.get_filename()
     location_index = self._get_location_index_for_filename(filename)
+    if not location_index:
+      # Darn, need to create.
+      info(f'Creating LocationIndex for dir of {filename}')
+      location_index = self._get_or_add_location_index_for_dir(os.path.dirname(filename))
+    assert location_index
     self._module_key_to_location_index_dict[module_key] = location_index
+    return location_index
 
   def _get_location_index_for_filename(self, filename):
     trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(
@@ -848,12 +871,15 @@ class SymbolIndex:
       return trie.store_value()
     return None
 
-  def update(self, directory):
+  def update(self, directory, is_import_tracking):
     # If dir is lower than multiple indicies, multiple indicies may be associated with it.
     # location_indicies = self._get_location_indicies_for_dir(directory)
     trie = self._file_location_indicies_trie.get_most_recent_ancestor_or_actual(
         directory, filter_fn=trie_has_location_index)
-    assert trie, "Directory not captured in index already."
+    if not trie:
+      info(f'Adding {directory} to index!')
+      return self.add_path(directory, is_import_tracking=is_import_tracking)
+    assert trie, "Directory not captured in index yet."
     location_index = trie.store_value()
     return location_index.update(directory)
 
@@ -861,11 +887,11 @@ class SymbolIndex:
     assert os.path.exists(path)
     if not os.path.isdir(path):
       self.add_file(path)
-      return
+      return 1
 
     location_index = self._get_or_add_location_index_for_dir(path, is_import_tracking)
 
-    location_index.add_path(path)
+    return location_index.add_path(path)
 
   def add_file(self, filename):
     module_key = module_loader.ModuleKey.from_filename(filename)

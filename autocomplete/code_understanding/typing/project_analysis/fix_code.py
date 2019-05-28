@@ -390,7 +390,7 @@ def main(index_file, target_file, force):
   index = symbol_index.SymbolIndex.load(index_file)
   if os.path.isdir(target_file):
     # TODO: Figure out smarter way to specify index updating.
-    index.update(target_file)
+    index.update(target_file, True)
     from glob import glob
     from . import file_history_tracker
     fht = file_history_tracker.FileHistoryTracker.load(os.path.join(os.getenv('HOME'),
