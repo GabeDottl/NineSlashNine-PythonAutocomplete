@@ -3,9 +3,18 @@ import ast
 import _ast
 import attr
 from . import errors
-from .control_flow_graph_nodes import (TypeHintStmtCfgNode, AssignmentStmtCfgNode, ExceptCfgNode, ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression, ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode, RaiseCfgNode)  # Temporary.
+from .control_flow_graph_nodes import (TypeHintStmtCfgNode, AssignmentStmtCfgNode, ExceptCfgNode,
+                                       ExpressionCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode,
+                                       GroupCfgNode, IfCfgNode, ImportCfgNode, KlassCfgNode, LambdaExpression,
+                                       ParseNode, ReturnCfgNode, TryCfgNode, WhileCfgNode, WithCfgNode,
+                                       RaiseCfgNode)  # Temporary.
 from .control_flow_graph_nodes import ModuleCfgNode
-from .expressions import (InvertExpression, AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, ExtSlice, IndexSlice, StarredExpression, SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)  # Temporary.
+from .expressions import (InvertExpression, AndOrExpression, AttributeExpression, CallExpression,
+                          ComparisonExpression, DictExpression, ForComprehension, ForComprehensionExpression,
+                          IfElseExpression, ItemListExpression, KeyValueAssignment, KeyValueForComp,
+                          ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression,
+                          Slice, ExtSlice, IndexSlice, StarredExpression, SubscriptExpression,
+                          TupleExpression, VariableExpression, YieldExpression)  # Temporary.
 from .language_objects import (Parameter, ParameterType)  # Temporary.
 from ...nsn_logging import warning
 
@@ -21,7 +30,10 @@ class AstControlFlowGraphBuilder:
       ast_node = ast.parse(source)
     except SyntaxError as e:
       raise errors.AstUnableToParse(e)
-    visitor = Visitor(self.module_loader, module=self._module, source_filename=source_filename, container_stack=[])
+    visitor = Visitor(self.module_loader,
+                      module=self._module,
+                      source_filename=source_filename,
+                      container_stack=[])
     visitor.visit(ast_node)
     return visitor.root
 
@@ -144,16 +156,17 @@ class Visitor(ast.NodeVisitor):
     # (expr target, expr annotation, expr? value, int simple)
     # 'simple' indicates that we annotate simple name without parens
     if not ast_node.value:
-      self.push(TypeHintStmtCfgNode(expression_from_node(ast_node.target),
+      self.push(
+          TypeHintStmtCfgNode(expression_from_node(ast_node.target),
                               expression_from_node(ast_node.annotation),
                               parse_node=parse_from_ast(ast_node)))
     else:
       self.push(
           AssignmentStmtCfgNode(expression_from_node(ast_node.target),
-                              '=',
-                              expression_from_node(ast_node.value),
-                              parse_node=parse_from_ast(ast_node),
-                              type_hint_expression=expression_from_node(ast_node.annotation)))
+                                '=',
+                                expression_from_node(ast_node.value),
+                                parse_node=parse_from_ast(ast_node),
+                                type_hint_expression=expression_from_node(ast_node.annotation)))
 
   def _group_from_body(self, body):
     suite = GroupCfgNode()
@@ -230,10 +243,10 @@ class Visitor(ast.NodeVisitor):
 
   def visit_Raise(self, ast_node):
     # (expr? exc, expr? cause)
-    self.push(RaiseCfgNode(
-      exception=expression_from_node(ast_node.exc) if ast_node.exc else None,
-      cause=expression_from_node(ast_node.cause) if ast_node.cause else None,
-      parse_node=parse_from_ast(ast_node)))
+    self.push(
+        RaiseCfgNode(exception=expression_from_node(ast_node.exc) if ast_node.exc else None,
+                     cause=expression_from_node(ast_node.cause) if ast_node.cause else None,
+                     parse_node=parse_from_ast(ast_node)))
 
   def visit_Try(self, ast_node):
     # (stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
@@ -246,8 +259,8 @@ class Visitor(ast.NodeVisitor):
       except_nodes.append(
           ExceptCfgNode(
               expression_from_node(except_handler.type) if except_handler.type else None,
-              VariableExpression(except_handler.name, parse_node=parse_from_ast(ast_node)) if except_handler.name else None,
-              self._group_from_body(except_handler.body)))
+              VariableExpression(except_handler.name, parse_node=parse_from_ast(ast_node))
+              if except_handler.name else None, self._group_from_body(except_handler.body)))
 
     self.push(TryCfgNode(suite, except_nodes, else_suite, finally_suite))
 
@@ -316,9 +329,16 @@ def parameters_from_arguments(arguments):
                   default_expression=expression_from_node(default),
                   type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   for arg in arg_iter:
-    out.append(Parameter(arg.arg, ParameterType.SINGLE, type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
+    out.append(
+        Parameter(arg.arg,
+                  ParameterType.SINGLE,
+                  type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   if arguments.vararg:
-    out.append(Parameter(arguments.vararg.arg, ParameterType.ARGS, type_hint_expression=expression_from_node(arguments.vararg.annotation) if arguments.vararg.annotation else None))
+    out.append(
+        Parameter(arguments.vararg.arg,
+                  ParameterType.ARGS,
+                  type_hint_expression=expression_from_node(arguments.vararg.annotation)
+                  if arguments.vararg.annotation else None))
   kwarg_iter = iter(arguments.kwonlyargs)
   for default, arg in zip(arguments.kw_defaults, kwarg_iter):
     out.append(
@@ -332,7 +352,11 @@ def parameters_from_arguments(arguments):
                   ParameterType.SINGLE,
                   type_hint_expression=expression_from_node(arg.annotation) if arg.annotation else None))
   if arguments.kwarg:
-    out.append(Parameter(arguments.kwarg.arg, ParameterType.KWARGS, type_hint_expression=expression_from_node(arguments.kwarg.annotation) if arguments.kwarg.annotation else None))
+    out.append(
+        Parameter(arguments.kwarg.arg,
+                  ParameterType.KWARGS,
+                  type_hint_expression=expression_from_node(arguments.kwarg.annotation)
+                  if arguments.kwarg.annotation else None))
   return out
 
 
@@ -364,7 +388,9 @@ def expression_from_node(ast_node):
   if isinstance(ast_node, _ast.Lambda):
     # (arguments args, expr body)
     parameters = parameters_from_arguments(ast_node.args)
-    return LambdaExpression(parameters, expression_from_node(ast_node.body), parse_node=parse_from_ast(ast_node))
+    return LambdaExpression(parameters,
+                            expression_from_node(ast_node.body),
+                            parse_node=parse_from_ast(ast_node))
   if isinstance(ast_node, _ast.IfExp):
     # (expr test, expr body, expr orelse)
     return IfElseExpression(expression_from_node(ast_node.body), expression_from_node(ast_node.test),

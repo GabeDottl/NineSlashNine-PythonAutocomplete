@@ -129,7 +129,9 @@ def test_no_missing_symbols_in_typing_package():
 
 def test_module_exports():
   HOME = os.getenv('HOME')
-  with open(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/parso_control_flow_graph_builder.py') as f:
+  with open(
+      f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/parso_control_flow_graph_builder.py'
+  ) as f:
     source = ''.join(f.readlines())
   graph = graph_from_source(source, __file__)
   exports = graph.get_defined_and_exported_symbols()

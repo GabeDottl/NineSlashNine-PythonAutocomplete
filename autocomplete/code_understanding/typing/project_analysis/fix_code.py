@@ -114,9 +114,8 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
   new_source = refactor.apply_import_changes(source, changes.values())
 
   # Apply any remaining fixes.
-  new_source = refactor.insert_imports(new_source, filename,
-                                                remaining_fixes)
-  
+  new_source = refactor.insert_imports(new_source, filename, remaining_fixes)
+
   # SortImports seems to have some odd edge-cases in which it's completely broken right now....
   # Disabled.
   # if sort_imports and changed:
@@ -223,7 +222,8 @@ class Import:
   # TODO @instance_memoize
   def get_module_name_and_value(self, source_dir):
     if self.module_key.is_loadable_by_file():
-      module_name = module_name_from_filename_relative_to_dir(self.module_key.get_filename(prefer_stub=False), source_dir)
+      module_name = module_name_from_filename_relative_to_dir(self.module_key.get_filename(prefer_stub=False),
+                                                              source_dir)
     else:
       module_name = self.module_key.get_module_basename()
 
@@ -393,17 +393,17 @@ def main(index_file, target_file, force):
     index.update(target_file, True)
     from glob import glob
     from . import file_history_tracker
-    fht = file_history_tracker.FileHistoryTracker.load(os.path.join(os.getenv('HOME'),
-                                                                    'fix_code_updates.msg'),
-                                                      root_dir=target_file,  # TODO: Will this fuck things up if this changes across calls?
-                                                      filter_fn=file_history_tracker.python_package_filter)
+    fht = file_history_tracker.FileHistoryTracker.load(
+        os.path.join(os.getenv('HOME'), 'fix_code_updates.msg'),
+        root_dir=target_file,  # TODO: Will this fuck things up if this changes across calls?
+        filter_fn=file_history_tracker.python_package_filter)
     updated_a_file = False
     for updated, filename in fht.get_files_in_dir_modified_since_timestamp(target_file, auto_update=True):
       if not updated:
         continue  # deleted.
       assert is_python_file(filename)
       info(f'Fixing symbols in {filename}')
-      
+
       new_code, changed = fix_missing_symbols_in_file(filename, index)
       if changed:
         info(f'Made updates to {filename}')

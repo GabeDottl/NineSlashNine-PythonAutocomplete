@@ -6,7 +6,10 @@ from .trie import Trie, FilePathTrie
 
 
 def test_trie():
-  examples = ['ab','abcde', 'ab', 'abcde', 'abcdf', 'abc', 'ab', 'abcdfg','ab','ab', 'qres', 'abcde', 'abc', 'abd', 'abd', 'abde']
+  examples = [
+      'ab', 'abcde', 'ab', 'abcde', 'abcdf', 'abc', 'ab', 'abcdfg', 'ab', 'ab', 'qres', 'abcde', 'abc', 'abd',
+      'abd', 'abde'
+  ]
   counter = Counter(examples)
   counts = dict(zip(counter.keys(), counter.values()))
 
@@ -30,12 +33,14 @@ def test_trie():
 
   t.copy_with_lower_values_pruned(2)
 
+
 def test_trie_with_file_tree():
-  base_dir = os.path.join(os.getenv('CODE'), 'autocomplete')#, 'autocomplete', 'code_understanding', 'typing')
+  base_dir = os.path.join(os.getenv('CODE'),
+                          'autocomplete')  #, 'autocomplete', 'code_understanding', 'typing')
   assert os.path.exists(base_dir)
   directories = set()
   trie = FilePathTrie()
-  paths = glob.glob(os.path.join(base_dir, '**','*.py'), recursive=True)
+  paths = glob.glob(os.path.join(base_dir, '**', '*.py'), recursive=True)
   for path in paths:
     full_path = os.path.join(base_dir, path)
     directories.add(os.path.dirname(full_path))
@@ -58,6 +63,7 @@ def test_trie_with_file_tree():
       max_file = t.get_max(directory)
       assert max_file
       assert t.get_max_value_at_or_beneath_prefix(directory) == os.path.getmtime(max_file)
+
 
 if __name__ == '__main__':
   test_trie()

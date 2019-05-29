@@ -36,7 +36,6 @@ e = 2j # TODO: Add support for 1+2j
   # assert module['e'].instance_of(complex).truth()
 
 
-
 if __name__ == "__main__":
   test_simple_assignment()
   test_function_assignment

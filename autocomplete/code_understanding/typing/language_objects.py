@@ -207,11 +207,11 @@ class ModuleImpl(Module):
         return UnknownObject(f'{self.name}.{name}')
       if self._is_package:
         module_key = self.module_loader.get_module_info_from_name(f'.{name}',
-                                                                    os.path.dirname(self.filename))[0]
+                                                                  os.path.dirname(self.filename))[0]
 
         if not module_key.is_bad():
           try:
-              return AugmentedObject(self.module_loader.get_module_from_key(module_key, unknown_fallback=False))
+            return AugmentedObject(self.module_loader.get_module_from_key(module_key, unknown_fallback=False))
           except errors.InvalidModuleError as e:
             pass
       # Commented out because getitem is used by __contains__.

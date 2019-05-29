@@ -316,14 +316,14 @@ class _LocationIndex:
       except msgpack.exceptions.UnpackException:
         warning(f'Unable to unpack {filename}')
         return None
-      else: 
-         out = _LocationIndex._deserialize(unpacked, save_dir, symbol_index)
+      else:
+        out = _LocationIndex._deserialize(unpacked, save_dir, symbol_index)
       # use_list=False is better for performance reasons - tuples faster and lighter, but tuples
       # cannot be appended to and thus make the SymbolIndex essentially readonly.
-    out = _LocationIndex._deserialize(unpacked, save_dir,
-                                      symbol_index)
+    out = _LocationIndex._deserialize(unpacked, save_dir, symbol_index)
     if out.is_file_location:
-      out._file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'), out.location, python_package_filter)
+      out._file_history_tracker = FileHistoryTracker.load(os.path.join(save_dir, 'fht.msg'), out.location,
+                                                          python_package_filter)
     else:
       out._file_history_tracker = None
 
@@ -398,7 +398,7 @@ class _LocationIndex:
       for update, full_filename in update_and_full_filenames:
         if update and is_python_file(full_filename):
           self.add_file(full_filename, check_descendent_index=check_descendent_index)
-          add_count +=1
+          add_count += 1
     self.save()
     return add_count
 
@@ -436,7 +436,8 @@ class _LocationIndex:
         location_index = symbol_index._get_location_index_for_module_key(module_key)
         # Remove any symbol references that are no longer present in the file.
         for value, as_name in existing_value_as_name_set:
-          _update_symbol(location_index.module_keys, location_index.symbol_dict,
+          _update_symbol(location_index.module_keys,
+                         location_index.symbol_dict,
                          location_index.symbol_alias_dict,
                          module_key=module_key,
                          value=value,
@@ -450,7 +451,8 @@ class _LocationIndex:
       filename = module_key.get_filename(prefer_stub=False)
       assert self.location == filename[:len(self.location)]
       # This will get the exact correct trie, regardless of how deep. store_value is a weakref.
-      trie = self._location_index_trie.get_most_recent_ancestor_or_actual(filename[self._get_subtrie_index_pos():], filter_fn=trie_has_location_index)
+      trie = self._location_index_trie.get_most_recent_ancestor_or_actual(
+          filename[self._get_subtrie_index_pos():], filter_fn=trie_has_location_index)
       location_index = trie.store_value()
       return location_index._add_module_by_key(module_key, check_descendent_index=False)
 
@@ -481,7 +483,10 @@ class _LocationIndex:
 
       if self.is_import_tracking:
         module_loader.keep_graphs_default = True
-        module = module_loader.get_module_from_key(module_key, lazy=False, include_graph=True, force_real=True)
+        module = module_loader.get_module_from_key(module_key,
+                                                   lazy=False,
+                                                   include_graph=True,
+                                                   force_real=True)
         assert not module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE
         assert module.graph
         directory = os.path.dirname(module.filename)
@@ -523,10 +528,11 @@ class _LocationIndex:
             self._modified_since_save = True
           del existing_symbols[name]
         else:
-          entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
-                            module_key=module_key,
-                            is_module_itself=False,
-                            real_name=name)
+          entry = _get_or_add_entry(module_keys=self.module_keys,
+                                    symbol_dict=self.symbol_dict,
+                                    module_key=module_key,
+                                    is_module_itself=False,
+                                    real_name=name)
           entry.symbol_type = SymbolType.from_pobject(member)
           entry.not_yet_found_in_module = False
           entry.is_module_itself = False
@@ -545,7 +551,8 @@ class _LocationIndex:
       if not module_key_already_present:
         self._modified_since_save = True
         self.module_keys.add(module_key)
-        entry = _get_or_add_entry(module_keys=self.module_keys, symbol_dict=self.symbol_dict,
+        entry = _get_or_add_entry(module_keys=self.module_keys,
+                                  symbol_dict=self.symbol_dict,
                                   module_key=module_key,
                                   is_module_itself=True,
                                   real_name=module_key.get_module_basename())
@@ -646,7 +653,10 @@ def _get_or_add_entry(module_keys, symbol_dict, module_key, is_module_itself, re
   if key in key_dict:
     return key_dict[key]
   # Dynamically create and track.
-  entry = key_dict[key] = _InternalSymbolEntry(SymbolType.UNKNOWN, module_key, not_yet_found_in_module = True, imported=False)
+  entry = key_dict[key] = _InternalSymbolEntry(SymbolType.UNKNOWN,
+                                               module_key,
+                                               not_yet_found_in_module=True,
+                                               imported=False)
   module_keys.add(module_key)
   # Add to cache
   # self._module_key_symbols_cache[module_key][real_name] = entry
@@ -795,7 +805,7 @@ class SymbolIndex:
   def create_index(save_dir, sys_path=sys.path):
     assert not os.path.exists(save_dir)
     os.makedirs(save_dir)
-    
+
     index = SymbolIndex(save_dir, None)
     index._fill_in_missing(sys_path)
     return index

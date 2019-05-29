@@ -6,12 +6,18 @@ from typing import (List, Tuple, Union)
 import parso
 
 import attr
-from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode, TypeHintStmtCfgNode,
-                                       ForCfgNode, FromImportCfgNode, FuncCfgNode, GroupCfgNode, IfCfgNode, RaiseCfgNode,
-                                       ImportCfgNode, KlassCfgNode, NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression,
-                                       TryCfgNode, WhileCfgNode, WithCfgNode)
+from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
+                                       TypeHintStmtCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode,
+                                       GroupCfgNode, IfCfgNode, RaiseCfgNode, ImportCfgNode, KlassCfgNode,
+                                       NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression, TryCfgNode,
+                                       WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
-from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression, DictExpression, Expression, FactorExpression, ForComprehension, ForComprehensionExpression, IfElseExpression, IndexSlice, ItemListExpression, KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression, MathExpression, NotExpression, SetExpression, Slice, StarredExpression, SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)
+from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression,
+                          DictExpression, Expression, FactorExpression, ForComprehension,
+                          ForComprehensionExpression, IfElseExpression, IndexSlice, ItemListExpression,
+                          KeyValueAssignment, KeyValueForComp, ListExpression, LiteralExpression,
+                          MathExpression, NotExpression, SetExpression, Slice, StarredExpression,
+                          SubscriptExpression, TupleExpression, VariableExpression, YieldExpression)
 from .language_objects import (Parameter, ParameterType)
 from .utils import assert_returns_type
 from ...nsn_logging import (debug, error, info)
@@ -328,7 +334,8 @@ class ParsoControlFlowGraphBuilder:
         except_clause = keyword
         exceptions = expression_from_node(except_clause.children[1])
         if len(except_clause.children) == 4:
-          exception_variable = VariableExpression(except_clause.children[-1].value, parse_node=parse_from_parso(except_clause))
+          exception_variable = VariableExpression(except_clause.children[-1].value,
+                                                  parse_node=parse_from_parso(except_clause))
         else:
           exception_variable = None
         except_nodes.append(ExceptCfgNode(exceptions, exception_variable, suite_node))
@@ -443,17 +450,19 @@ class ParsoControlFlowGraphBuilder:
     # TODO: Handle first child decorator or decorators.
     assert_unexpected_parso(len(node.children) == 2, node_info(node))
     children = []
+
     # TODO: Actually wrap. This just allow us to get the symbols from the CFG.
     def add_dec(decorator):
       wrapper_expression = expression_from_node(decorator.children[1])
       children.append(ExpressionCfgNode(wrapper_expression, parse_node=parse_from_parso(decorator)))
+
     if node.children[0].type == 'decorators':
       for decorator in node.children[0].children:
         add_dec(decorator)
     else:
       assert_unexpected_parso(node.children[0].type == 'decorator', node_info(node))
       add_dec(node.children[0])
-    
+
     children.append(self._create_cfg_node(node.children[1]))
     return GroupCfgNode(children, parse_node=parse_from_parso(node))
 
@@ -562,10 +571,10 @@ def statement_node_from_expr_stmt(node):
       value_node = annasign.children[-1]
       result_expression = expression_from_node(value_node)
       return AssignmentStmtCfgNode(variables,
-                                  operator,
-                                  result_expression,
-                                  parse_node=parse_from_parso(node),
-                                  type_hint_expression=type_hint)
+                                   operator,
+                                   result_expression,
+                                   parse_node=parse_from_parso(node),
+                                   type_hint_expression=type_hint)
     assert len(annasign.children) == 2  # E.g. a: int
     return TypeHintStmtCfgNode(variables, type_hint, parse_node=parse_from_parso(node))
   else:
@@ -765,11 +774,12 @@ def expression_from_atom_expr(node) -> Expression:
                                             parse_node=parse_from_parso(trailer))
   return last_expression
 
+
 def _slice_from_subscriptlist(node) -> Expression:
   # subscriptlist: subscript (',' subscript)* [',']
   # subscript: test | [test] ':' [test] [sliceop]
   # sliceop: ':' [test]
-  if node.type != 'subscriptlist' and node.type != 'subscript' and node.type != 'operator':# and node.type != 'sliceop':
+  if node.type != 'subscriptlist' and node.type != 'subscript' and node.type != 'operator':  # and node.type != 'sliceop':
     expression = expression_from_node(node)
     assert isinstance(expression, Expression)
     return expression
@@ -805,6 +815,7 @@ def _slice_from_subscriptlist(node) -> Expression:
       return Slice(expression_from_node(first_child), expression_from_node(node.children[2]), None)
     assert False
 
+
 def kwarg_from_argument(argument):
   # argument: ( test [comp_for] |
   #        test '=' test |
@@ -833,6 +844,7 @@ def kwarg_from_argument(argument):
   for_comprehension = for_comprehension_from_comp_for(second_child)
   return None, ForComprehensionExpression(first_expression, for_comprehension)
 
+
 @assert_returns_type(Tuple)
 def args_and_kwargs_from_arglist(node):
   if node.type != 'arglist' and node.type != 'argument':
@@ -859,6 +871,7 @@ def args_and_kwargs_from_arglist(node):
         args.append(expression_from_node(child))
     return args, kwargs
 
+
 @assert_returns_type(Expression)
 def expression_from_node(node):
   if node.type == 'number':
@@ -878,7 +891,7 @@ def expression_from_node(node):
     return FactorExpression(node.children[0].value,
                             expression_from_node(node.children[1]),
                             parse_node=parse_from_parso(node))
-  if node.type == 'arith_expr' or node.type == 'term' or node.type == 'expr' or node.type == 'xor_expr' or node.type == 'and_expr'or node.type == 'shift_expr' or node.type == 'power':
+  if node.type == 'arith_expr' or node.type == 'term' or node.type == 'expr' or node.type == 'xor_expr' or node.type == 'and_expr' or node.type == 'shift_expr' or node.type == 'power':
     return expression_from_math_expr(node)
   if node.type == 'atom':
     return expression_from_atom(node)
@@ -896,7 +909,9 @@ def expression_from_node(node):
     return NotExpression(expression_from_node(node.children[1]))
   if node.type == 'lambdef' or node.type == 'lambdef_nocond':
     parameters = parameters_from_parameters(node.children[1:-2])
-    return LambdaExpression(parameters, expression_from_node(node.children[-1]), parse_node=parse_from_parso(node))
+    return LambdaExpression(parameters,
+                            expression_from_node(node.children[-1]),
+                            parse_node=parse_from_parso(node))
   if node.type == 'fstring':
     debug(f'Failed to process fstring_expr - string.')
     return LiteralExpression(node.get_code())  # fstring_string type.
@@ -905,7 +920,10 @@ def expression_from_node(node):
   if node.type == 'or_test' or node.type == 'and_test':
     return expression_from_and_test_or_test(node)
   if node.type == 'dotted_name':
-    return AttributeExpression(VariableExpression(node.children[0].value, parse_node=parse_from_parso(node.children[0])), node.children[-1].value, parse_node=parse_from_parso(node))
+    return AttributeExpression(VariableExpression(node.children[0].value,
+                                                  parse_node=parse_from_parso(node.children[0])),
+                               node.children[-1].value,
+                               parse_node=parse_from_parso(node))
   if node.type == 'yield_expr':
     return expression_from_yield_expr(node)
 
@@ -913,6 +931,7 @@ def expression_from_node(node):
   assert False, node_info(node)
   raise NotImplementedError(node_info(node))
   # assert_unexpected_parso(False, node_info(node))
+
 
 def expression_from_yield_expr(node):
   # yield_expr: 'yield' [yield_arg]

@@ -10,9 +10,11 @@ TYPING_DIR = os.path.join(os.path.dirname(__file__), '..')
 INDEX_PATH = f'/tmp/index'
 TMP_DIR = '/tmp'
 
+
 def _clean():
   if os.path.exists(INDEX_PATH):
     shutil.rmtree(INDEX_PATH)
+
 
 def test_build_test_index():
   _clean()
@@ -58,9 +60,11 @@ def test_add_file():
     # Note: Because we're only adding a file without tracking, for both of these entries they're
     # simply what has been imported into boo.py.
     entries = list(index.find_symbol('attr'))
-    assert len(entries) == 1 and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE and entries[0].is_imported()
+    assert len(entries) == 1 and entries[0].get_symbol_type(
+    ) == symbol_index.SymbolType.MODULE and entries[0].is_imported()
     entries = list(index.find_symbol('at'))
-    assert len(entries) == 1 and entries[0].get_symbol_type() == symbol_index.SymbolType.MODULE  and entries[0].is_imported()
+    assert len(entries) == 1 and entries[0].get_symbol_type(
+    ) == symbol_index.SymbolType.MODULE and entries[0].is_imported()
 
 
 def test_micro_index_lifecycle():

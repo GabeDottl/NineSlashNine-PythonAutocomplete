@@ -76,5 +76,6 @@ def assert_returns_type(type_):
 
   return wrapper
 
+
 def is_python_file(filename):
   return filename[-3:] == '.py' or filename[-4:] == '.pyi'

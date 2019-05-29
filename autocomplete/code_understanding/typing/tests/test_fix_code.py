@@ -12,13 +12,13 @@ CODE = os.getenv('CODE')
 # where there's ambiguity between whether or code isn't working (not finding a fix) or our code is
 # actually broken (fix is right - our code is wrong).
 AUTCOMPLETE_CLONE_DIR = os.path.join(CODE, 'autocomplete_clone', 'autocomplete')
-TMP_INDEX_PATH='/tmp/index_storage_dir'
-REAL_INDEX_DIR=os.path.join(os.getenv('HOME'), '.nsn')
+TMP_INDEX_PATH = '/tmp/index_storage_dir'
+REAL_INDEX_DIR = os.path.join(os.getenv('HOME'), '.nsn')
+
 
 def _clean():
   if os.path.exists(TMP_INDEX_PATH):
     shutil.rmtree(TMP_INDEX_PATH)
-
 
 
 def test_strip_imports():
@@ -63,8 +63,10 @@ b = a_int
 a_func()
 c = AClass()'''
   # TODO: Windows support for /tmp.
-  index = symbol_index.SymbolIndex.build_index_from_package(
-      os.path.join(os.path.dirname(__file__), '..', 'examples', 'index_test_package'),save_dir=TMP_INDEX_PATH, clean=True)
+  index = symbol_index.SymbolIndex.build_index_from_package(os.path.join(os.path.dirname(__file__), '..',
+                                                                         'examples', 'index_test_package'),
+                                                            save_dir=TMP_INDEX_PATH,
+                                                            clean=True)
   new_source, changed = fix_code.fix_missing_symbols_in_source(source, filename=__file__, index=index)
   graph = api.graph_from_source(new_source, __file__)
   print(new_source)

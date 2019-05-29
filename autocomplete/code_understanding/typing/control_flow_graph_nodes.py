@@ -10,11 +10,9 @@ import attr
 from . import collector, symbol_context, language_objects
 from ...nsn_logging import info, warning
 from .errors import AmbiguousFuzzyValueError
-from .expressions import (Expression, VariableExpression,
-                          _assign_variables_to_results)
+from .expressions import (Expression, VariableExpression, _assign_variables_to_results)
 from .frame import FrameType
-from .language_objects import (BoundFunction, Function, FunctionImpl,
-                               FunctionType, Klass, Module, Parameter,
+from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, Parameter,
                                SimplePackageModule)
 from .pobjects import AugmentedObject, LazyObject, UnknownObject
 from .utils import assert_returns_type, instance_memoize
@@ -122,7 +120,7 @@ class GroupCfgNode(CfgNode):
   def get_descendents_of_types(self, type_, recursive=True):
     if recursive:
       return itertools.chain(filter(lambda x: isinstance(x, type_), self.children),
-                            *[c.get_descendents_of_types(type_, recursive) for c in self.children])
+                             *[c.get_descendents_of_types(type_, recursive) for c in self.children])
     else:
       return filter(lambda x: isinstance(x, type_), self.children)
 
@@ -138,10 +136,12 @@ class GroupCfgNode(CfgNode):
     out = f'{super().pretty_print(indent)}\n'
     return out + "\n".join(child.pretty_print(indent + "  ") for child in self.children)
 
+
 @attr.s
 class ModuleCfgNode(GroupCfgNode):
   def to_ast(self):
     return _ast.Module(super().to_ast())
+
 
 @attr.s(slots=True)
 class ExpressionCfgNode(CfgNode):
@@ -218,12 +218,13 @@ class ImportCfgNode(CfgNode):
           module_key, is_package, module_type = self.module_loader.get_module_info_from_name(
               current_name, self.source_dir)
           # assert is_package
-          ancestor_module = SimplePackageModule(current_name,
-                                                module_type,
-                                                filename=module_key.get_filename(False) if module_key.is_loadable_by_file() else module_key.id,
-                                                is_package=True,
-                                                members={},
-                                                module_loader=self.module_loader)
+          ancestor_module = SimplePackageModule(
+              current_name,
+              module_type,
+              filename=module_key.get_filename(False) if module_key.is_loadable_by_file() else module_key.id,
+              is_package=True,
+              members={},
+              module_loader=self.module_loader)
 
         if last_module:
           last_module.add_members({name: AugmentedObject(ancestor_module, imported=True)})
@@ -296,10 +297,12 @@ class FromImportCfgNode(CfgNode):
         if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
           warning(f'Unknown module: {module.name}')
           continue
+
         def load_all():
           for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
             curr_frame[name] = AugmentedObject(pobject, imported=True)
           info(f'Using module.keys() instead of __all__: {list(filter(lambda k: k[0]!= "_", module.keys()))}')
+
         if '__all__' in module:
           try:
             all_iter = iter(module['__all__'].value())
@@ -365,6 +368,7 @@ class NoOpCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
 
+
 @attr.s(slots=True)
 class TypeHintStmtCfgNode(CfgNode):
   # E.g. `a: int`
@@ -372,7 +376,6 @@ class TypeHintStmtCfgNode(CfgNode):
   left_expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
   type_hint_expression = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
-  
 
   def _process_impl(self, curr_frame, strict=False):
     # TODO: Handle operator.
@@ -493,8 +496,8 @@ class WhileCfgNode(CfgNode):
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(self.suite.get_non_local_symbols(),
-                                                    self.else_suite.get_non_local_symbols(),
-                                                    self.conditional_expression.get_used_free_symbols())
+                                                     self.else_suite.get_non_local_symbols(),
+                                                     self.conditional_expression.get_used_free_symbols())
 
   # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
@@ -702,7 +705,8 @@ class IfCfgNode(CfgNode):
     return out
 
   def get_descendents_of_types(self, type_, recursive=True):
-    return itertools.chain(*[c.get_descendents_of_types(type_, recursive) for e, c in self.expression_node_tuples])
+    return itertools.chain(
+        *[c.get_descendents_of_types(type_, recursive) for e, c in self.expression_node_tuples])
 
   def pretty_print(self, indent=''):
     out = f'{indent}{type(self)}\n'
@@ -844,7 +848,11 @@ class FuncCfgNode(CfgNode):
         processed_params.append(param)
       else:  # Process parameter defaults at the time of definition.
         default = param.default_expression.evaluate(curr_frame)
-        processed_params.append(Parameter(param.name, param.parameter_type, default_value=default, type_hint_expression=param.type_hint_expression))
+        processed_params.append(
+            Parameter(param.name,
+                      param.parameter_type,
+                      default_value=default,
+                      type_hint_expression=param.type_hint_expression))
     # Include full name.
     func_name = '.'.join([curr_frame.namespace.name, self.name]) if curr_frame.namespace else self.name
     func = FunctionImpl(name=func_name,
@@ -940,6 +948,7 @@ class ReturnCfgNode(CfgNode):
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
     return []
 
+
 @attr.s(slots=True)
 class RaiseCfgNode(CfgNode):
   exception: Expression = attr.ib()
@@ -953,7 +962,7 @@ class RaiseCfgNode(CfgNode):
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if self.exception and self.cause:
       return symbol_context.merge_symbol_context_dicts(self.exception.get_used_free_symbols(),
-                                                      self.cause.get_used_free_symbols())
+                                                       self.cause.get_used_free_symbols())
     elif self.exception:
       return self.exception.get_used_free_symbols()
     elif self.cause:

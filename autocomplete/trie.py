@@ -38,11 +38,11 @@ class Trie:
     # to False by default - we can therefore skip saving them in these cases and save some space on
     # and increase read/write speed.
     for i in range(1, len(args) - 2):  # -2 = skip first arg.
-      if args[-1*i]:
+      if args[-1 * i]:
         if i == 1:
           return args  # Need to include everything.
         else:
-          return args[:-i+1]  # Include everything but last (i-1)-attributes.
+          return args[:-i + 1]  # Include everything but last (i-1)-attributes.
     return args[:1]  # Only self.children needs to be stored.
 
   @staticmethod
@@ -55,12 +55,10 @@ class Trie:
     with open(filename, 'rb') as f:
       return Trie._deserialize(msgpack.unpack(f, raw=False, use_list=True))
 
-  
   def save(self, filename):
     with open(filename, 'wb') as f:
       msgpack.pack(self._serialize(), f, use_bin_type=True)
 
-  
   def _get_max_value_at_or_beneath(self):
     return max(self.value, self.highest_child_value_at_or_beneath)
 
@@ -102,7 +100,7 @@ class Trie:
     if not path:
       return None
     if filter_fn:
-      for i in range(1, len(path) +1):
+      for i in range(1, len(path) + 1):
         if filter_fn(path[-i][1]):
           return path[-i][1]
       return None
@@ -114,7 +112,6 @@ class Trie:
     for c, child in self.children.items():
       for string in child.get_descendent_end_point_strings():
         yield f'{self.remainder}{c}{string}'
-
 
   def _get_path_to(self, s, return_mra_on_fail=False):
     curr_node = self
@@ -163,7 +160,7 @@ class Trie:
       Important Note: The Trie this returns is guaranteed to represent string in the substructure
       unless explicitly deleted - regardless of any subsequent additions and splits. In other words,
       the Trie returned is stable.'''
-    
+
     def split_node(node, split_point, additional_remainder, additional_remainder_value):
       '''Takes an existing node with some string and splits it in its remainder string.
 
@@ -240,7 +237,7 @@ class Trie:
           node.highest_child_value_at_or_beneath = last_node_max_value
           node.highest_child_char = c
         else:
-          break   # If it's not highest at this level in the tree, it won't be further up.
+          break  # If it's not highest at this level in the tree, it won't be further up.
       return curr_node
     except RemainderSplitException as e:
       # Partially in remainder. Replace curr_node in tree with new subtree. curr_node will split
@@ -315,6 +312,7 @@ class Trie:
   def has_children(self):
     return bool(self.children)
 
+
 @attr.s
 class FilePathTrie(Trie):
   '''A Trie which has been extended to work well with filenames (including directories) as input.
@@ -364,6 +362,7 @@ class FilePathTrie(Trie):
   clearly distinct directories. Moreover, the children of both are guaranteed to be proper file
   descendents.
   '''
+
   def remove(self, string, remove_subtree=True):
     return super().remove(string=self._append_sep_if_needed(string), remove_subtree=remove_subtree)
 
@@ -378,26 +377,30 @@ class FilePathTrie(Trie):
       return filename
     # filename exists and therefore we can use the normal appending logic.
     return append_sep_if_dir(filename)
-    
+
   def get_most_recent_ancestor_or_actual(self, filename, filter_fn=None):
-    return super().get_most_recent_ancestor_or_actual(string=self._append_sep_if_needed(filename), filter_fn=filter_fn)
+    return super().get_most_recent_ancestor_or_actual(string=self._append_sep_if_needed(filename),
+                                                      filter_fn=filter_fn)
 
   def add(self, filename, value, add_value=False, store_value=None) -> 'FilePathTrie':
     # filename must exist at the time of adding - otherwise we cannot infer whether it is a
     # directory to insert it correctly.
     assert os.path.exists(filename)
-    return super().add(string=append_sep_if_dir(filename), value=value, add_value=add_value, store_value=store_value)
+    return super().add(string=append_sep_if_dir(filename),
+                       value=value,
+                       add_value=add_value,
+                       store_value=store_value)
 
   def get_value_for_string(self, filename):
     return super().get_value_for_string(string=self._append_sep_if_needed(filename))
 
   def _get_paths_to_char_or_leaf(self, char, exclude_self=True):
     '''Includes char.'''
-    
+
     if not exclude_self:
-      path = [('',self)]
+      path = [('', self)]
       if char in self.remainder:
-        yield self.remainder[:(self.remainder.find(char)+1)], path
+        yield self.remainder[:(self.remainder.find(char) + 1)], path
         return
       elif not self.children:
         assert self.end_point
@@ -411,14 +414,14 @@ class FilePathTrie(Trie):
         if not exclude_self:
           yield f'{self.remainder}{c}', path + [(c, child)]
         else:
-          yield f'{c}', path + [(c, child)] 
+          yield f'{c}', path + [(c, child)]
         continue
       for string, subpath in child._get_paths_to_char_or_leaf(char, exclude_self=False):
         subpath[0] = c, subpath[0][1]
         if not exclude_self:
-          yield f'{self.remainder}{c}{string}', (path+subpath) 
+          yield f'{self.remainder}{c}{string}', (path + subpath)
         else:
-          yield f'{c}{string}', (path+subpath) 
+          yield f'{c}{string}', (path + subpath)
 
   def get_nodes_in_dir(self, directory):
     directory = append_sep_if_dir(directory, force=True)
@@ -455,6 +458,7 @@ def path_to_str(path):
   # print(path)
   return ''.join(f'{x[0]}{x[1].remainder}' for x in path)
 
+
 def remove_last_node_from_path(path, remove_subtree=True):
   target_char, target_node = path[-1]
   if remove_subtree:
@@ -479,7 +483,8 @@ def remove_last_node_from_path(path, remove_subtree=True):
         node.highest_child_char = ''
         node.highest_child_value_at_or_beneath = 0
       else:  # Search for next greatest child.
-        child_char, child_node = max(node.children.items(), key=lambda cn: cn[1]._get_max_value_at_or_beneath())
+        child_char, child_node = max(node.children.items(),
+                                     key=lambda cn: cn[1]._get_max_value_at_or_beneath())
         node.highest_child_char = child_char
         node.highest_child_value_at_or_beneath = child_node._get_max_value_at_or_beneath()
     else:
@@ -488,7 +493,7 @@ def remove_last_node_from_path(path, remove_subtree=True):
 
 def append_sep_if_dir(path, force=False):
   if os.path.isdir(path) or force:
-    if path and  path[-1] == os.sep:
+    if path and path[-1] == os.sep:
       return path
     return f'{path}{os.sep}'
   return path

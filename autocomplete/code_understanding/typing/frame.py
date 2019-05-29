@@ -9,10 +9,8 @@ import attr
 
 from . import collector, utils
 from ...nsn_logging import debug
-from .expressions import (AttributeExpression, Expression, SubscriptExpression,
-                          VariableExpression)
-from .pobjects import (NONE_POBJECT, FuzzyObject, NativeObject, PObject,
-                       UnknownObject, pobject_from_object)
+from .expressions import (AttributeExpression, Expression, SubscriptExpression, VariableExpression)
+from .pobjects import (NONE_POBJECT, FuzzyObject, NativeObject, PObject, UnknownObject, pobject_from_object)
 
 
 @attr.s(slots=True)

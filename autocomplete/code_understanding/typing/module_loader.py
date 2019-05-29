@@ -193,6 +193,7 @@ def get_pobject_from_module(module_name: str, pobject_name: str, directory: str)
 
 __module_key_module_dict: Dict[Tuple[ModuleKey, str], Module] = {}
 
+
 def remove_module_by_key(module_key):
   keys = [module_key_index(module_key, False), module_key_index(module_key, True)]
   for key in keys:
@@ -203,6 +204,7 @@ def remove_module_by_key(module_key):
   for filename in filenames:
     if filename in __loaded_paths:
       __loaded_paths.remove(filename)
+
 
 def module_key_index(module_key, force_real):
   return (module_key,

@@ -1,5 +1,3 @@
-
-
 from .boo import Boo
 
 a = 2

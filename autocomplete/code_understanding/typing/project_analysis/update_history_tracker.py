@@ -3,6 +3,7 @@ import os
 import attr
 import pandas as pd
 
+
 @attr.s
 class UpdateHistoryTracker:
   tracking_file = attr.ib()
@@ -25,5 +26,5 @@ class UpdateHistoryTracker:
     return UpdateHistoryTracker(filepath, df)
 
   def add_action(self, timestamp, action_type, data, filename):
-    s = pd.Series({'timestamp': timestamp, 'action_type':action_type, 'data': data, 'filename': filename})
+    s = pd.Series({'timestamp': timestamp, 'action_type': action_type, 'data': data, 'filename': filename})
     self.df = self.df.append(s, ignore_index=True)

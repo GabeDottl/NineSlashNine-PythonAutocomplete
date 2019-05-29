@@ -9,6 +9,7 @@ STORAGE_FILE = '/tmp/fht_tmp.msg'
 TEST_FILE = '/tmp/fht_dir/x_fht'
 TEST_DIR = '/tmp/fht_dir'
 
+
 # TODO: clean this up.
 def test_file_history_tracker():
   _clean()
@@ -55,33 +56,35 @@ def test_file_history_tracker():
     files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
     assert files == []
   finally:
-      _clean()
+    _clean()
+
 
 def test_filtering_and_removal():
   try:
     # Test filtering & removal.
     _clean()
-    nonpackage = os.path.join(TEST_DIR,'nonpackage')
+    nonpackage = os.path.join(TEST_DIR, 'nonpackage')
     os.makedirs(nonpackage)
     x = os.path.join(nonpackage, 'x.py')
     Path(x).touch()
-    package = os.path.join(TEST_DIR,'package')
+    package = os.path.join(TEST_DIR, 'package')
     os.makedirs(package)
     package = append_sep_if_dir(package)
     init = os.path.join(package, '__init__.py')
     Path(init).touch()
-    subpackage = os.path.join(package,'subpackage')
+    subpackage = os.path.join(package, 'subpackage')
     os.makedirs(subpackage)
     subpackage = append_sep_if_dir(subpackage)
     subpackage_init = os.path.join(subpackage, '__init__.py')
     Path(subpackage_init).touch()
-    subpackage2 = os.path.join(package,'subpackage2')
+    subpackage2 = os.path.join(package, 'subpackage2')
     os.makedirs(subpackage2)
     subpackage2 = append_sep_if_dir(subpackage2)
     subpackage2_init = os.path.join(subpackage2, '__init__.py')
     Path(subpackage2_init).touch()
     time.sleep(0.2)  # Accounting for time.time() imprecision to ensure getmtime is after timestamp.
-    fht = file_history_tracker.FileHistoryTracker.load(STORAGE_FILE, TEST_DIR, file_history_tracker.python_package_filter)
+    fht = file_history_tracker.FileHistoryTracker.load(STORAGE_FILE, TEST_DIR,
+                                                       file_history_tracker.python_package_filter)
     # filename = os.path.join(TEST_DIR, 'a', 'x')
     # Path(filename).touch()
     files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
@@ -108,9 +111,11 @@ def test_filtering_and_removal():
     shutil.rmtree(package)
     files = list(fht.get_files_in_dir_modified_since_timestamp(TEST_DIR, auto_update=True))
     # Package contents recursively should be removed.
-    assert set(files) == set([(False, package), (False, init), (False, subpackage2), (False, subpackage2_init), (False, y), (False, init)])
+    assert set(files) == set([(False, package), (False, init), (False, subpackage2),
+                              (False, subpackage2_init), (False, y), (False, init)])
   finally:
     _clean()
+
 
 def _clean():
   if os.path.exists(STORAGE_FILE):

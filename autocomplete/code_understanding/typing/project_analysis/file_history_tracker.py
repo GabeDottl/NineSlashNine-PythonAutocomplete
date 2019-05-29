@@ -13,10 +13,13 @@ def git_filter(root, filename):
   # TODO: directory check.
   return filename != '.git'
 
+
 def python_package_filter(root, filename):
   base = os.path.join(root, filename)
   # Check filename is a python package or python file.
-  return git_filter(root, filename) and ((not os.path.isdir(base) and is_python_file(base)) or os.path.exists(os.path.join(base, '__init__.py')))
+  return git_filter(root, filename) and ((not os.path.isdir(base) and is_python_file(base))
+                                         or os.path.exists(os.path.join(base, '__init__.py')))
+
 
 @attr.s
 class FileHistoryTracker:
@@ -39,7 +42,10 @@ class FileHistoryTracker:
         raise ValueError(f'Invalid path for loading: {save_filename}')
       else:
         return FileHistoryTracker(save_filename, root_dir, filter_fn)
-    return FileHistoryTracker(save_filename=save_filename, root_dir=root_dir, filter_fn=filter_fn, file_timestamp_trie=FilePathTrie.load(save_filename))
+    return FileHistoryTracker(save_filename=save_filename,
+                              root_dir=root_dir,
+                              filter_fn=filter_fn,
+                              file_timestamp_trie=FilePathTrie.load(save_filename))
 
   def update_timestamp_for_path(self, filename, timestamp=None):
     if timestamp is None:
@@ -58,7 +64,7 @@ class FileHistoryTracker:
     return self.does_file_exist_and_is_not_filtered(filename) and self._modified_since_update(filename)
 
   def _modified_since_update(self, filename):
-     return os.path.getmtime(filename) > self.file_timestamp_trie.get_value_for_string(filename)
+    return os.path.getmtime(filename) > self.file_timestamp_trie.get_value_for_string(filename)
 
   def does_file_exist_and_is_not_filtered(self, filename):
     if not os.path.exists(filename):

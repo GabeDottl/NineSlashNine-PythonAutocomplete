@@ -9,7 +9,8 @@ import attr
 
 from . import collector, serialization
 from ...nsn_logging import debug, error, info, warning
-from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError, SourceAttributeError)
+from .errors import (AmbiguousFuzzyValueError, LoadingModuleAttributeError, NoDictImplementationError,
+                     SourceAttributeError)
 from .utils import to_dict_iter
 
 _OPERATORS = [
@@ -120,8 +121,8 @@ class PObject(ABC):
   #   ...
 
   @abstractmethod
-  def instance_of(self, type_) -> FuzzyBoolean: ...
-
+  def instance_of(self, type_) -> FuzzyBoolean:
+    ...
 
   @abstractmethod
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -227,7 +228,7 @@ class UnknownObject(PObject):
   def apply_to_values(self, func):
     func(self)
 
-  def instance_of(self, type_) -> FuzzyBoolean: 
+  def instance_of(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.MAYBE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -256,6 +257,7 @@ class UnknownObject(PObject):
   def __repr__(self):
     return str(self)
 
+
 def maybe_wrap_type(type_):
   # Handle special things - like List[int], etc.
   if isinstance(type_, typing._GenericAlias):
@@ -264,11 +266,13 @@ def maybe_wrap_type(type_):
     pass
   return type_
 
+
 def is_subtype(super_type, sub_type):
   if super_type == sub_type:
     return FuzzyBoolean.TRUE
   # TODO
   return FuzzyBoolean.FALSE
+
 
 @attr.s
 class TypeOnlyObject(PObject):
@@ -278,7 +282,6 @@ class TypeOnlyObject(PObject):
 
   def __attrs_post_init__(self):
     self.underlying_type = maybe_wrap_type(self.underlying_type)
-    
 
   def has_attribute(self, name):
     # TODO: Not a perfect matchup.... How important? some dynamic attributes (e.g. set in __init__)
@@ -297,7 +300,7 @@ class TypeOnlyObject(PObject):
   def apply_to_values(self, func):
     raise ValueError()
 
-  def instance_of(self, type_) -> FuzzyBoolean: 
+  def instance_of(self, type_) -> FuzzyBoolean:
     return is_subtype(type_, self.underlying_type)
 
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -320,9 +323,8 @@ class TypeOnlyObject(PObject):
     self.underlying_type.__getitem__(index_pobject)
     # except IndexError as e:
 
-
   def set_item(self, curr_frame, index_pobject, value_pobject):
-    self.underlying_type.__setitem__(index_pobject. value_pobject)
+    self.underlying_type.__setitem__(index_pobject.value_pobject)
 
   def iterator(self):
     return iter(self.underlying_type)
@@ -387,7 +389,7 @@ class NativeObject(PObject):
   #     return FuzzyBoolean.MAYBE  # TODO
   #   return FuzzyBoolean.FALSE
 
-  def instance_of(self, type_) -> FuzzyBoolean: 
+  def instance_of(self, type_) -> FuzzyBoolean:
     return FuzzyBoolean.TRUE if isinstance(self._native_object, type_) else FuzzyBoolean.FALSE
 
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -559,7 +561,7 @@ class LazyObject(PObject):
   _loader = attr.ib()
   _loader_filecontext = attr.ib(validator=attr.validators.instance_of(str))
   imported = attr.ib(False)
-  
+
   _loaded_object = attr.ib(init=False, default=None)
   # _loaded = attr.ib(init=False, default=False)
   _loading = attr.ib(init=False, default=False)
@@ -570,6 +572,7 @@ class LazyObject(PObject):
 
   def __attrs_post_init__(self):
     pass
+
   #   self._loader_filecontext = collector._filename_context[-1]
 
   # @loop_checker
@@ -632,10 +635,10 @@ class LazyObject(PObject):
   def get_attribute(self, name):
     try:
       self._load()
-      return LazyObject(f'{self.name}.{name}', lambda: self._loaded_object.get_attribute(name), self._loader_filecontext)
+      return LazyObject(f'{self.name}.{name}', lambda: self._loaded_object.get_attribute(name),
+                        self._loader_filecontext)
     except SourceAttributeError as e:
       return UnknownObject(name)
-
 
   @_passthrough_if_loaded
   def set_attribute(self, name, value):
@@ -651,7 +654,7 @@ class LazyObject(PObject):
   #   else:
 
   @loop_checker
-  def instance_of(self, type_) -> FuzzyBoolean: 
+  def instance_of(self, type_) -> FuzzyBoolean:
     self.value_is_a(type_)
 
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -670,19 +673,22 @@ class LazyObject(PObject):
 
   @_passthrough_if_loaded
   def invert(self):
-    return LazyObject(f'not {self.name}', lambda: self.bool_value().invert().to_pobject(), self._loader_filecontext)
+    return LazyObject(f'not {self.name}', lambda: self.bool_value().invert().to_pobject(),
+                      self._loader_filecontext)
 
   @_passthrough_if_loaded
   def and_expr(self, other):
     # Don't care about shortcircuiting.
     return LazyObject(
-        f'{self.name} and {other}', lambda: self.bool_value().and_expr(other.bool_value()).to_pobject(), self._loader_filecontext)
+        f'{self.name} and {other}', lambda: self.bool_value().and_expr(other.bool_value()).to_pobject(),
+        self._loader_filecontext)
 
   @_passthrough_if_loaded
   def or_expr(self, other):
     # Don't care about shortcircuiting.
     return LazyObject(
-        f'{self.name} and {other}', lambda: self.bool_value().or_expr(other.bool_value()).to_pobject(), self._loader_filecontext)
+        f'{self.name} and {other}', lambda: self.bool_value().or_expr(other.bool_value()).to_pobject(),
+        self._loader_filecontext)
 
   @_passthrough_if_loaded
   def call(self, curr_frame, args, kwargs):
@@ -691,7 +697,8 @@ class LazyObject(PObject):
     # TODO: Consider somehow snapshotting PObjects too.
     frame = curr_frame.snapshot()
     return LazyObject(f'{self.name}({_pretty(args)},{_pretty(kwargs)})',
-                      partial(lambda a, b, c, : self.load_and_ret().call(a, b, c), frame, args, kwargs), self._loader_filecontext)
+                      partial(lambda a, b, c, : self.load_and_ret().call(a, b, c), frame, args, kwargs),
+                      self._loader_filecontext)
 
   @_passthrough_if_loaded
   def get_item(self, curr_frame, index_pobject, deferred_value=False):
@@ -712,8 +719,8 @@ class LazyObject(PObject):
 
     def _set_item():
       self.load_and_ret().set_item(frame,
-                                    index_pobject.value() if deferred_value else index_pobject,
-                                    value_pobject.value() if deferred_value else value_pobject)
+                                   index_pobject.value() if deferred_value else index_pobject,
+                                   value_pobject.value() if deferred_value else value_pobject)
 
     self._deferred_operations.append(_set_item)
 
@@ -774,7 +781,7 @@ class AugmentedObject(PObject):  # TODO: CallableInterface
   #     return other.value_equals(self._object)
   #   return FuzzyBoolean.TRUE if self._object == other else FuzzyBoolean.FALSE
 
-  def instance_of(self, type_) -> FuzzyBoolean: 
+  def instance_of(self, type_) -> FuzzyBoolean:
     return is_subtype(type_, type(self._object))
 
   def value_is_a(self, type_) -> FuzzyBoolean:
@@ -919,7 +926,7 @@ class FuzzyObject(PObject):
   #     return FuzzyBoolean.MAYBE
   #   return FuzzyBoolean.FALSE
 
-  def instance_of(self, type_) -> FuzzyBoolean: 
+  def instance_of(self, type_) -> FuzzyBoolean:
     truths = [value.instance_of(type_) for value in self._values]
     if all(truth == FuzzyBoolean.TRUE for truth in truths):
       return FuzzyBoolean.TRUE

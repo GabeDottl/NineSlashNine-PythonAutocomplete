@@ -7,8 +7,8 @@ import attr
 
 from . import symbol_context
 from ...nsn_logging import (debug, info)
-from .pobjects import (FuzzyObject, NativeObject, PObject, PObjectType,NONE_POBJECT,
-                       UnknownObject, pobject_from_object)
+from .pobjects import (FuzzyObject, NativeObject, PObject, PObjectType, NONE_POBJECT, UnknownObject,
+                       pobject_from_object)
 from .utils import assert_returns_type
 
 
@@ -54,6 +54,7 @@ class LiteralExpression(Expression):
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return {}
 
+
 @attr.s(slots=True)
 class YieldExpression(Expression):
   expression: Union[Expression, None] = attr.ib()
@@ -61,7 +62,7 @@ class YieldExpression(Expression):
 
   def _to_ast(self):
     if self.expression:
-      assert False # is_From todo
+      assert False  # is_From todo
       return _ast.Yield(self.expression._to_ast())
     return _ast.Yield()
 
@@ -92,6 +93,7 @@ class NotExpression(Expression):
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
 
+
 @attr.s(slots=True)
 class InvertExpression(NotExpression):
   def _to_ast(self):
@@ -103,6 +105,7 @@ class AndOrExpression(Expression):
   # left_expression: Expression = attr.ib()
   operator: str = attr.ib()
   expressions: List[Expression] = attr.ib()
+
   # right_expression: Expression = attr.ib()
 
   def _to_ast(self):
@@ -130,6 +133,7 @@ class AndOrExpression(Expression):
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
   source_expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
+
   # expr_context: ExprContext = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
@@ -222,7 +226,7 @@ class CallExpression(Expression):
       }
     else:
       out = self.function_expression.get_used_free_symbols()
-  
+
     out = symbol_context.merge_symbol_context_dicts(out,
                                                     *[expr.get_used_free_symbols() for expr in self.args])
     out = symbol_context.merge_symbol_context_dicts(
@@ -424,8 +428,10 @@ class Slice:
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     out = self.lower.get_used_free_symbols() if self.lower else {}
-    out = symbol_context.merge_symbol_context_dicts(out, self.upper.get_used_free_symbols()) if self.upper else out
-    return symbol_context.merge_symbol_context_dicts(out, self.step.get_used_free_symbols()) if self.step else out
+    out = symbol_context.merge_symbol_context_dicts(out,
+                                                    self.upper.get_used_free_symbols()) if self.upper else out
+    return symbol_context.merge_symbol_context_dicts(out,
+                                                     self.step.get_used_free_symbols()) if self.step else out
 
 
 @attr.s(slots=True)
@@ -434,7 +440,7 @@ class ExtSlice:
 
   def _to_ast(self):
     return _ast.ExtSlice([s._to_ast() for s in self.slices])
-  
+
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(*[s.get_used_free_symbols() for s in self.slices])
@@ -450,7 +456,6 @@ class IndexSlice:
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return self.expression.get_used_free_symbols()
-
 
 
 @attr.s(slots=True)
@@ -480,14 +485,10 @@ class SubscriptExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     if isinstance(self.base_expression, VariableExpression):
-      out = {
-          self.base_expression.name:
-          symbol_context.SubscriptSymbolContext(self._slice, self.parse_node)
-      }
+      out = {self.base_expression.name: symbol_context.SubscriptSymbolContext(self._slice, self.parse_node)}
     else:
       out = self.base_expression.get_used_free_symbols()
-    return symbol_context.merge_symbol_context_dicts(out,
-                                                     self._slice.get_used_free_symbols())
+    return symbol_context.merge_symbol_context_dicts(out, self._slice.get_used_free_symbols())
 
 
 @attr.s(slots=True)
