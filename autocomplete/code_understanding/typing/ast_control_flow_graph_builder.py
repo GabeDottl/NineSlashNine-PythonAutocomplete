@@ -488,6 +488,7 @@ def string_from_boolop(boolop):
 
 
 def expression_from_boolop(ast_node):
+  # (boolop op, expr* values)
   op = string_from_boolop(ast_node.op)
   last_expression = AndOrExpression(expression_from_node(ast_node.values[0]), op,
                                     expression_from_node(ast_node.values[1]))

@@ -100,13 +100,19 @@ class InvertExpression(NotExpression):
 
 @attr.s(slots=True)
 class AndOrExpression(Expression):
-  left_expression: Expression = attr.ib()
+  # left_expression: Expression = attr.ib()
   operator: str = attr.ib()
-  right_expression: Expression = attr.ib()
+  expressions: List[Expression] = attr.ib()
+  # right_expression: Expression = attr.ib()
+
+  def _to_ast(self):
+    op = _ast.And() if self.operator == 'and' else _ast.Or()
+    return _ast.BoolOp(op, [e._to_ast() for e in self.expressions])
 
   def evaluate(self, curr_frame) -> PObject:
-    l = self.left_expression.evaluate(curr_frame)
-    r = self.right_expression.evaluate(curr_frame)
+    # TODO
+    l = self.expressions[0].evaluate(curr_frame)
+    r = self.expressions[1].evaluate(curr_frame)
     if self.operator == 'or':
       return l.or_expr(r)
     assert self.operator == 'and'
@@ -115,14 +121,16 @@ class AndOrExpression(Expression):
   # @instance_memoize
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
-                                                     self.right_expression.get_used_free_symbols())
+    return symbol_context.merge_symbol_context_dicts(*[e.get_used_free_symbols() for e in self.expressions])
+    # return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
+    #                                                  self.right_expression.get_used_free_symbols())
 
 
 @attr.s(slots=True)
 class ListExpression(Expression):
   # May be an ItemListExpression or a ForComprehensionExpression.
   source_expression: Expression = attr.ib(validator=attr.validators.instance_of(Expression))
+  # expr_context: ExprContext = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     return self.source_expression.evaluate(curr_frame)
