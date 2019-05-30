@@ -2,6 +2,7 @@ import itertools
 
 from functools import wraps
 from typing import (List, Tuple, Union)
+import _ast
 
 import parso
 
@@ -399,7 +400,7 @@ class ParsoControlFlowGraphBuilder:
           assert_unexpected_parso(child.value == 'else' and conditional_or_op.value == ':',
                                   (conditional_or_op, child))
           expression = LiteralExpression(True)
-        else:
+        else:  # conditional.
           expression = expression_from_node(conditional_or_op)
           assert_unexpected_parso(expression, node_info(child))
           n = next(iterator)  # Skip past the operator
@@ -409,7 +410,7 @@ class ParsoControlFlowGraphBuilder:
 
         expression_node_tuples.append((expression, cfg_node))
       except StopIteration:
-        pass
+        break
     return expression_node_tuples
 
   @assert_returns_type(CfgNode)
@@ -945,13 +946,22 @@ def expression_from_yield_expr(node):
 
 
 def expression_from_and_test_or_test(node) -> Expression:
-  assert len(node.children) >= 3
-  right_expression = expression_from_node(node.children[-1])
-  for i in range(1, len(node.children), 2)[::-1]:
-    right_expression = AndOrExpression(expression_from_node(node.children[i - 1]), node.children[i].value,
-                                       right_expression)
-  return right_expression
+  children = node.children
+  assert len(children) >= 3 and len(children) % 2 == 1
+  expressions = []
+  children_iter = iter(children)
+  for child in children_iter:
+    expressions.append(expression_from_node(child))
+    try:
+      next(children_iter)
+    except StopIteration:
+      break
+  return AndOrExpression(_boolop_from_string(children[1].value), expressions)
 
+def _boolop_from_string(string):
+  if string == 'and':
+    return _ast.And
+  return _ast.Or
 
 def expression_from_dictorsetmaker(dictorsetmaker) -> Union[SetExpression, DictExpression]:
   # dictorsetmaker:
@@ -1061,21 +1071,43 @@ def expression_from_comparison(node):
   # TODO: Implement.
   # Handles operators & comp_op ('is' 'not')
 
+  children = node.children
   # Arbitrarily many: a < b < c < d <....
-  assert len(node.children) % 2 == 1 and len(node.children) >= 3
+  assert len(children) % 2 == 1 and len(children) >= 3
   last_expression = None
-  for i in range(0, len(node.children) - 2, 2):
-    left_expression = expression_from_node(node.children[i])
-    operator = node.children[i + 1].get_code().strip()
-    right_expression = expression_from_node(node.children[i + 2])
-    comparison = ComparisonExpression(left_expression=left_expression,
-                                      operator=operator,
-                                      right_expression=right_expression)
-    if last_expression:
-      last_expression = AndOrExpression(last_expression, 'and', comparison)
-    else:
-      last_expression = comparison
-  return last_expression
+
+  left_expression = expression_from_node(children[0])
+  operators = []
+  comparators = []
+  for i in range(1, len(children) - 2, 2):
+    # TODO: Don't use get_code here - kind of pricey potentially and risky (comments after?)
+    operators.append(_cmpop_from_comparison_op_str(children[i].get_code().strip()))
+    comparators.append(expression_from_node(children[i+1]))
+  return ComparisonExpression(left_expression, operators, comparators)
+
+def _cmpop_from_comparison_op_str(comp_op):
+  # TODO: sort by frequency?
+  if comp_op == "==":
+    return _ast.Eq()
+  if comp_op == "!=":
+    return _ast.NotEq()
+  if comp_op == ">":
+    return _ast.Gt()
+  if comp_op == ">=":
+    return _ast.GtE()
+  if comp_op == "<":
+    return _ast.Lt()
+  if comp_op == "<=":
+    return _ast.LtE()
+  if comp_op == "is":
+    return _ast.Is()
+  if comp_op == "is not":
+    return _ast.IsNot()
+  if comp_op == "in":
+    return _ast.In()
+  if comp_op == "not in":
+    return _ast.NotIn()
+  assert False
 
 
 @assert_returns_type(Expression)

@@ -867,6 +867,7 @@ class SymbolIndex:
 
     if location_index:
       # TODO: Support splitting _LocationIndicies beneath a higher-level directory. E.g. /a -> /a/b.
+      assert location_index.location in directory
       return location_index
 
     # Doesn't exist - create.
@@ -899,7 +900,7 @@ class SymbolIndex:
       # Darn, need to create.
       info(f'Creating LocationIndex for dir of {filename}')
       location_index = self._get_or_add_location_index_for_dir(os.path.dirname(filename))
-    assert location_index
+    assert location_index and location_index.location in filename
     self._module_key_to_location_index_dict[module_key] = location_index
     return location_index
 

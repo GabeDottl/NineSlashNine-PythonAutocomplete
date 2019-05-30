@@ -99,34 +99,72 @@ class InvertExpression(NotExpression):
   def _to_ast(self):
     return _ast.Invert(self.expression._to_ast())
 
-
 @attr.s(slots=True)
 class AndOrExpression(Expression):
-  # left_expression: Expression = attr.ib()
-  operator: str = attr.ib()
+  operator: _ast.boolop = attr.ib()
   expressions: List[Expression] = attr.ib()
 
-  # right_expression: Expression = attr.ib()
-
   def _to_ast(self):
-    op = _ast.And() if self.operator == 'and' else _ast.Or()
-    return _ast.BoolOp(op, [e._to_ast() for e in self.expressions])
+    # op = _ast.And() if self.operator == 'and' else _ast.Or()
+    return _ast.BoolOp(self.operator, [e._to_ast() for e in self.expressions])
 
   def evaluate(self, curr_frame) -> PObject:
     # TODO
-    l = self.expressions[0].evaluate(curr_frame)
-    r = self.expressions[1].evaluate(curr_frame)
-    if self.operator == 'or':
-      return l.or_expr(r)
-    assert self.operator == 'and'
-    return l.and_expr(r)
+    return UnknownObject('Blegh.')
+    # l = self.expressions[0].evaluate(curr_frame)
+    # r = self.expressions[1].evaluate(curr_frame)
+    # if self.operator == 'or':
+    #   return l.or_expr(r)
+    # assert self.operator == 'and'
+    # return l.and_expr(r)
 
-  # @instance_memoize
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(*[e.get_used_free_symbols() for e in self.expressions])
-    # return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
-    #                                                  self.right_expression.get_used_free_symbols())
+
+
+@attr.s(slots=True)
+class ComparisonExpression(Expression):
+  left_expression: Expression = attr.ib()
+  ops = attr.ib()
+  comparators: List[Expression] = attr.ib()
+
+  def evaluate(self, curr_frame) -> PObject:
+    # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
+    # l = self.left_expression.evaluate(curr_frame)
+    # r = self.right_expression.evaluate(curr_frame)
+    # TODO
+    return UnknownObject(f'{self.left_expression}{self.ops}{self.comparators}')
+
+    # if self.operator == '<':
+    #   return l < r
+    # if self.operator == '>':
+    #   return l > r
+    # if self.operator == '==':
+    #   return l == r
+    # if self.operator == '>=':
+    #   return l >= r
+    # if self.operator == '<=':
+    #   return l <= r
+    # # if self.operator == '<>': return l <> r
+    # if self.operator == '!=':
+    #   return l != r
+    # if self.operator == 'in':
+    #   return l in r
+    # if self.operator == 'not in':
+    #   return l not in r
+    # if self.operator == 'is':
+    #   return l is r
+    # if self.operator == 'is not':
+    #   return l is not r
+
+    # assert False, f'Cannot handle {self.operator} yet.'
+
+  @assert_returns_type(dict)
+  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
+    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(), *[e.get_used_free_symbols() for e in self.comparators])
+
+
 
 
 @attr.s(slots=True)
@@ -598,50 +636,5 @@ class MathExpression(Expression):
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
                                                      self.right_expression.get_used_free_symbols())
-
-
-@attr.s(slots=True)
-class ComparisonExpression(Expression):
-  left_expression: Expression = attr.ib()
-  operator = attr.ib()
-  right_expression: Expression = attr.ib()
-
-  def evaluate(self, curr_frame) -> PObject:
-    # comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
-    l = self.left_expression.evaluate(curr_frame)
-    r = self.right_expression.evaluate(curr_frame)
-    # TODO
-    return UnknownObject(f'{l}{self.operator}{r}')
-
-    if self.operator == '<':
-      return l < r
-    if self.operator == '>':
-      return l > r
-    if self.operator == '==':
-      return l == r
-    if self.operator == '>=':
-      return l >= r
-    if self.operator == '<=':
-      return l <= r
-    # if self.operator == '<>': return l <> r
-    if self.operator == '!=':
-      return l != r
-    if self.operator == 'in':
-      return l in r
-    if self.operator == 'not in':
-      return l not in r
-    if self.operator == 'is':
-      return l is r
-    if self.operator == 'is not':
-      return l is not r
-
-    assert False, f'Cannot handle {self.operator} yet.'
-
-  # @instance_memoize
-  @assert_returns_type(dict)
-  def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
-                                                     self.right_expression.get_used_free_symbols())
-
 
 # Variable = Expression

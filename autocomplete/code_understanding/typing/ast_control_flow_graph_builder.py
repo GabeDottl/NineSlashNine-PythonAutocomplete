@@ -514,13 +514,7 @@ def string_from_boolop(boolop):
 
 
 def expression_from_boolop(ast_node):
-  # (boolop op, expr* values)
-  op = string_from_boolop(ast_node.op)
-  last_expression = AndOrExpression(expression_from_node(ast_node.values[0]), op,
-                                    expression_from_node(ast_node.values[1]))
-  for node in ast_node.values[2:]:
-    last_expression = AndOrExpression(last_expression, op, expression_from_node(node))
-  return last_expression
+  return AndOrExpression(ast_node.op, [expression_from_node(n) for n in ast_node.values])
 
 
 def operator_symbol_from_operator(operator):
@@ -618,16 +612,9 @@ def for_comprehension_from_comprehensions(comprehensions):
 def comparison_expression_from_compare(ast_node):
   # (expr left, cmpop* ops, expr* comparators)
   # cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
-  last_expression = ComparisonExpression(expression_from_node(ast_node.left),
-                                         operator_from_cmpop(ast_node.ops[0]),
-                                         expression_from_node(ast_node.comparators[0]))
-  for cmpop, node in zip(ast_node.ops[1:], ast_node.comparators[1:]):
-    last_expression = AndOrExpression(
-        last_expression, 'and',
-        ComparisonExpression(last_expression.right_expression, operator_from_cmpop(cmpop),
-                             expression_from_node(node)))
-  return last_expression
-
+  return ComparisonExpression(expression_from_node(ast_node.left),
+                                         ast_node.ops,
+                                         [expression_from_node(comparator) for comparator in ast_node.comparators])
 
 def kwargs_from_keywords(keywords):
   # -- keyword arguments supplied to call (NULL identifier for **kwargs)

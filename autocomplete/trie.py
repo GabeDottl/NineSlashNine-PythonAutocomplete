@@ -96,7 +96,7 @@ class Trie:
     self.children[char] = child
 
   def get_most_recent_ancestor_or_actual(self, string, filter_fn=None):
-    path = self._get_path_to(string, return_mra_on_fail=True)
+    path = self._get_path_to(string, return_mra_on_fail=True, allow_substr=False)
     if not path:
       return None
     if filter_fn:
@@ -113,29 +113,36 @@ class Trie:
       for string in child.get_descendent_end_point_strings():
         yield f'{self.remainder}{c}{string}'
 
-  def _get_path_to(self, s, return_mra_on_fail=False):
+  def _get_path_to(self, s, return_mra_on_fail=False, allow_substr=True):
+    assert not (return_mra_on_fail and allow_substr)
     curr_node = self
     path = [('', curr_node)]
     sub_str = s
     while True:
-      # if sub_str == curr_node.remainder:
-      #   return path
+      if sub_str == curr_node.remainder:
+        return path  # Precise match.
       i = min(len(curr_node.remainder), len(sub_str))
       if i > 0 and sub_str[:i] != curr_node.remainder[:i]:
         if return_mra_on_fail:
           return path[:-1]  # Return up-to last node since curr_node doesn't quite match.
         break
-      if i == len(sub_str):  # sub_str inside of remainder or equal to it.
-        return path
+      if i == len(sub_str):  # sub_str inside of remainder.
+        if allow_substr:
+          return path
+        if return_mra_on_fail:
+          return path[:-1]
+        return None
+      next_char = sub_str[i]
       try:
-        next_char = sub_str[i]
         curr_node = curr_node.children[next_char]
-        path.append((next_char, curr_node))
-        sub_str = sub_str[i + 1:]  # May be empty string.
       except KeyError:
         if return_mra_on_fail:
           return path
-        break
+        return None
+      else:
+        path.append((next_char, curr_node))
+        sub_str = sub_str[i + 1:]  # May be empty string.
+
     return None
 
   def _get_max_path(self):
@@ -146,13 +153,11 @@ class Trie:
     return ''.join(chars)
 
   def remove(self, string, remove_subtree=True):
-    path = self._get_path_to(string)
+    path = self._get_path_to(string, allow_substr=False)
     if not path:
       return
-    path_str = path_to_str(path)
-    if path_str == string:
-      # Path points exactly to string - so we can remove the node.
-      remove_last_node_from_path(path, remove_subtree=remove_subtree)
+    # Path points exactly to string - so we can remove the node.
+    remove_last_node_from_path(path, remove_subtree=remove_subtree)
 
   def add(self, string, value, add_value=False, store_value=None) -> 'Trie':
     '''Adds |string| to this Trie with the specified values and returns the Trie storing them.
@@ -282,13 +287,13 @@ class Trie:
     assert False  # Unreachable - should return a node somewhere above.
 
   def get_value_for_string(self, string):
-    nodes = self._get_path_to(string)
+    nodes = self._get_path_to(string, allow_substr=False)
     if not nodes:
       return 0
     return nodes[-1][1].value
 
   def get_max_value_at_or_beneath_prefix(self, prefix, default=0):
-    path = self._get_path_to(prefix)
+    path = self._get_path_to(prefix, allow_substr=True)
     if not path:
       return default
     return path[-1][1]._get_max_value_at_or_beneath()
@@ -370,7 +375,7 @@ class FilePathTrie(Trie):
     if not os.path.exists(filename):
       # Damn, file already deleted - can't tell from OS if it was a dir. Need to infer from tree.
       filename_as_dir = append_sep_if_dir(filename, force=True)
-      path = self._get_path_to(filename_as_dir)
+      path = self._get_path_to(filename_as_dir, allow_substr=True)
       # If there is a path, then that means the filename is valid as a dir and therefore is a dir.
       if path:
         return filename_as_dir
@@ -430,17 +435,17 @@ class FilePathTrie(Trie):
       return []
     # Directory is equal to or a higher-level directory of path.
     path_str = path_to_str(path)
-    # print(f'path_str: {path_str}')
     if path_str == directory:
       for substr, subpath in path[-1][1]._get_paths_to_char_or_leaf(os.sep):
         # print((substr, path_to_str(subpath)))
         if subpath:
           yield substr, (path + subpath)
       return
+    # path points to a node beneath this directory.
     subpath_str = path_str[len(directory):]
     if os.sep in subpath_str:
       # Node is at least directory deeper than directory.
-      yield subpath_str[:subpath_str.find(os.sepf) + 1], path[-1][1]
+      yield subpath_str[:subpath_str.find(os.sep) + 1], path[-1][1]
 
   # TODO: Find a cleaner way to do this.
   @staticmethod

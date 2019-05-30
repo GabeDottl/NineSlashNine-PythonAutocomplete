@@ -40,4 +40,5 @@ class AstUnableToParse(Exception):
 def assert_unexpected_parso(assertion, *error):
   if not assertion:
     caller = getframeinfo(stack()[1][0])
-    raise ParsingError(f'"{caller.filename}", line {caller.lineno}, {str(error)}')
+    assert False
+    # raise ParsingError(f'"{caller.filename}", line {caller.lineno}, {str(error)}')
