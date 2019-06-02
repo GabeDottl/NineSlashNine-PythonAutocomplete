@@ -4,7 +4,7 @@ from typing import List
 
 
 @wraps
-class Example(Object):
+class Example(object):
   a: List[int] = 0
 
   @wraps

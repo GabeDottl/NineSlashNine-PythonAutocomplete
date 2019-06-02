@@ -1,5 +1,3 @@
-from .boo import Boo
-
 a = 2
 b = False
 c = 'string'
@@ -10,8 +8,9 @@ class Klazz:
   e = 1
 
   def foo(self, a, *args, b=2, **kwargs):
+    from .boo import Boo
     return Boo()
 
 
 k = Klazz()
-g = k.foo(1)
+# g = k.foo(1)
