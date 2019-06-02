@@ -106,12 +106,19 @@ class Trie:
       return None
     return path[-1][1]
 
-  def get_descendent_end_point_strings(self):
+  def get_descendent_end_point_strings(self, include_node=False):
     if self.end_point:
+      if include_node:
+        yield self.remainder, self
       yield self.remainder
     for c, child in self.children.items():
-      for string in child.get_descendent_end_point_strings():
-        yield f'{self.remainder}{c}{string}'
+      if include_node:
+        for string, node in child.get_descendent_end_point_strings(True):
+          yield f'{self.remainder}{c}{string}', node
+      else:
+        for string in child.get_descendent_end_point_strings():
+          yield f'{self.remainder}{c}{string}'
+
 
   def _get_path_to(self, s, return_mra_on_fail=False, allow_substr=True):
     assert not (return_mra_on_fail and allow_substr)
@@ -286,11 +293,17 @@ class Trie:
       return new_node
     assert False  # Unreachable - should return a node somewhere above.
 
+  def get_node(self, string):
+    path = self._get_path_to(string, allow_substr=False)
+    if not path:
+      return None
+    return path[-1][1]
+
   def get_value_for_string(self, string):
-    nodes = self._get_path_to(string, allow_substr=False)
-    if not nodes:
+    node = self.get_node(string)
+    if not node:
       return 0
-    return nodes[-1][1].value
+    return node.value
 
   def get_max_value_at_or_beneath_prefix(self, prefix, default=0):
     path = self._get_path_to(prefix, allow_substr=True)
@@ -396,8 +409,12 @@ class FilePathTrie(Trie):
                        add_value=add_value,
                        store_value=store_value)
 
+  # TODO: This can maybe be dropped since get_value is overriden?
   def get_value_for_string(self, filename):
     return super().get_value_for_string(string=self._append_sep_if_needed(filename))
+
+  def get_node(self, filename):
+    return super().get_node(string=self._append_sep_if_needed(filename))
 
   def _get_paths_to_char_or_leaf(self, char, exclude_self=True):
     '''Includes char.'''
