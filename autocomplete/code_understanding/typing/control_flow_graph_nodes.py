@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
 
-from . import collector, symbol_context, language_objects
+from . import (collector, symbol_context)
 from ...nsn_logging import info, warning
 from .errors import AmbiguousFuzzyValueError
 from .expressions import (Expression, VariableExpression, _assign_variables_to_results)
@@ -142,6 +142,23 @@ class ModuleCfgNode(GroupCfgNode):
   def to_ast(self):
     return _ast.Module(super().to_ast())
 
+  def get_global_imported_symbols(self):
+    existing_global_imports = self.get_descendents_of_types((ImportCfgNode, FromImportCfgNode),
+                                                            recursive=False)
+    out = set()
+    for node in existing_global_imports:
+      for symbol in node.get_defined_and_exported_symbols():
+        out.add(symbol)
+      # if isinstance(node, ImportCfgNode):
+      #   out.add(node.as_name if node.as_name else node.)
+      # elif isinstance(node, FromImportCfgNode):
+      #   for value, alias in node.from_import_name_alias_dict.items():
+      #     if alias:
+      #       out.add(alias)
+      #     else:
+      #       out.add(value)
+    return out
+
 
 @attr.s(slots=True)
 class ExpressionCfgNode(CfgNode):
@@ -268,6 +285,7 @@ class ImportCfgNode(CfgNode):
 @attr.s(slots=True)
 class FromImportCfgNode(CfgNode):
   module_path = attr.ib()
+  # TODO: Replace this with a simple, less-expensive list of tuple pairs?
   from_import_name_alias_dict: Dict[str, str] = attr.ib()
   source_filename: str = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
@@ -724,7 +742,8 @@ def _search_for_module(frame):
 @attr.s(slots=True)
 class KlassCfgNode(CfgNode):
   name = attr.ib()
-  base_class_expressions = attr.ib()
+  base_class_args = attr.ib()
+  base_class_kwargs = attr.ib()
   suite: GroupCfgNode = attr.ib()
   _module = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
@@ -762,8 +781,10 @@ class KlassCfgNode(CfgNode):
         del out[symbol]
     for child in filter(lambda x: isinstance(x, FuncCfgNode), self.suite):
       out = symbol_context.merge_symbol_context_dicts(out, child.get_non_local_symbols())
-    for base_class_expression in self.base_class_expressions:
-      out = symbol_context.merge_symbol_context_dicts(out, base_class_expression.get_used_free_symbols())
+    for base_class_arg in self.base_class_args:
+      out = symbol_context.merge_symbol_context_dicts(out, base_class_arg.get_used_free_symbols())
+    for base_class_arg in self.base_class_kwargs.values():
+      out = symbol_context.merge_symbol_context_dicts(out, base_class_arg.get_used_free_symbols())
     return out
 
   # @instance_memoize
@@ -775,7 +796,12 @@ class KlassCfgNode(CfgNode):
 
   def strip_descendents_of_types(self, type_, recursive=False) -> CfgNode:
     suite = self.suite.strip_descendents_of_types(type_, recursive=recursive)
-    return KlassCfgNode(self.name, self.base_class_expressions, suite, self._module, self.parse_node)
+    return KlassCfgNode(name=self.name,
+                        base_class_args=self.base_class_args,
+                        base_class_kwargs=self.base_class_kwargs,
+                        suite=suite,
+                        _module=self._module,
+                        parse_node=self.parse_node)
 
   def pretty_print(self, indent=''):
     return f'{indent}{type(self)}\n{self.suite.pretty_print(indent=indent+"  ")}'

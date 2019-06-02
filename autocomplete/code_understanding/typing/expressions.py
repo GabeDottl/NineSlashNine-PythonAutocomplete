@@ -99,6 +99,7 @@ class InvertExpression(NotExpression):
   def _to_ast(self):
     return _ast.Invert(self.expression._to_ast())
 
+
 @attr.s(slots=True)
 class AndOrExpression(Expression):
   operator: _ast.boolop = attr.ib()
@@ -162,9 +163,8 @@ class ComparisonExpression(Expression):
 
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(), *[e.get_used_free_symbols() for e in self.comparators])
-
-
+    return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
+                                                     *[e.get_used_free_symbols() for e in self.comparators])
 
 
 @attr.s(slots=True)
@@ -285,11 +285,12 @@ class VariableExpression(Expression):
     return {self.name: symbol_context.RawSymbolContext(self.parse_node)}
 
 
-@attr.s
+@attr.s(slots=True)
 class ForComprehension:
   target_variables: Expression = attr.ib()
   iterable_expression: Expression = attr.ib()
-  comp_iter: Union[Expression, None] = attr.ib()
+  ifs: List[ComparisonExpression] = attr.ib()
+  is_async: bool = attr.ib()
 
   def process_into_new_frame(self, curr_frame) -> 'Frame':
     # TODO: Fill out proper.
@@ -319,9 +320,9 @@ class ForComprehension:
 @attr.s(slots=True)
 class ForComprehensionExpression(Expression):
   ''' As in: ` for x in func2(y)` - not to be confused with a for-block.'''
-  # generator_expression for target_variables in iterable_expression
+  # generator_expression for target_variables in iterable_expression.
   generator_expression: Expression = attr.ib()
-  for_comprehension: ForComprehension = attr.ib()
+  for_comprehensions: List[ForComprehension] = attr.ib()
 
   def evaluate(self, curr_frame) -> PObject:
     new_frame = self.for_comprehension.process_into_new_frame(curr_frame)
@@ -335,9 +336,9 @@ class ForComprehensionExpression(Expression):
     for symbol in self.for_comprehension.get_defined_symbols():
       if symbol in generator_free_symbols:
         del generator_free_symbols[symbol]
-    return symbol_context.merge_symbol_context_dicts(generator_free_symbols,
-                                                     self.for_comprehension.get_used_free_symbols())
-
+    return symbol_context.merge_symbol_context_dicts(
+        generator_free_symbols,
+        *[for_comprehension.get_used_free_symbols() for for_comprehension in self.for_comprehensions])
 
 @attr.s(slots=True)
 class StarredExpression(Expression):
@@ -369,7 +370,7 @@ class KeyValueAssignment:
 class KeyValueForComp:
   key: Expression = attr.ib()
   value: Expression = attr.ib()
-  for_comp: ForComprehension = attr.ib()
+  for_comps: List[ForComprehension] = attr.ib(validator=attr.validators.instance_of(list))
 
   # @instance_memoize
   @assert_returns_type(dict)
@@ -378,7 +379,8 @@ class KeyValueForComp:
     for symbol in self.for_comp.get_defined_symbols():
       if symbol in out:
         del out[symbol]
-    return symbol_context.merge_symbol_context_dicts(out, self.for_comp.get_used_free_symbols())
+    return symbol_context.merge_symbol_context_dicts(
+        out, *[for_comp.get_used_free_symbols() for for_comp in self.for_comps])
     # return out
 
 
@@ -636,5 +638,6 @@ class MathExpression(Expression):
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     return symbol_context.merge_symbol_context_dicts(self.left_expression.get_used_free_symbols(),
                                                      self.right_expression.get_used_free_symbols())
+
 
 # Variable = Expression

@@ -118,11 +118,14 @@ class Visitor(ast.NodeVisitor):
     with ListPopper(self._container_stack, suite.children):
       for stmt in ast_node.body:
         self.visit(stmt)
-    base_classes = [expression_from_node(base) for base in ast_node.bases]
+    base_class_args = [expression_from_node(base) for base in ast_node.bases]
+    kwargs, base_class_kwargs = kwargs_from_keywords(ast_node.keywords)
+    assert not kwargs
     self.push(
         KlassCfgNode(ast_node.name,
-                     base_classes,
-                     suite,
+                     base_class_args=base_class_args,
+                     base_class_kwargs=base_class_kwargs,
+                     suite=suite,
                      module=self._module,
                      parse_node=parse_from_ast(ast_node)))
 
@@ -595,18 +598,14 @@ def operator_from_cmpop(cmpop):
 
 def for_comprehension_from_comprehensions(comprehensions):
   # comprehension = (expr target, expr iter, expr* ifs, int is_async)
-  last_comprehension = None
+  out = []
   for comprehension in comprehensions:
     target = expression_from_node(comprehension.target)
     iterator = expression_from_node(comprehension.iter)
-    # TODO: !!!
-    # comp_iters = [expression_from_node(if_) for if_ in comprehension.ifs]
-    for_comprehension = ForComprehension(target, iterator, None)
-    if last_comprehension:
-      last_comprehension.comp_iter = for_comprehension
-    last_comprehension = for_comprehension
+    ifs = [expression_from_node(if_) for if_ in comprehension.ifs]
+    out.append(ForComprehension(target, iterator, ifs=ifs, is_async=bool(comprehension.is_async)))
 
-  return last_comprehension
+  return out
 
 
 def comparison_expression_from_compare(ast_node):
@@ -622,7 +621,6 @@ def kwargs_from_keywords(keywords):
   kwargs = None
   out = {}
   for keyword in keywords:
-
     if keyword.arg is None:
       kwargs = StarredExpression('**', expression_from_node(keyword.value))
     else:

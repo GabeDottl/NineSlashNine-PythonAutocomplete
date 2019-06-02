@@ -1,6 +1,6 @@
 import itertools
-
 from functools import wraps
+
 from typing import (List, Tuple, Union)
 import _ast
 
@@ -10,7 +10,7 @@ import attr
 from .control_flow_graph_nodes import (AssignmentStmtCfgNode, CfgNode, ExceptCfgNode, ExpressionCfgNode,
                                        TypeHintStmtCfgNode, ForCfgNode, FromImportCfgNode, FuncCfgNode,
                                        GroupCfgNode, IfCfgNode, RaiseCfgNode, ImportCfgNode, KlassCfgNode,
-                                       NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression, TryCfgNode,
+                                       NoOpCfgNode, ParseNode, ReturnCfgNode, LambdaExpression, TryCfgNode, ModuleCfgNode,
                                        WhileCfgNode, WithCfgNode)
 from .errors import (ParsingError, assert_unexpected_parso)
 from .expressions import (AndOrExpression, AttributeExpression, CallExpression, ComparisonExpression,
@@ -35,9 +35,10 @@ EXPRESSION_NODES = {
 class ParsoControlFlowGraphBuilder:
   module_loader = attr.ib()
   _module: 'Module' = attr.ib()
-  root: GroupCfgNode = attr.ib(factory=GroupCfgNode)
+  root: GroupCfgNode = attr.ib(factory=ModuleCfgNode)
   _containing_func_node = None
   _source_filename = attr.ib(None, init=False)
+  _outer_async = attr.ib(False, init=False)
 
   def graph_from_source(self, source, source_filename):
     parse_node = parso.parse(source)
@@ -311,6 +312,7 @@ class ParsoControlFlowGraphBuilder:
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_for_stmt(self, node):
+    assert not self._outer_async  # TODO.
     # Example for loop_variables in loop_expression: suite
     loop_variables = variables_from_node(node.children[1])
     loop_expression = expression_from_node(node.children[3])
@@ -355,6 +357,7 @@ class ParsoControlFlowGraphBuilder:
 
   @assert_returns_type(CfgNode)
   def _create_cfg_node_for_with_stmt(self, node):
+    assert not self._outer_async  # TODO.
     with_item = node.children[1]
     as_name = None
     if with_item.type == 'with_item':
@@ -379,11 +382,10 @@ class ParsoControlFlowGraphBuilder:
     name = node.children[1].value
     suite = self._create_cfg_node(node.children[-1])
     if node.children[2].value == ':':
-      base_classes = []
+      args, kwargs = [], {}
     else:
-      base_classes, kwargs = args_and_kwargs_from_arglist(node.children[3])
-      assert not kwargs
-    return KlassCfgNode(name, base_classes, suite, module=self._module, parse_node=parse_from_parso(node))
+      args, kwargs = args_and_kwargs_from_arglist(node.children[3])
+    return KlassCfgNode(name, args, kwargs, suite, module=self._module, parse_node=parse_from_parso(node))
 
   @assert_returns_type(List)
   def create_expression_node_tuples_from_if_stmt(self, node) -> List[Tuple[Expression, CfgNode]]:
@@ -434,13 +436,23 @@ class ParsoControlFlowGraphBuilder:
                           parse_node=parse_from_parso(node.children[-1]))
     ])
 
+  def _async_wrapper(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+      old = self._outer_async
+      self._outer_async = True
+      return func(self, *args, **kwargs)
+      self._outer_async = old
+    return wrapper
+
   @assert_returns_type(CfgNode)
+  @_async_wrapper
   def _create_cfg_node_for_async_stmt(self, node):
     # TODO: https://docs.python.org/3/library/asyncio-task.html
-    debug(f'Ignoring async in {node.type}')
     return self._create_cfg_node(node.children[1])
 
   @assert_returns_type(CfgNode)
+  @_async_wrapper
   def _create_cfg_node_for_async_funcdef(self, node):
     # TODO: https://docs.python.org/3/library/asyncio-task.html
     # TODO: Generators.
@@ -686,28 +698,44 @@ def expression_from_testlist_comp(node) -> Expression:
   return ItemListExpression(out)
 
 
-def for_comprehension_from_comp_for(comp_for):
+def for_comprehensions_from_comp_for(comp_for):
+  # comp_for: ['async'] sync_comp_for
+  # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
+  # comp_iter: comp_for | comp_if
+  # comp_if: 'if' test_nocond [comp_iter]
+  # Parso nuance: sync_comp_for not used - comp_for substituted in.
   target_variables = variables_from_node(comp_for.children[1])
   iterable_expression = expression_from_node(comp_for.children[3])
+  ifs = []
+  first_child = comp_for.children[0]
+  is_async = first_child.type == 'keyword' and first_child.value == 'async'
 
-  assert len(comp_for.children) <= 5
-  if len(comp_for.children) == 5:
-    comp_iter = expression_from_node(comp_for.children[4])
-  else:
-    comp_iter = None
-  return ForComprehension(target_variables, iterable_expression, comp_iter)
+
+  # assert len(comp_for.children) <= 5
+  out = []
+  # for a in b comp_iter
+  if (len(comp_for.children) == 5 and not is_async) or len(comp_for.children) == 6:
+    comp_iter = comp_for.children[-1]
+    while True:
+      if comp_iter.type == 'comp_for':
+        out += for_comprehensions_from_comp_for(comp_iter)
+        break
+      elif comp_iter.type == 'comp_if':
+        ifs.append(expression_from_node(comp_iter.children[1]))
+        if len(comp_iter.children) == 3:
+          comp_iter = comp_iter.children[-1]
+        else:
+          break
+
+  out.append(ForComprehension(target_variables, iterable_expression, ifs=ifs, is_async=is_async))
+  return out
 
 
 def expression_from_comp_for(generator_node, comp_for) -> ForComprehensionExpression:
-  # comp_iter: comp_for | comp_if
-  # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
-  # comp_for: ['async'] sync_comp_for
-  # comp_if: 'if' test_nocond [comp_iter]
-
   assert comp_for.type == 'comp_for'
   generator_expression = expression_from_node(generator_node)
 
-  return ForComprehensionExpression(generator_expression, for_comprehension_from_comp_for(comp_for))
+  return ForComprehensionExpression(generator_expression, for_comprehensions_from_comp_for(comp_for))
 
 
 @assert_returns_type(Expression)
@@ -842,7 +870,7 @@ def kwarg_from_argument(argument):
 
   first_expression = expression_from_node(first_child)
   assert second_child.type == 'comp_for'
-  for_comprehension = for_comprehension_from_comp_for(second_child)
+  for_comprehension = for_comprehensions_from_comp_for(second_child)
   return None, ForComprehensionExpression(first_expression, for_comprehension)
 
 
@@ -971,7 +999,8 @@ def expression_from_dictorsetmaker(dictorsetmaker) -> Union[SetExpression, DictE
   # set case:
   #                ((test | star_expr)
   #                 (comp_for | (',' (test | star_expr))* [',']))
-  # Technically, shouldn't happen but does in cases like {1}.
+
+  # Technically, shouldn't be reachable but is for cases like {1}. Damn parso...
   if not dictorsetmaker.type == 'dictorsetmaker':
     return SetExpression([expression_from_node(dictorsetmaker)])
   assignments = []
@@ -999,7 +1028,7 @@ def expression_from_dictorsetmaker(dictorsetmaker) -> Union[SetExpression, DictE
     child = dictorsetmaker.children[i]
     if child.type == 'comp_for':
       is_set = True
-      assignments.append(ForComprehensionExpression(key, for_comprehension_from_comp_for(child)))
+      assignments.append(ForComprehensionExpression(key, for_comprehensions_from_comp_for(child)))
       continue
     assert child.type == 'operator'
     if child.value == ',':
@@ -1016,7 +1045,7 @@ def expression_from_dictorsetmaker(dictorsetmaker) -> Union[SetExpression, DictE
       i = next(iterator)
       child = dictorsetmaker.children[i]
       if child.type == 'comp_for':
-        assignments.append(KeyValueForComp(key, value, for_comprehension_from_comp_for(child)))
+        assignments.append(KeyValueForComp(key, value, for_comprehensions_from_comp_for(child)))
       else:
         assert child.type == 'operator' and child.value == ','
         assignments.append(KeyValueAssignment(key, value))
