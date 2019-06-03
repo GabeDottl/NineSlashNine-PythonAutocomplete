@@ -36,7 +36,7 @@ def scan_missing_symbols_in_graph(graph, directory, skip_wild_cards=False):
           # Get obvious exported symbols - similar to mentioned above, the module could theoretically have
           # attributes set on it externally or via setattr, but this would be quite odd and we assume doesn't
           # happen.
-          module_key, _, _ = module_loader.get_module_info_from_name(from_import.module_path, directory)
+          module_key = module_loader.module_key_from_name(from_import.module_path, directory)
           # TODO: Cache graph.
           with open(module_key.get_filename(False)) as f:
             imported_graph = api.graph_from_source(''.join(f.readlines()), module_key.get_filename(False))

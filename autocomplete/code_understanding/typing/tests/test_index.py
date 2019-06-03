@@ -52,20 +52,22 @@ def test_build_typing_index():
 def test_add_file():
   _clean()
   initial_index = symbol_index.SymbolIndex.create_index(INDEX_PATH)
+  initial_index.add_file(os.path.join(TYPING_DIR, 'tests', 'test_fix_code.py'))
   initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'))
   initial_index.save()
   loaded_index = symbol_index.SymbolIndex.load(INDEX_PATH)
+  assert initial_index.deep_equals(loaded_index)
 
-  for index in (initial_index, loaded_index):
-    # Note: Because we're only adding a file without tracking, for both of these entries they're
-    # simply what has been imported into boo.py.
-    entries = list(index.find_symbol('attr'))
-    assert len(entries) == 1 and entries[0].get_symbol_type(
-    ) == symbol_index.SymbolType.MODULE and entries[0].is_imported()
-    entries = list(index.find_symbol('at'))
-    assert len(entries) == 1 and entries[0].get_symbol_type(
-    ) == symbol_index.SymbolType.MODULE and entries[0].is_imported()
+  # Note: Because we're only adding a file without tracking, for both of these entries they're
+  # simply what has been imported into boo.py.
+  entries = list(initial_index.find_symbol('attr'))
+  assert len(entries) == 1 and entries[0].get_symbol_type(
+  ) == symbol_index.SymbolType.MODULE and entries[0].is_imported()
+  entries = list(initial_index.find_symbol('at'))
+  assert len(entries) == 1 and entries[0].get_symbol_type(
+  ) == symbol_index.SymbolType.MODULE and entries[0].is_imported()
 
+ 
 
 def test_micro_index_lifecycle():
   _clean

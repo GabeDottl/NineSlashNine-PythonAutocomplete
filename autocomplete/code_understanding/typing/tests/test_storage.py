@@ -19,7 +19,7 @@ from ..utils import assert_expected_iterable
 def test_serialization_deserialization():
   module_name = 'autocomplete.code_understanding.typing.examples.index_test_package.storage_example'
   # module_name = 'autocomplete.code_understanding.typing.control_flow_graph'
-  module_key = module_loader.get_module_info_from_name(module_name, '.')[0]
+  module_key = module_loader.module_key_from_name(module_name, '.')
   assert not module_key.is_bad()
   module = module_loader.get_module_from_key(module_key, lazy=False)
 

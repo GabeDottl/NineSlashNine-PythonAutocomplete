@@ -1,4 +1,5 @@
 **/.idea
 **/tags
+.history
 .pytest_cache
 index.msg

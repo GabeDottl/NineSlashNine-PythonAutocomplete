@@ -24,8 +24,7 @@ from . import collector, serialization, errors
 from ...nsn_logging import debug, error, warning
 from .errors import (NoDictImplementationError, SourceAttributeError, UnableToReadModuleFileError)
 from .frame import FrameType
-from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject,
-                       PObjectType, UnknownObject, pobject_from_object)
+from .pobjects import (AugmentedObject, FuzzyBoolean, LanguageObject, LazyObject, NativeObject, PObject, UnknownObject, pobject_from_object, PObjectType)
 from .utils import attrs_names_from_class
 
 
@@ -86,29 +85,8 @@ class Namespace:
     assert isinstance(value, PObject)
     self[name] = value
 
-
-class ModuleType(Enum):
-  SYSTEM = 0
-  PUBLIC = 1
-  LOCAL = 2
-  MAIN = 3
-  BUILTIN = 4
-  COMPILED = 5  # .so files.
-  UNKNOWN_OR_UNREADABLE = 6
-
-  def should_be_readable(self):
-    return self != ModuleType.BUILTIN and self != ModuleType.UNKNOWN_OR_UNREADABLE and self != ModuleType.COMPILED
-
-  def serialize(self, **kwargs):
-    return ModuleType.__qualname__, self.value
-
-  def is_native(self):
-    return self == ModuleType.BUILTIN or self == ModuleType.COMPILED
-
-
 def create_main_module(module_loader, filename=None):
   return ModuleImpl('__main__',
-                    ModuleType.MAIN,
                     members={},
                     filename=filename,
                     is_package=False,
@@ -118,7 +96,6 @@ def create_main_module(module_loader, filename=None):
 @attr.s(slots=True)
 class Module(Namespace, LanguageObject, ABC):
   name: str = attr.ib()
-  module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib()
 
   def add_members(self, members):
@@ -131,7 +108,6 @@ class Module(Namespace, LanguageObject, ABC):
 @attr.s(slots=True)
 class NativeModule(Module):
   name: str = attr.ib()
-  module_type: ModuleType = attr.ib()
   _members: Dict = attr.ib(init=False, default=None)  # TODO: Remove.
   graph = attr.ib(None, init=False)
   _native_module: NativeObject = attr.ib(kw_only=True)
@@ -183,7 +159,6 @@ class NativeModule(Module):
 class ModuleImpl(Module):
   # This will include containing packages, if any. i.e. a.b.c for module c.
   name: str = attr.ib()
-  module_type: ModuleType = attr.ib()
   filename = attr.ib(kw_only=True)
   _is_package = attr.ib(kw_only=True)
   _members: Dict = attr.ib(kw_only=True)
@@ -203,10 +178,10 @@ class ModuleImpl(Module):
     try:
       return super().__getitem__(name)
     except SourceAttributeError as sae:
-      if not self.module_type.should_be_readable():
+      if not self.filename:
         return UnknownObject(f'{self.name}.{name}')
       if self._is_package:
-        module_key = self.module_loader.get_module_info_from_name(f'.{name}',
+        module_key = self.module_loader.module_key_from_name(f'.{name}',
                                                                   os.path.dirname(self.filename))[0]
 
         if not module_key.is_bad():
@@ -214,9 +189,6 @@ class ModuleImpl(Module):
             return AugmentedObject(self.module_loader.get_module_from_key(module_key, unknown_fallback=False))
           except errors.InvalidModuleError as e:
             pass
-      # Commented out because getitem is used by __contains__.
-      # if self.module_type.should_be_readable():
-      #   warning(f'Failed to get {name} from {self.filename}')
       raise sae
 
   def serialize(self, **kwargs):

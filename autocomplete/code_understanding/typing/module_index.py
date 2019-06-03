@@ -5,7 +5,7 @@ import h5py
 
 from . import module_loader
 from .errors import AmbiguousFuzzyValueError
-from .language_objects import Function, Instance, Klass, ModuleImpl, ModuleType
+from .language_objects import Function, Instance, Klass, ModuleImpl
 from .pobjects import FuzzyObject, pobject_from_object
 
 
@@ -22,7 +22,6 @@ class ModuleIndex:
       self.add_hdf_value_from_pobject(module_store, key, value)
 
     module_store.attrs['filename'] = module.filename
-    module_store.attrs['module_type'] = module.module_type.value
     module_store.attrs['_is_package'] = module._is_package
 
   def add_hdf_value_from_pobject(self, group, name, pobject):
@@ -66,7 +65,6 @@ class ModuleIndex:
 
     return ModuleImpl(name,
                       filename=module_store.attrs['filename'],
-                      module_type=ModuleType(module_store.attrs['module_type']),
                       is_package=module_store.attrs['_is_package'],
                       members=members,
                       module_loader=module_loader)

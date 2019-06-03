@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
 
-from . import (collector, symbol_context)
+from . import (collector, symbol_context, language_objects)
 from ...nsn_logging import info, warning
 from .errors import AmbiguousFuzzyValueError
 from .expressions import (Expression, VariableExpression, _assign_variables_to_results)
@@ -194,7 +194,7 @@ class ImportCfgNode(CfgNode):
 
   @instance_memoize
   def get_module_key(self):
-    return self.module_loader.get_module_info_from_name(self.module_path, self.source_dir)[0]
+    return self.module_loader.module_key_from_name(self.module_path, self.source_dir)
 
   def _process_impl(self, curr_frame):
     name = self.as_name if self.as_name else self.module_path
@@ -232,12 +232,10 @@ class ImportCfgNode(CfgNode):
         # imports and are dynamically added to as more things are imported. If a package already
         # exists, we'll add the modules simple as a member.
         if ancestor_module is None or not isinstance(ancestor_module, Module):
-          module_key, is_package, module_type = self.module_loader.get_module_info_from_name(
-              current_name, self.source_dir)
+          module_key = self.module_loader.module_key_from_name(current_name, self.source_dir)
           # assert is_package
           ancestor_module = SimplePackageModule(
               current_name,
-              module_type,
               filename=module_key.get_filename(False) if module_key.is_loadable_by_file() else module_key.id,
               is_package=True,
               members={},
@@ -297,7 +295,7 @@ class FromImportCfgNode(CfgNode):
 
   @instance_memoize
   def get_module_key(self):
-    return self.module_loader.get_module_info_from_name(self.module_path, self.source_dir)[0]
+    return self.module_loader.module_key_from_name(self.module_path, self.source_dir)
 
   def _process_impl(self, curr_frame):
     for from_import_name, as_name in self.from_import_name_alias_dict.items():
@@ -312,7 +310,7 @@ class FromImportCfgNode(CfgNode):
         # if we have from a import *, b and c will only be brought in to the namespace if they were
         # already imported. Such subtleties..
         module = self.module_loader.get_module_from_key(self.get_module_key())
-        if module.module_type == language_objects.ModuleType.UNKNOWN_OR_UNREADABLE:
+        if not module.filename:
           warning(f'Unknown module: {module.name}')
           continue
 

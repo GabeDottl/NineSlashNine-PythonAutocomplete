@@ -301,19 +301,17 @@ class ForComprehension:
 
   # @instance_memoize
   def get_defined_symbols(self):
-    target_symbols = self.target_variables.get_used_free_symbols()
-    comp_iter_symbols = self.comp_iter.get_used_free_symbols() if self.comp_iter else []
-    return itertools.chain(target_symbols, comp_iter_symbols)
+    return self.target_variables.get_used_free_symbols()
 
   # @instance_memoize
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     non_locals = self.iterable_expression.get_used_free_symbols()
+    for if_ in self.ifs:
+      non_locals = symbol_context.merge_symbol_context_dicts(non_locals, if_.get_used_free_symbols())
     for symbol in self.get_defined_symbols():
       if symbol in non_locals:
         del non_locals[symbol]
-    if self.comp_iter:
-      return symbol_context.merge_symbol_context_dicts(non_locals, self.comp_iter.get_used_free_symbols())
     return non_locals
 
 
@@ -333,9 +331,10 @@ class ForComprehensionExpression(Expression):
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     generator_free_symbols = self.generator_expression.get_used_free_symbols()
-    for symbol in self.for_comprehension.get_defined_symbols():
-      if symbol in generator_free_symbols:
-        del generator_free_symbols[symbol]
+    for for_comprehension in self.for_comprehensions:
+      for symbol in for_comprehension.get_defined_symbols():
+        if symbol in generator_free_symbols:
+          del generator_free_symbols[symbol]
     return symbol_context.merge_symbol_context_dicts(
         generator_free_symbols,
         *[for_comprehension.get_used_free_symbols() for for_comprehension in self.for_comprehensions])
@@ -376,9 +375,10 @@ class KeyValueForComp:
   @assert_returns_type(dict)
   def get_used_free_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
     out = self.value.get_used_free_symbols()
-    for symbol in self.for_comp.get_defined_symbols():
-      if symbol in out:
-        del out[symbol]
+    for for_comp in self.for_comps:
+      for symbol in for_comp.get_defined_symbols():
+        if symbol in out:
+          del out[symbol]
     return symbol_context.merge_symbol_context_dicts(
         out, *[for_comp.get_used_free_symbols() for for_comp in self.for_comps])
     # return out

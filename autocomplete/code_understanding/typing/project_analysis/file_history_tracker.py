@@ -3,9 +3,9 @@ import os
 import attr
 from functools import partial
 from ..utils import is_python_file
-from typing import Generator, Tuple
+from typing import Generator
 
-from ....trie import FilePathTrie, remove_last_node_from_path, append_sep_if_dir, path_to_str
+from ....trie import (FilePathTrie, append_sep_if_dir, remove_last_node_from_path, path_to_str)
 from ....nsn_logging import info
 
 

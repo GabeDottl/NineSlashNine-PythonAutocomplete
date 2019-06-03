@@ -7,7 +7,7 @@ NONE_TYPE = type(None)
 
 def deserialize(type_str, serialized_obj, hook_fn=None):
   from .pobjects import UnknownObject, NativeObject, AugmentedObject, FuzzyBoolean
-  from .language_objects import (Parameter, ParameterType, StubFunction, FunctionType, ModuleImpl, ModuleType,
+  from .language_objects import (Parameter, ParameterType, StubFunction, FunctionType, ModuleImpl,
                                  Klass, LazyInstance)
   if serialized_obj is None:
     return None

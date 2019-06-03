@@ -179,7 +179,7 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
   if isinstance(cfg_node, ImportCfgNode):
     if value:
       return False
-    module_key, _, _ = module_loader.get_module_info_from_name(cfg_node.module_path, directory)
+    module_key = module_loader.module_key_from_name(cfg_node.module_path, directory)
     if module_key != import_.module_key:
       return False
     return True
@@ -187,11 +187,11 @@ def does_import_match_cfg_node(import_, cfg_node, directory):
   # FromImportCfgNode.
   filename = ''
   for from_import_name, as_name in cfg_node.from_import_name_alias_dict.items():
-    module_key = module_loader.get_module_info_from_name(
-        module_loader.join_module_attribute(cfg_node.module_path, from_import_name), directory)[0]
+    module_key = module_loader.module_key_from_name(
+        module_loader.join_module_attribute(cfg_node.module_path, from_import_name), directory)
     # If the from import is importing a module itself, then put it in the module_name
     if module_key.is_bad():
-      module_key = module_loader.get_module_info_from_name(cfg_node.module_path, directory)[0]
+      module_key = module_loader.module_key_from_name(cfg_node.module_path, directory)
     if module_key != import_.module_key:
       continue
 
@@ -225,7 +225,7 @@ class Import:
       module_name = module_name_from_filename_relative_to_dir(self.module_key.get_filename(prefer_stub=False),
                                                               source_dir)
     else:
-      module_name = self.module_key.get_module_basename()
+      module_name = self.module_key.get_basename()
 
     value = self._value
     if not self._value:
@@ -266,6 +266,14 @@ def pobject_from_symbol_entry(symbol_entry):
     )
     return pobjects.UnknownObject(symbol_entry.get_real_name())
 
+def value_from_symbol_entry(symbol_entry):
+  module = module_loader.get_python_module_from_module_key(symbol_entry.get_module_key())
+  if symbol_entry.is_module_itself():
+    return module
+  try:
+    return getattr(module, symbol_entry.get_real_name())
+  except AttributeError:
+    return None
 
 def matches_context(context, symbol_entry):
   # TODO: Refine all of this.
@@ -286,10 +294,11 @@ def matches_context(context, symbol_entry):
     return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
 
   if isinstance(context, symbol_context.AttributeSymbolContext):
-    pobject = pobject_from_symbol_entry(symbol_entry)
-    if isinstance(pobject, pobjects.UnknownObject):
-      return False
-    return pobject.has_attribute(context.attribute)
+    value = value_from_symbol_entry(symbol_entry)
+    return hasattr(value, context.attribute)
+    # if isinstance(value, pobjects.UnknownObject):
+    #   return False
+    # return pobject.has_attribute(context.attribute)
     # return symbol_entry.get_symbol_type() != symbol_index.SymbolType.FUNCTION
 
   return True
