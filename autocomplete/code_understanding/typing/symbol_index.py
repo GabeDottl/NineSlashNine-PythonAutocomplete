@@ -195,7 +195,7 @@ class _LocationIndex:
   is_file_location: bool = attr.ib(True, kw_only=True)
   # Indicates whether or not we track imports for files tracked by this index.
   is_import_tracking: bool = attr.ib(False, kw_only=True)
-  _modified_since_save = attr.ib(False, init=False)
+  _modified_since_save = attr.ib(False, kw_only=True)
   # This is introducing a circular dependency - to avoid subtle headaches with garbage collection
   #  breaking, we use weakrefs here.
   _symbol_index_weakref: weakref = attr.ib(kw_only=True)
@@ -241,7 +241,8 @@ class _LocationIndex:
     index = _LocationIndex(save_dir=save_dir,
                            location='builtins',
                            is_file_location=False,
-                           symbol_index_weakref=lambda: None)
+                           symbol_index_weakref=lambda: None,
+                           modified_since_save=True)
     # Add builtins to symbol_dict by default to account for all builtin symbols since most modules
     # aren't going to do a "from builtins import *" explicitly.
     builtins_module_key = module_loader.ModuleKey(module_loader.ModuleSourceType.BUILTIN, 'builtins')
@@ -262,7 +263,8 @@ class _LocationIndex:
                           location=target_directory,
                           symbol_index_weakref=weakref.ref(symbol_index),
                           file_history_tracker=file_history_tracker,
-                          is_import_tracking=is_import_tracking)
+                          is_import_tracking=is_import_tracking,
+                          modified_since_save=True)
 
   def find_symbol(self, symbol):
     for alias in self.symbol_alias_dict[symbol].values():
@@ -776,23 +778,23 @@ class SymbolIndex:
   def deep_equals(self, other):
     '''Performs a deep check to determine if |other| matches this SymbolIndex. This is expensive.'''
     if self.save_dir != other.save_dir:
-      return False
+      assert False
     if len(self._location_indicies) != len(other._location_indicies):
-      return False
+      assert False
     for location_index in self._location_indicies:
       if not location_index.is_file_location:
         continue  # skip builtins.
       trie = other._file_location_indicies_trie.get_node(location_index.location)
       if not trie:
-        return False
+        assert False
       other_location_index = trie.store_value()
       if not other_location_index.deep_equals(location_index):
-        return False
+        assert False
     if len(self._failed_module_keys) != len(other._failed_module_keys):
-      return False
+      assert False
     for module_key in self._failed_module_keys:
       if module_key not in other._failed_module_keys:
-        return False
+        assert False
     return True
 
   def find_symbol(self, symbol):

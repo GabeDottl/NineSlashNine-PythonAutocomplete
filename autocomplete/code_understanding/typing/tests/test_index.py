@@ -145,8 +145,8 @@ from .test import y
 #   index.add_file(f'{HOME}/code/autocomplete/autocomplete/code_understanding/typing/test.py')
 
 if __name__ == "__main__":
-  test_micro_index_lifecycle()
   test_add_file()
+  test_micro_index_lifecycle()
   test_build_test_index()
   test_build_typing_index()
   # test_build_full_index()

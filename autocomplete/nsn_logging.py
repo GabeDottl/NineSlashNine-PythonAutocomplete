@@ -1,27 +1,38 @@
 """NineSlashNine logger wrapper.
 
-This primarily just wraps the abseil logging module with a bit of NSN-standard
-components.
+This primarily just wraps the logging module with a bit of NSN-standard components.
 
 The rationale for doing this is a few:
-* Allows some consistent customization over abseil logging.
-* Allows swapping out Abseil easily across the board - e.g. for logging to disk."""
-
+* Allows some consistent customization.
+* Allows changing logging-routing across the board - e.g. for logging to disk.
+* Simpler API to work with.
+"""
+import os
 import inspect
 
-from absl import logging
+import logging
+import logging.handlers
+from . import settings
 
 # import coloredlogs
 # coloredlogs.install()
 
-logging.set_verbosity('info')
-
+_logger = logging.getLogger('__default__')
+_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+_handler = None
 _context_list = []
 _context_prefix = 'a'
 
+_logging_disabled = False
+
 
 def set_verbosity(level):
-  logging.set_verbosity(level)
+  if level == 'info':
+    _logger.setLevel(logging.INFO)
+  elif level == 'debug':
+    _logger.setLevel(logging.DEBUG)
+  elif level == 'error':
+    _logger.setLevel(logging.ERROR)
 
 
 # TODO: contextmanager.
@@ -36,44 +47,73 @@ def pop_context():
 
 
 def info(message, *args, log=True, **kwargs):
-  if log and not _context_list:
-    logging.info(message, *args, **kwargs)
-  elif log:
-    logging.info(f'{"|".join(_context_list)}|{message}', *args, **kwargs)
+  if log and not _logging_disabled:
+    _logger.info(_format_message(message), *args, **kwargs)
 
 
 def debug(message, *args, log=True, **kwargs):
-  if log and not _context_list:
-    logging.debug(message, *args, **kwargs)
-  elif log:
-    logging.debug(f'{"|".join(_context_list)}|{message}', *args, **kwargs)
+  if log and not _logging_disabled:
+    _logger.debug(_format_message(message), *args, **kwargs)
 
 
 def warning(message, *args, log=True, **kwargs):
-  if log and not _context_list:
-    logging.warning(message, *args, **kwargs)
-  elif log:
-    logging.warning(f'{"|".join(_context_list)}|{message}', *args, **kwargs)
+  if log and not _logging_disabled:
+    _logger.warning(_format_message(message), *args, **kwargs)
 
 
 def error(message, *args, log=True, **kwargs):
-  if log and not _context_list:
-    logging.error(message, *args, **kwargs)
-  elif log:
-    logging.error(f'{"|".join(_context_list)}|{message}', *args, **kwargs)
+  if log and not _logging_disabled:
+    _logger.error(_format_message(message), *args, **kwargs)
 
 
-def log(level, message, *args, **kwargs):
-  logging.log(level, message, *args, **kwargs)
+def _format_message(message, include_func=False):
+  filename, func, lineno = __get_call_info(2)  # info for calling function.
+  filename = os.path.basename(filename)
+  context_str = f'{"|".join(_context_list)}:' if _context_list else ''
+  if include_func:
+    return f'{filename}#{func}({lineno}):{context_str} {message}'
+  else:
+    return f'{filename}:{lineno}:{context_str} {message}'
 
 
-def log_freq(level, message, log=True, n_seconds=5):
-  if log and not _context_list:
-    logging.log_every_n_seconds(level, 'clamped_log: %s' % message, n_seconds=n_seconds)
+# TODO: send_logs_to_port. https://docs.python.org/3/howto/logging-cookbook.html#sending-and-receiving-logging-events-across-a-network
 
 
-# Make the Abseil logging module ignore the functions in this module when
-# logging line numbers and functions.
-for item in dir():
-  if inspect.isfunction(globals()[item]):
-    logging.skip_log_prefix(item)
+def send_logs_to_file():
+  assert False, "Untested"
+  global _handler, _logger
+  if _handler:
+    _logger.removeHandler(_handler)
+  _handler = logging.handlers.RotationFileHandler()
+  _handler.setFormatter(_formatter)
+  _logger.addHandler(_handler)
+  # _logger.get_absl_handler().python_handler.start_logging_to_file('nsn', settings.get_log_dir())
+
+
+def send_logs_to_stdout():
+  global _handler, _logger
+  if _handler:
+    _logger.removeHandler(_handler)
+  _handler = logging.StreamHandler()
+  _handler.setFormatter(_formatter)
+  _logger.addHandler(_handler)
+
+
+def send_logs_to_nowhere():
+  global _logging_disabled
+  _logging_disabled = True
+
+
+def __get_call_info(function_lookback_count=1):
+  '''function_lookback_count = 1 corresponds to the calling function.'''
+  stack = inspect.stack()
+  stack_level = function_lookback_count + 1  # To skip this function, add 1.
+  filename = stack[stack_level][1]
+  lineno = stack[stack_level][2]
+  func = stack[stack_level][3]
+
+  return filename, func, lineno
+
+
+set_verbosity('info')
+send_logs_to_stdout()

@@ -403,7 +403,7 @@ class FilePathTrie(Trie):
   def add(self, filename, value, add_value=False, store_value=None) -> 'FilePathTrie':
     # filename must exist at the time of adding - otherwise we cannot infer whether it is a
     # directory to insert it correctly.
-    assert os.path.exists(filename)
+    assert os.path.exists(filename), f'{filename} does not exist'
     return super().add(string=append_sep_if_dir(filename),
                        value=value,
                        add_value=add_value,

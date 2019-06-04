@@ -5,6 +5,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_command_router",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.api.test_command_router",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_trie",
       "type": "python",
       "request": "launch",
