@@ -36,7 +36,6 @@ DEFAULT_MODULE_FIELDS = set([
     '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__spec__'
 ])
 
-
 class SymbolType(Enum):
   TYPE = 0
   FUNCTION = 1
@@ -74,7 +73,6 @@ class SymbolType(Enum):
       return SymbolType.TYPE
 
     return SymbolType.UNKNOWN
-
 
 @attr.s(slots=True, hash=False)
 class _SymbolAlias:
@@ -235,24 +233,6 @@ class _LocationIndex:
           return False
     return True
   
-
-  @staticmethod
-  def create_builtins_index(save_dir):
-    index = _LocationIndex(save_dir=save_dir,
-                           location='builtins',
-                           is_file_location=False,
-                           symbol_index_weakref=lambda: None,
-                           modified_since_save=True)
-    # Add builtins to symbol_dict by default to account for all builtin symbols since most modules
-    # aren't going to do a "from builtins import *" explicitly.
-    builtins_module_key = module_loader.ModuleKey(module_loader.ModuleSourceType.BUILTIN, 'builtins')
-    index._add_module_by_key(builtins_module_key)
-    for symbol in utils.get_possible_builtin_symbols():
-      if symbol not in index.symbol_dict:
-        index.symbol_dict[symbol][(builtins_module_key,
-                                   False)] = _InternalSymbolEntry(symbol_type=SymbolType.UNKNOWN,
-                                                                  module_key=builtins_module_key)
-    return index
 
   @staticmethod
   def create_location_index(save_dir, target_directory, is_import_tracking, symbol_index):
@@ -797,6 +777,24 @@ class SymbolIndex:
         assert False
     return True
 
+  def _create_builtins_index(self, save_dir):
+    index = _LocationIndex(save_dir=save_dir,
+                           location='builtins',
+                           is_file_location=False,
+                           symbol_index_weakref=weakref.ref(self),
+                           modified_since_save=True)
+    # Add builtins to symbol_dict by default to account for all builtin symbols since most modules
+    # aren't going to do a "from builtins import *" explicitly.
+    builtins_module_key = module_loader.ModuleKey(module_loader.ModuleSourceType.BUILTIN, 'builtins')
+    index._add_module_by_key(builtins_module_key)
+    for symbol in utils.get_possible_builtin_symbols():
+      if symbol not in index.symbol_dict:
+        index.symbol_dict[symbol][(builtins_module_key,
+                                   False)] = _InternalSymbolEntry(symbol_type=SymbolType.UNKNOWN,
+                                                                  module_key=builtins_module_key)
+    return index
+
+
   def find_symbol(self, symbol):
     yield from itertools.chain(*[index.find_symbol(symbol) for index in self._location_indicies])
 
@@ -884,7 +882,7 @@ class SymbolIndex:
 
   def _fill_in_missing(self, sys_path=sys.path):
     if not self._builtins_location_index:
-      self._builtins_location_index = _LocationIndex.create_builtins_index(
+      self._builtins_location_index = self._create_builtins_index(
           SymbolIndex._get_location_save_dir_from_main_dir(self.save_dir, 'builtins'))
       self._location_indicies.append(self._builtins_location_index)
 

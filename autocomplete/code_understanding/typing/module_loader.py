@@ -381,10 +381,15 @@ def _import_override(name, globals=None, locals=None, fromlist=(), level=0):
     module_filename = filename_from_relative_module_name(f'.{name}', parent_package_directory)
     assert module_filename
     if _is_init(module_filename):
-      if name:
-        full_name = f'{package_name}.{name}'
+      relative_path = module_filename[len(parent_package_directory) + 1: - len('/__init__.py')]
+      if relative_path:
+        name = f'{package_name}.{relative_path.replace(os.sep, ".")}'
       else:
         name = package_name
+      # if name:
+      #   name = f'{package_name}.{name}'
+      # else:
+      #   name = package_name
       # This is a bit of weird recursion magic... the else here will insert into sys.modules, so if
       # this gets recurred-into, the first branch will definitely pass - if it doesn't the first
       # time.
