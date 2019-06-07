@@ -4,7 +4,6 @@ from enum import Enum
 from functools import partial, wraps
 from typing import List
 
-import typing
 import attr
 
 from . import collector, serialization

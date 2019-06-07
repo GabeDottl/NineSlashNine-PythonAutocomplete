@@ -16,6 +16,7 @@ FAILURE_REASON = 'failure_reason'
 REQUEST_ID = 'request_id'
 COMMAND_ID = 'command_id'
 
+
 def return_error_on_exception(func):
   @wraps(func)
   def wrapper(*args, **kwargs):
@@ -25,7 +26,9 @@ def return_error_on_exception(func):
       info(f'e: {e}')
       # raise e
       return {REQUEST_ID: kwargs[REQUEST_ID], RESULT_CODE: FAILED, FAILURE_REASON: str(e)}
+
   return wrapper
+
 
 @attr.s
 class CommandRouter:
@@ -36,37 +39,41 @@ class CommandRouter:
     if hasattr(self, func_name):
       return getattr(self, func_name)
     return self.handle_bad_command
-  
+
   def handle_bad_command(self, command_id, *args, **kwargs):
     return {RESULT_CODE: FAILED, FAILURE_REASON: f'"{command_id}"" is not a valid command_id.'}
 
   @return_error_on_exception
   def handle_get_capabilities(self, request_id, command_id):
     return {
-      REQUEST_ID: request_id,
-      RESULT_CODE: SUCCESS,
-      'capabilities': {
-        # TODO: Include types.
-        'fix_code': {
-          'version': 0.1,
-          'inputs': ['source', 'filename'],
-          'outputs': ['source']
-        },
-        'get_capabilities':  {
-          'version': 0.1,
-          # TODO: Support for older-versions - API level in here?:
-          'inputs': [],
-          'outputs': ['capabilities']
+        REQUEST_ID: request_id,
+        RESULT_CODE: SUCCESS,
+        'capabilities': {
+            # TODO: Include types.
+            'fix_code_in_file': {
+                'version': 0.1,
+                'inputs': ['source', 'filename'],
+                'outputs': ['replacements', 'insertions', 'deletions']
+            },
+            'get_capabilities': {
+                'version': 0.1,
+                # TODO: Support for older-versions - API level in here?:
+                'inputs': [],
+                'outputs': ['capabilities']
+            }
         }
-      }
     }
 
   @return_error_on_exception
   def handle_fix_code_in_file(self, request_id, source, filename, command_id):
     # Note: **kwargs so we can pass raw dict.
     assert os.path.exists(filename)
-    new_code, changed = fix_code.fix_missing_symbols_in_source(source,
-                                                      filename=filename,
-                                                      index=self.index,
-                                                      remove_extra_imports=True)
-    return {REQUEST_ID: request_id, RESULT_CODE: SUCCESS, 'source': changed}
+    replacements, inserts, deletions = fix_code.generate_fixes_for_missing_symbols_in_source(
+        source, filename=filename, index=self.index, remove_extra_imports=True)
+    return {
+        REQUEST_ID: request_id,
+        RESULT_CODE: SUCCESS,
+        'replacements': replacements,
+        'inserts': inserts,
+        'deletions': deletions
+    }

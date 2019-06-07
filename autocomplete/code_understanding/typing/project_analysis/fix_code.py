@@ -30,7 +30,7 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
 
 
 def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=True,
-                                  sort_imports=True) -> str:
+                                  sort_imports=True):
   replacements, inserts, deletions = generate_fixes_for_missing_symbols_in_source(
       source, filename, index, remove_extra_imports, sort_imports)
   changed = replacements or inserts or deletions
@@ -118,7 +118,7 @@ def generate_fixes_for_missing_symbols_in_source(source,
   uht.save()
   changed = len(fixes) > 0 or len(changes) > 0
   if not changed:
-    return source, False
+    return [],[],[]
 
   # Update existing imports.
   replacements, inserts, deletions = refactor.create_import_changes(source, changes.values())
