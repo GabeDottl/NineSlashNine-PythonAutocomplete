@@ -7,14 +7,12 @@ from ..control_flow_graph_nodes import (FromImportCfgNode, ImportCfgNode)
 from ..project_analysis import (find_missing_symbols, fix_code)
 from ....nsn_logging import info
 
-CODE = os.getenv('CODE')
+CODE = '/home/gabe/code'  # os.path.join(os.getenv('HOME'), 'code')
 # Note: We use the clone dir instead of the real autocomplete dir to avoid unnecessary headaches
 # where there's ambiguity between whether or code isn't working (not finding a fix) or our code is
 # actually broken (fix is right - our code is wrong).
-AUTCOMPLETE_CLONE_DIR = os.path.join(CODE, 'autocomplete_clone', 'autocomplete')
 TMP_INDEX_PATH = '/tmp/index_storage_dir'
-REAL_INDEX_DIR = os.path.join(os.getenv('HOME'), '.nsn')
-
+REAL_INDEX_DIR = os.path.join(os.getenv('HOME'), '.nsn')  # type: ignore
 
 def _clean():
   if os.path.exists(TMP_INDEX_PATH):
@@ -75,9 +73,7 @@ c = AClass()'''
 
 
 def test_fix_imports_typing_match_actual():
-  from .... import code_understanding
   # TODO: replace w/ clone.
-  autocomplete_dir = os.path.join(os.path.dirname(code_understanding.__file__), '..', '..')
   index = symbol_index.SymbolIndex.load(REAL_INDEX_DIR)
   typing_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
   filenames = glob(os.path.join(typing_dir, '**/*.py'), recursive=True)
@@ -87,7 +83,7 @@ def test_fix_imports_typing_match_actual():
       source = ''.join(f.readlines())
     graph = api.graph_from_source(source, filename)
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(graph, os.path.dirname(filename))
-    assert not missing_symbols, f'{filename} is already missing imports.'
+    assert not missing_symbols, f'{filename} is already missing imports: {missing_symbols}'
     existing_imports = list(graph.get_descendents_of_types((ImportCfgNode, FromImportCfgNode)))
     stripped_graph = graph.strip_descendents_of_types((ImportCfgNode, FromImportCfgNode), recursive=False)
     missing_symbols = find_missing_symbols.scan_missing_symbols_in_graph(stripped_graph,

@@ -1,31 +1,46 @@
 import itertools
 import os
-import _ast
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Dict, Iterable, List, Set, Tuple, Union
 
 import attr
 
-from . import (collector, symbol_context, language_objects)
-from ...nsn_logging import info, warning
+import _ast
+from .pobjects import PObject
+
+from . import collector, symbol_context
+from ...nsn_logging import info
 from .errors import AmbiguousFuzzyValueError
-from .expressions import (Expression, VariableExpression, _assign_variables_to_results)
+from .expressions import Expression, VariableExpression, _assign_variables_to_results
 from .frame import FrameType
-from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module, Parameter,
-                               SimplePackageModule)
+from .language_objects import (BoundFunction, Function, FunctionImpl, FunctionType, Klass, Module,
+                               Parameter, SimplePackageModule)
 from .pobjects import AugmentedObject, LazyObject, UnknownObject
 from .utils import assert_returns_type, instance_memoize
 
 
 @attr.s
 class ParseNode:
+  # Both lineno & col_offset start at 0.
   lineno: int = attr.ib()
   col_offset: int = attr.ib()
   native_node: int = attr.ib(None)
   # Extra information derived from parsing which may be useful for debugging or refactoring.
   # Usually this won't be set.
   extras = attr.ib(None)
+
+  @staticmethod
+  def get_range_from_parso_start_end(start_pos, end_pos):
+    return ((start_pos[0] - 1, start_pos[1]), (end_pos[0] - 1, end_pos[1]))
+
+  @staticmethod
+  def get_range_from_parso_node(parso_node):
+    return ParseNode.get_range_from_parso_start_end(parso_node.start_pos, parso_node.end_pos)
+
+  def get_range(self):
+    assert not isinstance(self.native_node, _ast.AST)
+    return ParseNode.get_range_from_parso_node(self.native_node)
 
   def get_code(self):
     if hasattr(self.native_node, 'get_code'):
@@ -310,9 +325,6 @@ class FromImportCfgNode(CfgNode):
         # if we have from a import *, b and c will only be brought in to the namespace if they were
         # already imported. Such subtleties..
         module = self.module_loader.get_module_from_key(self.get_module_key())
-        if not module.filename:
-          warning(f'Unknown module: {module.name}')
-          continue
 
         def load_all():
           for name, pobject in filter(lambda kv: kv[0][0] != '_', module.items()):
@@ -457,7 +469,7 @@ class ForCfgNode(CfgNode):
   loop_expression: Expression = attr.ib()
   suite: 'GroupCfgNode' = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
-  else_suite: 'GroupCfgNode' = attr.ib(factory=NoOpCfgNode)  # TODO: Remove default
+  else_suite: CfgNode = attr.ib(factory=NoOpCfgNode)  # TODO: Remove default
 
   def _process_impl(self, curr_frame):
     _assign_variables_to_results(curr_frame, self.loop_variables, self.loop_expression.evaluate(curr_frame))
@@ -538,7 +550,7 @@ class WithCfgNode(CfgNode):
   # For 'else', (True, node).
   with_item_expression: Expression = attr.ib()
   as_expression: Union[Expression, None] = attr.ib()  # TODO: NoOpExpression instead?
-  suite: 'GroupCfgNode' = attr.ib()
+  suite: CfgNode = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
   def _process_impl(self, curr_frame):
@@ -581,7 +593,7 @@ class WithCfgNode(CfgNode):
 @attr.s(slots=True)
 class TryCfgNode(CfgNode):
   suite: CfgNode = attr.ib()
-  except_nodes: List['ExceptCfgNode'] = attr.ib()
+  except_nodes: List[CfgNode] = attr.ib()
   else_suite: CfgNode = attr.ib()
   finally_suite: CfgNode = attr.ib()
 
@@ -707,7 +719,7 @@ class IfCfgNode(CfgNode):
   # @instance_memoize # Result dict may be modified.
   @assert_returns_type(dict)
   def get_non_local_symbols(self) -> Dict[str, symbol_context.SymbolContext]:
-    out = {}
+    out: Dict[str, symbol_context.SymbolContext] = {}
     for expression, node in self.expression_node_tuples:
       out = symbol_context.merge_symbol_context_dicts(out, expression.get_used_free_symbols(),
                                                       node.get_non_local_symbols())
@@ -715,7 +727,7 @@ class IfCfgNode(CfgNode):
 
   # @instance_memoize
   def get_defined_and_exported_symbols(self) -> Iterable[str]:
-    out = set()
+    out: Set[str] = set()
     for _, node in self.expression_node_tuples:
       out = out.union(node.get_defined_and_exported_symbols())
     return out
@@ -742,7 +754,7 @@ class KlassCfgNode(CfgNode):
   name = attr.ib()
   base_class_args = attr.ib()
   base_class_kwargs = attr.ib()
-  suite: GroupCfgNode = attr.ib()
+  suite: CfgNode = attr.ib()
   _module = attr.ib()
   parse_node = attr.ib(validator=attr.validators.instance_of(ParseNode))
 
@@ -798,7 +810,7 @@ class KlassCfgNode(CfgNode):
                         base_class_args=self.base_class_args,
                         base_class_kwargs=self.base_class_kwargs,
                         suite=suite,
-                        _module=self._module,
+                        module=self._module,
                         parse_node=self.parse_node)
 
   def pretty_print(self, indent=''):
@@ -814,7 +826,7 @@ class LambdaExpression(Expression):
   expression = attr.ib()
   parse_node = attr.ib(kw_only=True)
 
-  def evaluate(self, curr_frame) -> 'PObject':
+  def evaluate(self, curr_frame) -> PObject:
     # TODO:
     return UnknownObject('lambda')
 

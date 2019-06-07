@@ -35,7 +35,9 @@ def test_trie():
 
 
 def test_trie_with_file_tree():
-  base_dir = os.path.join(os.getenv('CODE'),
+  code = os.path.join(os.getenv('HOME'), 'code')
+  assert code
+  base_dir = os.path.join(code,
                           'autocomplete')  #, 'autocomplete', 'code_understanding', 'typing')
   assert os.path.exists(base_dir)
   directories = set()

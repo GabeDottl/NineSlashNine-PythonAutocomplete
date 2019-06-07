@@ -31,6 +31,16 @@ def fix_missing_symbols_in_file(filename, index, write=True, remove_extra_import
 
 def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=True,
                                   sort_imports=True) -> str:
+  replacements, inserts, deletions = generate_fixes_for_missing_symbols_in_source(
+      source, filename, index, remove_extra_imports, sort_imports)
+  changed = replacements or inserts or deletions
+  return refactor.apply_changes_to_string(source, replacements, inserts, deletions), changed
+
+def generate_fixes_for_missing_symbols_in_source(source,
+                                                 filename,
+                                                 index,
+                                                 remove_extra_imports=True,
+                                                 sort_imports=True) -> List[refactor.Change]:
   source_dir = os.path.dirname(filename)
   graph = api.graph_from_source(source, filename, parso_default=True)
   existing_global_imports = list(
@@ -52,7 +62,7 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
     module_key = node.get_module_key()
     if module_key in changes:
       return changes[(module_key, id(node))]
-    out = changes[(module_key, id(node))] = refactor.Change(node, [], [])
+    out = changes[(module_key, id(node))] = refactor.ModuleImportChange(node, [], [])
     return out
 
   if remove_extra_imports:
@@ -100,7 +110,7 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
       # relative import v. absolute of the same module.
       if node.get_module_key() == fix.module_key:
         _, value = fix.get_module_name_and_value(source_dir)
-        get_change(node).additions.append((value, fix.as_name))
+        get_change(node).inserts.append((value, fix.as_name))
         break
     else:
       remaining_fixes.append(fix)
@@ -111,17 +121,16 @@ def fix_missing_symbols_in_source(source, filename, index, remove_extra_imports=
     return source, False
 
   # Update existing imports.
-  new_source = refactor.apply_import_changes(source, changes.values())
-
+  replacements, inserts, deletions = refactor.create_import_changes(source, changes.values())
   # Apply any remaining fixes.
-  new_source = refactor.insert_imports(new_source, filename, remaining_fixes)
+  inserts += refactor.create_import_inserts(source, filename, remaining_fixes)
 
   # SortImports seems to have some odd edge-cases in which it's completely broken right now....
   # Disabled.
   # if sort_imports and changed:
   #   out = SortImports(file_contents=new_source).output
   #   return out, True
-  return new_source, changed
+  return replacements, inserts, deletions
 
 
 def apply_fixes_to_source(source, source_dir, fixes):
@@ -266,6 +275,7 @@ def pobject_from_symbol_entry(symbol_entry):
     )
     return pobjects.UnknownObject(symbol_entry.get_real_name())
 
+
 def value_from_symbol_entry(symbol_entry):
   module = module_loader.get_python_module_from_module_key(symbol_entry.get_module_key())
   if symbol_entry.is_module_itself():
@@ -274,6 +284,7 @@ def value_from_symbol_entry(symbol_entry):
     return getattr(module, symbol_entry.get_real_name())
   except AttributeError:
     return None
+
 
 def matches_context(context, symbol_entry):
   # TODO: Refine all of this.

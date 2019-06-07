@@ -5,10 +5,17 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "test_daemon",
+      "type": "python",
+      "request": "launch",
+      "module": "autocomplete.api.tests.test_daemon",
+      "console": "integratedTerminal",
+    },
+    {
       "name": "test_command_router",
       "type": "python",
       "request": "launch",
-      "module": "autocomplete.api.test_command_router",
+      "module": "autocomplete.api.tests.test_command_router",
       "console": "integratedTerminal",
     },
     {
@@ -49,7 +56,7 @@
         "$HOME/code/autocomplete/autocomplete/code_understanding/typing",
         "$HOME/.nsn",
       ],
-    },,
+    },
     {
       "name": "typing_index",
       "type": "python",

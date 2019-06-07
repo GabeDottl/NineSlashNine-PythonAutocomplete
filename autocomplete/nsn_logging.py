@@ -21,7 +21,6 @@ _logger = logging.getLogger('__default__')
 _formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 _handler = None
 _context_list = []
-_context_prefix = 'a'
 
 _logging_disabled = False
 
@@ -38,12 +37,10 @@ def set_verbosity(level):
 # TODO: contextmanager.
 def push_context(value):
   _context_list.append(value)
-  _context_prefix = '|'.join(_context_list)
 
 
 def pop_context():
   _context_list.pop()
-  _context_prefix = '|'.join(_context_list)
 
 
 def info(message, *args, log=True, **kwargs):
@@ -107,7 +104,7 @@ def send_logs_to_nowhere():
 def __get_call_info(function_lookback_count=1):
   '''function_lookback_count = 1 corresponds to the calling function.'''
   stack = inspect.stack()
-  stack_level = function_lookback_count + 1  # To skip this function, add 1.
+  stack_level = function_lookback_count + 1  # To skip this function, we add 1.
   filename = stack[stack_level][1]
   lineno = stack[stack_level][2]
   func = stack[stack_level][3]

@@ -804,7 +804,7 @@ def expression_from_atom_expr(node) -> Expression:
   return last_expression
 
 
-def _slice_from_subscriptlist(node) -> Expression:
+def _slice_from_subscriptlist(node):
   # subscriptlist: subscript (',' subscript)* [',']
   # subscript: test | [test] ':' [test] [sliceop]
   # sliceop: ':' [test]
@@ -813,7 +813,7 @@ def _slice_from_subscriptlist(node) -> Expression:
     assert isinstance(expression, Expression)
     return expression
   elif node.type == 'operator':
-    assert node.value == ':'
+    assert node.value == ':' or node.value == '...'
     return Slice()
   elif node.type == 'subscriptlist':
     values = ItemListExpression(
@@ -1257,4 +1257,5 @@ def keyword_eval(keyword_str):
 
 
 def parse_from_parso(node):
-  return ParseNode(*node.start_pos, native_node=node)
+  # Parso starts with 1 for line numbers.
+  return ParseNode(node.start_pos[0] -1, node.start_pos[1], native_node=node)

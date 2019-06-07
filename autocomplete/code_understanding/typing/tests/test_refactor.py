@@ -8,10 +8,12 @@ line2
 
 '''
   target_source = '''
-aa1
+aa
+good1
 ltestine2
 bucket
 '''
+  replacements = [refactor.Replace((1, 0), (1, 4), 'good')]
   inserts = [
       refactor.Insert((0, 0), 'a'),
       refactor.Insert((0, 0), 'a'),
@@ -19,8 +21,8 @@ bucket
       refactor.Insert((3, 0), 'bucket'),
       refactor.Insert((0, 0), '\n')
   ]
-  removals = [refactor.Remove((1, 0), (1, -1))]
-  result = refactor.apply_inserts_and_removals_to_string(source, inserts, removals)
+  removals = [refactor.Delete((0, 0), (0, 1))]
+  result = refactor.apply_changes_to_string(source, replacements, inserts, removals)
   print(result)
   assert result == target_source
 

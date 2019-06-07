@@ -36,6 +36,7 @@ DEFAULT_MODULE_FIELDS = set([
     '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__spec__'
 ])
 
+
 class SymbolType(Enum):
   TYPE = 0
   FUNCTION = 1
@@ -73,6 +74,7 @@ class SymbolType(Enum):
       return SymbolType.TYPE
 
     return SymbolType.UNKNOWN
+
 
 @attr.s(slots=True, hash=False)
 class _SymbolAlias:
@@ -119,6 +121,7 @@ class _InternalSymbolEntry:
     args[0] = SymbolType(args[0])
     args[1] = module_key_list[args[1]]
     return _InternalSymbolEntry(*args)
+
 
 @attr.s(str=False, repr=False)
 class CompleteSymbolEntry:
@@ -196,7 +199,7 @@ class _LocationIndex:
   _modified_since_save = attr.ib(False, kw_only=True)
   # This is introducing a circular dependency - to avoid subtle headaches with garbage collection
   #  breaking, we use weakrefs here.
-  _symbol_index_weakref: weakref = attr.ib(kw_only=True)
+  _symbol_index_weakref: weakref.ref = attr.ib(kw_only=True)
   _file_history_tracker: FileHistoryTracker = attr.ib(None, kw_only=True)
   _location_index_trie = attr.ib(None, kw_only=True)
   _module_key_symbols_cache = attr.ib(factory=dict, kw_only=True)
@@ -210,7 +213,8 @@ class _LocationIndex:
     '''Compares this to another _LocationIndex in a deep manner. This is expensive.'''
     if self.save_dir != other.save_dir or self.location != other.location or self.is_import_tracking != other.is_import_tracking:
       return False
-    if len(self.symbol_dict) != len(other.symbol_dict) or len(self.module_keys) != len(other.module_keys) or len(self.symbol_alias_dict) != len(other.symbol_alias_dict):
+    if len(self.symbol_dict) != len(other.symbol_dict) or len(self.module_keys) != len(
+        other.module_keys) or len(self.symbol_alias_dict) != len(other.symbol_alias_dict):
       return False
     for module_key in self.module_keys:
       if module_key not in other.module_keys:
@@ -232,7 +236,6 @@ class _LocationIndex:
         if entry != other_entry:
           return False
     return True
-  
 
   @staticmethod
   def create_location_index(save_dir, target_directory, is_import_tracking, symbol_index):
@@ -360,12 +363,12 @@ class _LocationIndex:
       # These nodes are entirely contained, so update the whole thing.
       update_count += location_index.update(location_index.location)
     # Don't include child location indicies subdirs.
-    if children_location_indicies:
-      excluded_subdirs = set(location_index.location for location_index in children_location_indicies)
-      filter_fn = lambda root, subdir: os.path.join(
-          root, subdir) not in excluded_subdirs and python_package_filter(root, subdir)
-    else:
-      filter_fn = python_package_filter
+    # if children_location_indicies:
+    #   excluded_subdirs = set(location_index.location for location_index in children_location_indicies)
+    #   filter_fn = lambda root, subdir: os.path.join(
+    #       root, subdir) not in excluded_subdirs and python_package_filter(root, subdir)
+    # else:
+    #   filter_fn = python_package_filter
     update_and_filenames = self._file_history_tracker.get_files_in_dir_modified_since_timestamp(
         self.location, auto_update=True)
     for update, filename in update_and_filenames:
@@ -390,7 +393,6 @@ class _LocationIndex:
     if not os.path.isdir(path):
       self.add_file(path)
       return 1
-
     # Always add to the location index that is closest to the path.
     check_descendent_index = self._location_index_trie and self._location_index_trie.has_children()
     if check_descendent_index:
@@ -483,8 +485,7 @@ class _LocationIndex:
       if module_key.is_bad() or (not module_key.is_loadable_by_file() and module_key_already_present):
         return False
 
-      if check_timestamp and module_key.is_loadable_by_file(
-      ) and not self._file_history_tracker.has_file_changed_since_timestamp(
+      if check_timestamp and module_key.is_loadable_by_file() and not self._file_history_tracker.has_file_changed_since_timestamp(
           module_key.get_filename(prefer_stub=False)):
         return False
 
@@ -513,8 +514,7 @@ class _LocationIndex:
       else:
         existing_symbols = {}
 
-      python_module = module_loader.get_python_module_from_module_key(module_key,
-                                                                      force_reload=True)
+      python_module = module_loader.get_python_module_from_module_key(module_key, force_reload=True)
       if not python_module:
         symbol_index._failed_module_keys.add(module_key)
         return
@@ -793,7 +793,6 @@ class SymbolIndex:
                                    False)] = _InternalSymbolEntry(symbol_type=SymbolType.UNKNOWN,
                                                                   module_key=builtins_module_key)
     return index
-
 
   def find_symbol(self, symbol):
     yield from itertools.chain(*[index.find_symbol(symbol) for index in self._location_indicies])

@@ -16,6 +16,7 @@ https://docs.python.org/3/tutorial/modules.html
 '''
 import attr
 import importlib
+import importlib.util
 import os
 import sys
 from typing import Dict, Set, Tuple
@@ -115,6 +116,7 @@ class ModuleKey:
 
   def __repr__(self):
     return str(self)
+
 
 def loader_path_from_file_module_id(module_id, prefer_stub):
   # assert os.path.exists(module_id)
@@ -353,21 +355,11 @@ def _import_override(name, globals=None, locals=None, fromlist=(), level=0):
   
   See this for comments on params:
   https://docs.python.org/3/library/functions.html#__import__'''
+  # info(f'name: {name}')
   # Pull from sys.modules if possible.
   if name in sys.modules and not level:
-    if '.' in name:
-      # From: https://docs.python.org/3/library/functions.html#__import__
-      # "When the name variable is of the form package.module, normally, the top-level package (the
-      # name up till the first dot) is returned, not the module named by name. However, when a
-      # non-empty fromlist argument is given, the module named by name is returned."
-      if fromlist:
-        return sys.modules[name]
-      else:
-        # TODO: Is this really safe? I don't believe we're force-importing parent packages anywhere...
-        return sys.modules[name[:name.find('.')]]
-    return sys.modules[name]
-
-  if not name or level:
+    module = sys.modules[name]
+  elif not name or level:
     # level is relative to this spec.
     spec = globals['__spec__']
     assert spec.has_location
@@ -381,11 +373,14 @@ def _import_override(name, globals=None, locals=None, fromlist=(), level=0):
     module_filename = filename_from_relative_module_name(f'.{name}', parent_package_directory)
     assert module_filename
     if _is_init(module_filename):
-      relative_path = module_filename[len(parent_package_directory) + 1: - len('/__init__.py')]
-      if relative_path:
-        name = f'{package_name}.{relative_path.replace(os.sep, ".")}'
-      else:
-        name = package_name
+      relative_path = os.path.split(module_filename)[0][len(parent_package_directory) + 1:]
+    else:
+      relative_path = module_name_from_filename(module_filename[len(parent_package_directory) + 1:])
+    if relative_path:
+      name = f'{package_name}.{relative_path.replace(os.sep, ".")}'
+    else:
+      name = package_name
+    if _is_init(module_filename):
       # if name:
       #   name = f'{package_name}.{name}'
       # else:
@@ -394,68 +389,162 @@ def _import_override(name, globals=None, locals=None, fromlist=(), level=0):
       # this gets recurred-into, the first branch will definitely pass - if it doesn't the first
       # time.
       if name in sys.modules:
-        package_module = sys.modules[name]
+        module = sys.modules[name]
       else:
         new_spec = importlib.util.spec_from_file_location(name, module_filename)
-        package_module = _import_source_module(new_spec)
+        module = _import_source_module(new_spec)
 
       if fromlist:
         package_directory = os.path.dirname(module_filename)
         # Possibly importing submodules - handle them.
         for from_name in fromlist:
-          if hasattr(package_module, from_name):
-            continue
-          child_filename = filename_from_relative_module_name(f'.{from_name}', package_directory)
-          if not child_filename:
-            continue
-          child_name = f'{package_name}.{from_name}'
-          if child_name in sys.modules:
-            continue
-          child_spec = importlib.util.spec_from_file_location(child_name, child_filename)
-          child_module = _import_source_module(child_spec)
-          setattr(package_module, from_name, child_module)
-        return package_module
+          _import_from(module, package_directory, from_name)
+        # return module
       elif '.' in package_name:
         assert False, "Need to return parent."
     else:  # submodule.
-      if package_name:
-        new_name = f'{package_name}.{name}'
-      else:
-        new_name = name
-      new_spec = importlib.util.spec_from_file_location(new_name, module_filename)
+      new_spec = importlib.util.spec_from_file_location(name, module_filename)
       module = _import_source_module(new_spec)
-      if package_name:
-        package_spec = _package_spec_from_module_spec(new_spec)
-        package_module = _import_source_module(package_spec)
-        if package_module:
-          setattr(package_module, name, module)
+  else:  # Use the regular import-system for non-relative imports.
+    spec = importlib.util.find_spec(name, None)
+    if not spec:
+      raise ImportError(name)
+    module = _import_source_module(spec)
+
+  # Can't do anything if the module doesn't have a spec.
+  if fromlist and hasattr(module, '__spec__'):
+    for from_name in fromlist:
+      if hasattr(module, from_name):
+        continue
+      _import_from(module, None, from_name)
+  if '.' in name:
+    # From: https://docs.python.org/3/library/functions.html#__import__
+    # "When the name variable is of the form package.module, normally, the top-level package (the
+    # name up till the first dot) is returned, not the module named by name. However, when a
+    # non-empty fromlist argument is given, the module named by name is returned."
+    if fromlist:
       return module
-    assert False
+    else:
+      package_name = name[:name.find('.')]
+      out = sys.modules[package_name]
+      # assert hasattr(out, module_name)
+      return out
 
-  # Use the regular import-system for non-relative imports.
-  return __import__(name, globals, locals, fromlist, level)
+  return module
 
 
-__fake_builtins = {k: v for k, v in __builtins__.items()}
-__fake_builtins['__import__'] = _import_override
+def _import_from(module, module_directory, from_name):
+  info(f'from_name: {from_name}')
+  if hasattr(module, from_name):
+    return
+  module_spec = module.__spec__
+  if not module_spec:
+    raise ImportError(f'Unable to import {from_name} from {module.__name__}')
+  if not module_directory and module_spec.has_location:
+    module_directory = os.path.dirname(module_spec.origin)
+
+  basenames_and_child_specs = []
+  if module_directory:
+    if not _is_init(module_spec.origin):
+      # Do nothing for normal non-package modules.
+      return
+    if from_name == '*':
+      def is_py_or_so(filename):
+        ext = os.path.splitext(filename)[1]
+        return ext == '.so' or ext == '.py'
+
+      if hasattr(module, '__all__'):
+        child_filenames = list(
+            filter(lambda x: x,
+                   [filename_from_relative_module_name(name, module_directory) for name in module.__all__]))
+      else:
+        child_filenames = [
+            os.path.join(module_directory, f) for f in filter(is_py_or_so, os.listdir(module_directory))
+        ]
+    else:  # single from_name
+      child_filenames = [filename_from_relative_module_name(f'.{from_name}', module_directory)]
+      assert child_filenames[0]
+
+    for child_filename in child_filenames:
+      basename = module_name_from_filename(child_filename, basename_only=True)
+      child_name = f'{module_spec.name}.{basename}'
+      basenames_and_child_specs.append((basename, importlib.util.spec_from_file_location(child_name, child_filename)))
+  else:  # no module_directory
+    assert not from_name == '*'
+    basenames_and_child_specs = [(from_name, importlib.util.find_spec(from_name, module_spec.name))]
+  for basename, child_spec in basenames_and_child_specs:
+    if not child_spec:
+      if hasattr(module, basename):
+        continue
+      raise ImportError(f'{basename} is an invalid import from {module_spec.name}')
+    child_module = _import_source_module(child_spec)
+    # if '.' in basename:
+    # basename = child_name[child_name.rfind('.') + 1:]
+    setattr(module, basename, child_module)
 
 
 def _import_source_module(spec):
+  info(f'spec: {spec}')
   if spec.name in sys.modules:
     curr_module = sys.modules[spec.name]
     if curr_module.__spec__.origin != spec.origin:
       warning(f'Replacing module with name {spec.name} from {curr_module.__spec__.origin} to {spec.origin}')
     else:
       return curr_module
+  # fake_builtins = importlib.util.module_from_spec(builtins.__spec__)
+  # for k, v in python_module.__builtins__.items():
+  #   setattr(fake_builtins, k, v)
+  # setattr(fake_builtins, '__import__', _import_override)
+  name = spec.name
   python_module = importlib.util.module_from_spec(spec)
-  python_module.__builtins__ = __fake_builtins
+  if '.' in name:
+    if spec.parent == spec.name:
+      filename = spec.origin
+      info(f'filename: {filename}')
+      if not filename:
+        package_spec = None
+      else:
+        parent_directory = os.path.dirname(os.path.dirname(filename))
+        parent_init = os.path.join(parent_directory, '__init__.py')
+        package_spec = importlib.util.spec_from_file_location(name[:name.rfind('.')], parent_init)
+    else:
+      package_spec = _package_spec_from_module_spec(spec)
+    if package_spec:
+      name_matches = _fullname_and_package_path_from_filename(package_spec.origin)[0] == package_spec.name
+      assert name_matches, "mismatch"
+      package_module = _import_source_module(package_spec)
+      if package_module:
+        base_name = name[name.rfind('.') + 1:]
+        info(f'(package_module.__name__, base_name): {(package_module.__name__, base_name)}')
+        setattr(package_module, base_name, python_module)
+  # if '_errors' not in spec.name:
+  
+  
+  import builtins
+  old_import = builtins.__import__
+  builtins.__import__ = _import_override
   sys.modules[spec.name] = python_module
+
+  info(f'spec.origin: {spec.origin}')
   # TODO: Swap out sys.modules.
+  assert hasattr(builtins, 'IOError')
   try:
-    spec.loader.exec_module(python_module)
+    if hasattr(spec.loader, 'exec_module'):
+      spec.loader.exec_module(python_module)
+    else:
+      del sys.modules[spec.name]
+      sys.modules[spec.name] = python_module = spec.loader.load_module(spec.name)
+  except ImportError as e:
+    info(f'Failed to exec spec: {spec}. {e}')
+    del sys.modules[spec.name]
+    raise e
   except Exception as e:
     info(f'Failed to exec spec: {spec}. {e}')
     return None
+  finally:
+    builtins.__import__ = old_import
+
+
   return python_module
 
 
@@ -465,7 +554,8 @@ def get_python_module_from_module_key(module_key, force_reload=False):
   This will return None if the module could not be loaded or previously failed to load and
   force_reload is not True.'''
   module_already_present = module_key in __module_key_to_python_module
-  if not force_reload and module_already_present:
+  # Note: We do not reload non-file-based modules.
+  if (not force_reload or not module_key.is_loadable_by_file()) and module_already_present:
     return __module_key_to_python_module[module_key]
 
   # Loosely based on:
@@ -511,10 +601,7 @@ def _load_normal_module(module_key,
       raise InvalidModuleError(filename)
     return _create_empty_module(name)
   if lazy:
-    return _create_lazy_module(name,
-                               filename,
-                               is_package=is_package,
-                               include_graph=include_graph)
+    return _create_lazy_module(name, filename, is_package=is_package, include_graph=include_graph)
 
   module = ModuleImpl(name=name,
                       filename=filename,
@@ -563,6 +650,7 @@ def _module_exports_from_source(module, source, filename, return_graph=False) ->
     return a_frame._locals, graph
   return a_frame._locals
 
+
 def module_key_from_relative_module_name(name: str, curr_dir):
   filename = filename_from_relative_module_name(name, curr_dir)
   if filename:
@@ -576,7 +664,6 @@ def filename_from_relative_module_name(name: str, curr_dir):
   absolute_path = os.path.abspath(os.path.join(curr_dir, relative_path))
   if os.path.exists(absolute_path):
     assert os.path.isdir(absolute_path)
-    is_package = True
     for name in ('__init__.pyi', '__init__.py'):
       filename = os.path.join(absolute_path, name)
       if os.path.exists(filename):
@@ -615,12 +702,11 @@ def module_key_from_name(name: str, curr_dir=None) -> ModuleKey:
   else:
     if spec:
       if spec.has_location:
-        filename = spec.loader.get_filename()
+        filename = spec.loader.get_filename()  # type: ignore
         return ModuleKey.from_filename(filename)
       return ModuleKey(ModuleSourceType.BUILTIN, name)
   debug(f'Could not find Module {name} - falling back to Unknown.')
   return ModuleKey(ModuleSourceType.BAD, name)
-
 
 
 def _stub_filename_from_module_name(name) -> str:
@@ -642,6 +728,7 @@ def _stub_filename_from_module_name(name) -> str:
         if os.path.exists(abs_module_path):
           return abs_module_path
   raise ValueError(f'Did not find typeshed for {name}')
+
 
 def _relative_path_from_relative_module(name):
   if name == '.':

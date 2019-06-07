@@ -1,10 +1,11 @@
-'''Daemon for running NSN Code Assistant. 
+'''Daemon for running NSN Code Assistant.
 
 TODO: Add support for running in a mode which listens on a port instead of stdin.
 
 This is strongly based on ImportMagicDaemon (MIT License).
 https://github.com/pilat/vscode-importmagic/
 '''
+import attr
 import os
 import sys
 import io
@@ -12,58 +13,71 @@ import json
 import sys
 import traceback
 
+from functools import partial
+
 from . import command_router
 from .. import nsn_logging
 
 # Disable logging since we're using stdout as our API to listeners.
 nsn_logging.send_logs_to_nowhere()
 
-class Daemon(Extension):
-  def __init__(self, daemon):
-    self._input = io.open(sys.stdin.fileno(), encoding='utf-8')
-    self._daemon = daemon
-    self.command_router = command_router.CommandRouter()
-    super(Daemon, self).__init__()
+def _create_input():
+  return io.open(sys.stdin.fileno(), encoding='utf-8')
+
+@attr.s
+class Daemon:
+  _daemon = attr.ib()
+  _input = attr.ib(factory=_create_input)
+  _output = attr.ib(sys.stdout)
+  _error_output = attr.ib(sys.stderr)
+  _command_router = attr.ib(factory=command_router.CommandRouter)
 
   def _process_request(self, request):
-    action = request.get('action')
-    cmd = commands.get_handler(action)
+    if not request[command_router.REQUEST_ID]:
+      raise ValueError('Empty request id')
+
+    command_id = request.get(command_router.COMMAND_ID)
+    cmd = self._command_router.get_handler(command_id)
     if not cmd:
-      raise ValueError('Invalid action')
-    result = cmd(self, **request)
+      raise ValueError('Invalid command_id')
+    result = cmd(**request)
     return result if isinstance(result, dict) else dict(success=True)
 
   def _error_response(self, **response):
-    sys.stderr.write(json.dumps(response))
-    sys.stderr.write('\n')
-    sys.stderr.flush()
+    self._error_output.write(json.dumps(response))
+    self._error_output.write('\n')
+    self._error_output.flush()
 
   def _success_response(self, **response):
-    sys.stdout.write(json.dumps(response))
-    sys.stdout.write('\n')
-    sys.stdout.flush()
+    self._output.write(json.dumps(response))
+    self._output.write('\n')
+    self._output.flush()
+
+  def process_input(self, raise_exception=True):
+    request_id = -1
+    try:
+      request = json.loads(self._input.readline())
+      request_id = request.get(command_router.REQUEST_ID)
+      response = self._process_request(request)
+      json_message = dict(id=request_id, **response)
+      self._success_response(**json_message)
+    except:
+      exc_type, exc_value, exc_tb = sys.exc_info()
+      tb_info = traceback.extract_tb(exc_tb)
+      json_message = dict(id=request_id,
+                          result_code=command_router.FAILED,
+                          failure_reason=str(exc_value),
+                          traceback=str(tb_info),
+                          type=str(exc_type))
+      self._error_response(**json_message)
+      if raise_exception:
+        raise
 
   def watch(self):
     while True:
       try:
-        request = json.loads(self._input.readline())
-        request_id = request.get('request_id')
-
-        if not request_id:
-          raise ValueError('Empty request id')
-
-        response = self._process_request(request)
-        json_message = dict(id=request_id, **response)
-        self._success_response(**json_message)
+        self.process_input()
       except:
-        exc_type, exc_value, exc_tb = sys.exc_info()
-        tb_info = traceback.extract_tb(exc_tb)
-        json_message = dict(error=True,
-                            id=request_id,
-                            message=str(exc_value),
-                            traceback=str(tb_info),
-                            type=str(exc_type))
-        self._error_response(**json_message)
         if not self._daemon:
           break
 

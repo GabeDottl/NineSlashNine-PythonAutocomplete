@@ -52,6 +52,7 @@ def test_build_typing_index():
 def test_add_file():
   _clean()
   initial_index = symbol_index.SymbolIndex.create_index(INDEX_PATH)
+  # initial_index.add_file('/usr/local/lib/python3.6/dist-packages/h5py/_hl/dataset.py')
   initial_index.add_file(os.path.join(TYPING_DIR, 'tests', 'test_fix_code.py'))
   initial_index.add_file(os.path.join(TYPING_DIR, 'examples', 'index_test_package', 'boo.py'))
   initial_index.save()
