@@ -19,9 +19,8 @@ class ModuleImportChange:
   deletes = attr.ib()
 
 
-def create_import_changes(source: str, changes: List[ModuleImportChange]) -> str:
+def create_import_changes(source: str, changes: List[ModuleImportChange]):
   # Otherwise, we're essentially recreating an arbitrary
-  new_source = source
   # Turn this into a dict so we can delete from it without shifting lines.
   new_source_lines = OrderedDict()
   for i, l in enumerate(source.splitlines()):
@@ -38,14 +37,14 @@ def create_import_changes(source: str, changes: List[ModuleImportChange]) -> str
     if isinstance(change.cfg_node, control_flow_graph_nodes.ImportCfgNode):
       assert not change.inserts
       assert len(change.deletes) == 1
-      deletes.append(delete(pchange.cfg_node.parse_node.get_range()))
+      deletes.append(change.cfg_node.parse_node.get_range())
       # for i in range(parso_node.start_pos[0], parso_node.end_pos[0] + 1):
       #   del new_source_lines[i - 1]
       continue
 
     if not change.inserts and len(change.deletes) == len(change.cfg_node.from_import_name_alias_dict):
       # Removing the entire from_import
-      deletes.append(delete(change.cfg_node.parse_node.get_range()))
+      deletes.append(change.cfg_node.parse_node.get_range())
       # for i in range(parso_node.start_pos[0], parso_node.end_pos[0] + 1):
       #   del new_source_lines[i - 1]
     else:

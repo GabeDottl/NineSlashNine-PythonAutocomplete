@@ -434,7 +434,7 @@ def _import_override(name, globals=None, locals=None, fromlist=(), level=0):
 
 
 def _import_from(module, module_directory, from_name):
-  info(f'from_name: {from_name}')
+  # info(f'from_name: {from_name}')
   if hasattr(module, from_name):
     return
   module_spec = module.__spec__
@@ -484,7 +484,6 @@ def _import_from(module, module_directory, from_name):
 
 
 def _import_source_module(spec):
-  info(f'spec: {spec}')
   if spec.name in sys.modules:
     curr_module = sys.modules[spec.name]
     if curr_module.__spec__.origin != spec.origin:
@@ -500,7 +499,6 @@ def _import_source_module(spec):
   if '.' in name:
     if spec.parent == spec.name:
       filename = spec.origin
-      info(f'filename: {filename}')
       if not filename:
         package_spec = None
       else:
@@ -510,12 +508,11 @@ def _import_source_module(spec):
     else:
       package_spec = _package_spec_from_module_spec(spec)
     if package_spec:
-      name_matches = _fullname_and_package_path_from_filename(package_spec.origin)[0] == package_spec.name
-      assert name_matches, "mismatch"
+      assert _fullname_and_package_path_from_filename(package_spec.origin)[0] == package_spec.name, "mismatch"
       package_module = _import_source_module(package_spec)
       if package_module:
         base_name = name[name.rfind('.') + 1:]
-        info(f'(package_module.__name__, base_name): {(package_module.__name__, base_name)}')
+        # info(f'(package_module.__name__, base_name): {(package_module.__name__, base_name)}')
         setattr(package_module, base_name, python_module)
   # if '_errors' not in spec.name:
   
@@ -525,7 +522,7 @@ def _import_source_module(spec):
   builtins.__import__ = _import_override
   sys.modules[spec.name] = python_module
 
-  info(f'spec.origin: {spec.origin}')
+  # info(f'spec.origin: {spec.origin}')
   # TODO: Swap out sys.modules.
   assert hasattr(builtins, 'IOError')
   try:
