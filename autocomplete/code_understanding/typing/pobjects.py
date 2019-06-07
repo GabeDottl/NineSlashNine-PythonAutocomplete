@@ -258,13 +258,13 @@ class UnknownObject(PObject):
     return str(self)
 
 
-def maybe_wrap_type(type_):
-  # Handle special things - like List[int], etc.
-  if isinstance(type_, typing._GenericAlias):
-    # _name, __args__....
-    # TODO.
-    pass
-  return type_
+# def maybe_wrap_type(type_):
+#   # Handle special things - like List[int], etc.
+#   if isinstance(type_, typing._GenericAlias):
+#     # _name, __args__....
+#     # TODO.
+#     pass
+#   return type_
 
 
 def is_subtype(super_type, sub_type):
@@ -280,8 +280,8 @@ class TypeOnlyObject(PObject):
   underlying_type = attr.ib()
   _dynamic_container = attr.ib(factory=DynamicContainer, init=False)
 
-  def __attrs_post_init__(self):
-    self.underlying_type = maybe_wrap_type(self.underlying_type)
+  # def __attrs_post_init__(self):
+  #   self.underlying_type = maybe_wrap_type(self.underlying_type)
 
   def has_attribute(self, name):
     # TODO: Not a perfect matchup.... How important? some dynamic attributes (e.g. set in __init__)
